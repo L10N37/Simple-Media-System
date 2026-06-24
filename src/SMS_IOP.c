@@ -47,9 +47,9 @@ extern void* _gp;
 unsigned int g_IOPFlags;
 
 #ifdef BDM
-#include <fileXio_rpc.h>
-extern unsigned char filexio_irx [];
-extern unsigned int size_filexio_irx;
+//#include <fileXio_rpc.h>
+//extern unsigned char filexio_irx [];
+//extern unsigned int size_filexio_irx;
 
 extern unsigned char bdm_irx        [];
 extern unsigned char bdmfs_fatfs_irx[];
@@ -243,8 +243,8 @@ void SMS_IOPReset ( int afExit ) {
 
 #ifdef BDM
  SifExecModuleBuffer ( &iomanx_irx, size_iomanx_irx, 0, NULL, &i );
- SifExecModuleBuffer ( &filexio_irx, size_filexio_irx, 0, NULL, &i );
- fileXioInit();
+ /*SifExecModuleBuffer ( &filexio_irx, size_filexio_irx, 0, NULL, &i );
+ fileXioInit();*/
 
  SifExecModuleBuffer ( &bdm_irx, size_bdm_irx, 0, NULL, &i );
  SifExecModuleBuffer ( &bdmfs_fatfs_irx, size_bdmfs_fatfs_irx, 0, NULL, &i );

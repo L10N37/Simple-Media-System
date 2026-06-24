@@ -43,8 +43,9 @@ ifeq ($(BDM),1)
   IRX_DIR = irx/
   IOP_OBJS = bdm_irx.o bdmfs_fatfs_irx.o usbd_irx.o usbmass_bd_irx.o sio2man_irx.o \
              mx4sio_bd_irx.o mcman_irx.o mcserv_irx.o   \
-             padman_irx.o iomanx_irx.o filexio_irx.o
-  EE_LIBS += -lmc -lpadx -lfileXio
+             padman_irx.o iomanx_irx.o
+# filexio_irx.o -lfileXio
+  EE_LIBS += -lmc -lpadx
   EE_OBJS += $(IOP_OBJS)
   EE_CFLAGS += -DBDM
 endif

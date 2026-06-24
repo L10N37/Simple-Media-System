@@ -11,9 +11,6 @@
 #include "SMS_FileContext.h"
 #include "SMS_Sounds.h"
 #include "SMS_GUI.h"
-#ifdef BDM
-#include <fileXio_rpc.h>
-#endif
 
 #include <malloc.h>
 #include <string.h>
@@ -1213,7 +1210,6 @@ typedef struct STIOFilePrivate {
 typedef struct STIOFilePrivate {
 
  int m_FD;
- int m_fXio;   /* 1 = opened via fileXio (mass:/BDM); 0 = legacy fio */
 
 } STIOFilePrivate;
 #endif  /* _WIN32 */
@@ -1225,11 +1221,6 @@ static void STIO_DestroyFileContext ( FileContext* apCtx ) {
   CloseHandle (   (  ( STIOFilePrivate* )apCtx -> m_pData  ) -> m_Ovlp.hEvent   );
 #else  /* PS2 */
   fioSetBlockMode ( FIO_WAIT );
-#ifdef BDM
-  if (  (  ( STIOFilePrivate* )apCtx -> m_pData  ) -> m_fXio  )
-   fileXioClose (   (  ( STIOFilePrivate* )apCtx -> m_pData  ) -> m_FD   );
-  else
-#endif
   fioClose (   (  ( STIOFilePrivate* )apCtx -> m_pData  ) -> m_FD   );
 #endif  /* _WIN32 */
   free ( apCtx -> m_pData      );
@@ -1296,10 +1287,6 @@ static int STIO_Seek ( FileContext* apCtx, unsigned int aPos ) {
 #ifdef _WIN32
  aPos = SetFilePointer ( lpPriv -> m_hFile, aPos, NULL, FILE_BEGIN );
 #else  /* PS2 */
-#ifdef BDM
- if ( lpPriv -> m_fXio ) aPos = fileXioLseek ( lpPriv -> m_FD, aPos, SEEK_SET );
- else
-#endif
  aPos = fioLseek ( lpPriv -> m_FD, aPos, SEEK_SET );
 #endif  /* _WIN32 */
  return aPos;
@@ -1328,11 +1315,6 @@ static int STIO_Fill ( FileContext* apCtx ) {
             )
  ) lLen = lnRead;
 #else  /* PS2 */
-#ifdef BDM
- if ( lpPriv -> m_fXio )
-  lLen = fileXioRead ( lpPriv -> m_FD, apCtx -> m_pBuff[ apCtx -> m_CurBuf ], apCtx -> m_BufSize );
- else
-#endif
  lLen = fioRead ( lpPriv -> m_FD, apCtx -> m_pBuff[ apCtx -> m_CurBuf ], apCtx -> m_BufSize );
 
  if ( lLen < 0 ) lLen = 0;
@@ -1428,32 +1410,12 @@ static int STIO_Stream ( FileContext* apCtx, unsigned int aStartPos, unsigned in
   if ( aStartPos >= apCtx -> m_Size ) return 0;
 
   apCtx -> m_BufSize = anBlocks * 4096;
-
-#ifdef BDM
-  if ( lpPriv -> m_fXio ) {
-   /* fileXio is the native BDM/IOMANX API and has no large-read limit, so stream
-    * the mass: device synchronously and single-buffered at full buffer size
-    * (no cap, no async double-buffer needed). */
-   lpData                = SMS_ReallocWithAlign(  apCtx -> m_pBuff[ 0 ], &( apCtx -> m_CurBufSize ), ( apCtx -> m_BufSize + 63 ) & ~63  );
-   apCtx -> m_pBuff[ 1 ] = SMS_ReallocWithAlign(  apCtx -> m_pBuff[ 1 ], &( apCtx -> m_CurBufSize ), ( apCtx -> m_BufSize + 63 ) & ~63  );
-
-   if ( lpData == NULL || apCtx -> m_pBuff[ 1 ] == NULL ) return 0;
-
-   apCtx -> m_pBuff[ 0 ] = lpData;
-   apCtx -> m_CurBuf     = 0;
-   apCtx -> m_CurPos     = aStartPos;
-   apCtx -> Seek         = STIO_Seek;
-   apCtx -> Fill         = STIO_Fill;
-
-   fileXioLseek ( lpPriv -> m_FD, apCtx -> m_CurPos, SEEK_SET );
-   retVal = fileXioRead ( lpPriv -> m_FD, apCtx -> m_pBuff[ 0 ], apCtx -> m_BufSize );
-
-   apCtx -> m_pPos = apCtx -> m_pBuff[ 0 ];
-   apCtx -> m_pEnd = apCtx -> m_pPos + retVal;
-
-   return retVal;
-
-  }  /* end if m_fXio */
+#ifndef _WIN32
+  /* MX4SIO/BDM: a large single read over the legacy FILEIO path hangs; cap the
+   * streaming buffer for 'mass' devices so every read stays in the working size
+   * range. Scoped to mass so HDD/CD/DVD/SMB throughput is unaffected. */
+  if ( apCtx -> m_pPath != NULL && strncmp ( apCtx -> m_pPath, "mass", 4 ) == 0 && apCtx -> m_BufSize > 4096 )
+   apCtx -> m_BufSize = 4096;
 #endif
 
   lpData                = SMS_ReallocWithAlign(  apCtx -> m_pBuff[ 0 ], &( apCtx -> m_CurBufSize ), ( apCtx -> m_BufSize + 63 ) & ~63  );
@@ -1586,12 +1548,7 @@ FileContext* STIO_InitFileContext ( const char* aFileName, void* apUnused ) {
 
  }  /* end if */
 #else  /* PS2 */
-#ifdef BDM
- int lXio = ( aFileName != NULL && strncmp ( aFileName, "mass", 4 ) == 0 );
- int lFD  = lXio ? fileXioOpen ( aFileName, O_RDONLY ) : fioOpen ( aFileName, O_RDONLY );
-#else
  int lFD = fioOpen ( aFileName, O_RDONLY );
-#endif
 
  if ( lFD >= 0 ) {
 
@@ -1606,11 +1563,7 @@ FileContext* STIO_InitFileContext ( const char* aFileName, void* apUnused ) {
 
     retVal -> m_pBuff[ 1 ] = NULL;
     retVal -> m_CurBuf     = 0;
-#ifdef BDM
-    retVal -> m_Size       = lXio ? fileXioLseek ( lFD, 0, SEEK_END ) : fioLseek ( lFD, 0, SEEK_END );
-#else
     retVal -> m_Size       = fioLseek ( lFD, 0, SEEK_END );
-#endif
     retVal -> m_BufSize    = 4096;
     retVal -> m_CurBufSize = ( 4096 + 63 ) & ~63;
     retVal -> m_Pos        = 0;
@@ -1623,9 +1576,6 @@ FileContext* STIO_InitFileContext ( const char* aFileName, void* apUnused ) {
     strcpy ( retVal -> m_pPath, aFileName );
 
     (  ( STIOFilePrivate* )retVal -> m_pData  ) -> m_FD = lFD;
-#ifdef BDM
-    (  ( STIOFilePrivate* )retVal -> m_pData  ) -> m_fXio = lXio;
-#endif
 
     retVal -> Fill    = STIO_Fill;
     retVal -> Destroy = STIO_DestroyFileContext;
@@ -1634,11 +1584,7 @@ FileContext* STIO_InitFileContext ( const char* aFileName, void* apUnused ) {
     retVal -> Stream  = STIO_Stream;
     retVal -> Open    = STIO_InitFileContext;
  
-#ifdef BDM
-    if ( lXio ) fileXioLseek ( lFD, 0, SEEK_SET ); else fioLseek ( lFD, 0, SEEK_SET );
-#else
     fioLseek ( lFD, 0, SEEK_SET );
-#endif
 
     lfSuccess = 1;
 
@@ -1660,11 +1606,7 @@ FileContext* STIO_InitFileContext ( const char* aFileName, void* apUnused ) {
 
   }  /* end if */
 
-#ifdef BDM
-  if ( lFD >= 0 ) { if ( lXio ) fileXioClose ( lFD ); else fioClose ( lFD ); }
-#else
   if ( lFD >= 0 ) fioClose ( lFD );
-#endif
 
  }  /* end if */
 #endif  /* _WIN32 */
