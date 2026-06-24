@@ -1,0 +1,275 @@
+diff --git a/iop/sio/mx4sio_bd/src/imports.lst b/iop/sio/mx4sio_bd/src/imports.lst
+index 5a24f64..9f2bd83 100644
+--- a/iop/sio/mx4sio_bd/src/imports.lst
++++ b/iop/sio/mx4sio_bd/src/imports.lst
+@@ -47,6 +47,7 @@ I_DeleteEventFlag
+ I_iSetEventFlag
+ I_ClearEventFlag
+ I_WaitEventFlag
++I_PollEventFlag
+ thevent_IMPORTS_end
+ 
+ thsemap_IMPORTS_start
+diff --git a/iop/sio/mx4sio_bd/src/mx4sio.c b/iop/sio/mx4sio_bd/src/mx4sio.c
+index e96ac3b..5e00407 100644
+--- a/iop/sio/mx4sio_bd/src/mx4sio.c
++++ b/iop/sio/mx4sio_bd/src/mx4sio.c
+@@ -26,6 +26,27 @@ static sio2_transfer_data_t global_td;
+ static uint8_t sio2_current_baud = SIO2_BAUD_DIV_SLOW;
+ static uint32_t sio2_save_crtl;
+ 
++/* Bounded spin for the SIO2 "transfer complete" status bit (stat6c bit 12).
++ *
++ * The original code spun on this bit with NO bound -- including inside the DMA
++ * completion ISR (interrupts masked) and inside the per-byte PIO helpers. If a
++ * single SIO2 transfer ever stalls (e.g. bus contention while the host polls the
++ * controller), those spins never return and lock the entire IOP -> hard freeze
++ * that no thread-level watchdog can break. A real transfer completes in
++ * microseconds, far below this cap, so bounding it only ever fires on a genuine
++ * stall, turning a permanent freeze into a recoverable error. Returns 1 on
++ * completion, 0 on timeout. */
++#define SIO2_XFER_DONE_MAX 0x10000
++static int mx_sio2_xfer_done(void)
++{
++    uint32_t guard = SIO2_XFER_DONE_MAX;
++    while ((inl_sio2_stat6c_get() & (1 << 12)) == 0) {
++        if (--guard == 0)
++            return 0;
++    }
++    return 1;
++}
++
+ /* ISR triggered by the completion of DMA transfer: SIO2 RX FIFO -> MEM */
+ int mx_sio2_dma_isr_rx(void *arg)
+ {
+@@ -36,8 +57,13 @@ int mx_sio2_dma_isr_rx(void *arg)
+     inl_sio2_stat_set(inl_sio2_stat_get());
+ 
+     /* wait for PIO portion of transfer to complete */
+-    while ((inl_sio2_stat6c_get() & (1 << 12)) == 0)
+-        ;
++    if (!mx_sio2_xfer_done()) {
++        /* SIO2 transfer stalled (e.g. bus contention): bail instead of locking
++         * the IOP forever. Signal the waiting thread so the read aborts cleanly. */
++        cmd.abort = CMD_ABORT_NO_READ_TOKEN;
++        iSetEventFlag(ef, EF_SIO2_INTR_REVERSE | EF_SIO2_INTR_COMPLETE);
++        return 1;
++    }
+ 
+ #ifdef CONFIG_USE_CRC16
+     /* get CRC16 bytes from RX FIFO */
+@@ -94,8 +120,7 @@ int mx_sio2_dma_isr_tx(void *arg)
+      * have completed the transfer prior to reaching this ISR */
+ 
+     /* wait for transfer to complete */
+-    while ((inl_sio2_stat6c_get() & (1 << 12)) == 0)
+-        ;
++    mx_sio2_xfer_done();
+ 
+     /* CRC16 not yet implemented for writes */
+     mx_sio2_write_dummy();
+@@ -249,8 +274,7 @@ uint8_t mx_sio2_write_byte(uint8_t byte)
+     inl_sio2_ctrl_set(inl_sio2_ctrl_get() | 1);
+ 
+     /* wait for completion */
+-    while ((inl_sio2_stat6c_get() & (1 << 12)) == 0)
+-        ;
++    mx_sio2_xfer_done();
+ 
+ #ifdef DEBUG_VERBOSE
+     uint8_t rx = reverse_byte_LUT8[inl_sio2_data_in()];
+@@ -288,8 +312,7 @@ uint8_t mx_sio2_write_dummy(void)
+     inl_sio2_ctrl_set(inl_sio2_ctrl_get() | 1);
+ 
+     /* wait for completion */
+-    while ((inl_sio2_stat6c_get() & (1 << 12)) == 0)
+-        ;
++    mx_sio2_xfer_done();
+ 
+ #ifdef DEBUG_VERBOSE
+     uint8_t rx = reverse_byte_LUT8[inl_sio2_data_in()];
+diff --git a/iop/sio/mx4sio_bd/src/spi_sdcard_driver.c b/iop/sio/mx4sio_bd/src/spi_sdcard_driver.c
+index 574cf06..d361041 100644
+--- a/iop/sio/mx4sio_bd/src/spi_sdcard_driver.c
++++ b/iop/sio/mx4sio_bd/src/spi_sdcard_driver.c
+@@ -429,6 +429,18 @@ static int spisd_read_multi_begin(uint32_t sector)
+     return results;
+ }
+ 
++/* Watchdog for the DMA-completion wait.
++ *
++ * The read is driven by the SIO2 DMA-completion ISR (mx_sio2_dma_isr_rx), which
++ * signals sio2_event_flag. The original code blocked on WaitEventFlag with NO
++ * timeout, so if that interrupt fails to fire -- which happens when this driver
++ * runs inside a heavily loaded host such as the SMS media player -- the read
++ * hangs forever (file-data reads freeze while small/quiet reads succeed).
++ * Replace the unbounded wait with a bounded poll: a missing interrupt then
++ * becomes a recoverable, logged error instead of a permanent freeze. */
++#define READ_WATCHDOG_POLL_US 100  /* gap between polls of the event flag        */
++#define READ_WATCHDOG_POLLS   3000 /* ~300 ms cap per wait before giving up      */
++
+ static int spisd_read_multi_do(void *buffer, uint16_t count)
+ {
+     /* setup DMA cmd struct */
+@@ -439,14 +451,37 @@ static int spisd_read_multi_do(void *buffer, uint16_t count)
+     cmd.response            = SPISD_RESULT_OK;
+     cmd.abort               = 0;
+ 
++    /* clear any stale signal bits left by a previous (e.g. timed-out) transfer */
++    ClearEventFlag(sio2_event_flag, 0);
++
+     /* start first DMA transfer */
+     mx_sio2_start_rx_dma(buffer);
+ 
+-    /* process events from DMA completion interrupt */
++    /* process events from DMA completion interrupt (bounded so it cannot hang) */
+     while (1) {
+         uint32_t resbits;
++        int      got = 0;
++        int      polls;
++
++        for (polls = 0; polls < READ_WATCHDOG_POLLS; polls++) {
++            if (PollEventFlag(sio2_event_flag,
++                              EF_SIO2_INTR_REVERSE | EF_SIO2_INTR_COMPLETE,
++                              1, &resbits) == 0) {
++                got = 1;
++                break;
++            }
++            DelayThread(READ_WATCHDOG_POLL_US);
++        }
+ 
+-        WaitEventFlag(sio2_event_flag, EF_SIO2_INTR_REVERSE | EF_SIO2_INTR_COMPLETE, 1, &resbits);
++        if (!got) {
++            /* DMA-completion interrupt never arrived: abort instead of hanging.
++             * Reuse NO_READ_TOKEN so spisd_read's existing recover/retry path
++             * handles it (card reset + bounded retries). */
++            M_DEBUG("ERROR: read watchdog timeout (%i/%i sectors)\n",
++                    cmd.sectors_transferred, cmd.sector_count);
++            cmd.abort = CMD_ABORT_NO_READ_TOKEN;
++            break;
++        }
+ 
+         if (resbits & EF_SIO2_INTR_REVERSE) {
+             ClearEventFlag(sio2_event_flag, ~EF_SIO2_INTR_REVERSE);
+@@ -577,11 +612,28 @@ static int spisd_write_multi_end()
+  * BDM interface:
+  * - BDM -> "spisd" library
+  */
++/* MX4SIO large-read hang fix.
++ *
++ * A read is interrupt-driven: the SIO2 DMA ISR re-arms the next sector from
++ * inside interrupt context, and the completion wait (WaitEventFlag) has NO
++ * timeout. A single large transfer (hundreds of sectors) therefore becomes one
++ * long, uninterruptible in-ISR re-arm chain. Under a heavily loaded IOP -- e.g.
++ * the SMS media player, where mcman/padman/usbd/SPU/audio are all resident and
++ * active -- a single late/dropped data token aborts the chain or strands the
++ * worker thread on the no-timeout wait forever. Small reads (directory listings)
++ * always worked because their chain is only 1-2 sectors.
++ *
++ * Bounding every multi-block transfer to a small batch keeps each chain short
++ * and self-terminating (the same situation as the dir reads that work), while
++ * the SIO2 lock is held across all batches so a read is still atomic w.r.t.
++ * pad/MC access. Raise SPISD_MAX_BATCH for throughput once confirmed stable. */
++#ifndef SPISD_MAX_BATCH
++#define SPISD_MAX_BATCH 32 /* sectors per multi-block transfer (16 KiB) */
++#endif
++
+ int spisd_read(struct block_device *bd, uint64_t sector, void *buffer, uint16_t count)
+ {
+-    uint16_t sectors_left = count;
+-    uint16_t results = 0;
+-    uint16_t retries = 0;
++    uint16_t total_done = 0;
+ 
+     (void)bd;
+ 
+@@ -592,43 +644,66 @@ int spisd_read(struct block_device *bd, uint64_t sector, void *buffer, uint16_t
+ 
+     mx_sio2_lock(INTR_RX);
+ 
+-    while (sectors_left > 0 && retries < MAX_RETRIES) {
++    /* split the request into small batches to bound the in-ISR re-arm chain */
++    while (total_done < count) {
+ 
+-        /* issue CMD18 to begin transfer */
+-        results = spisd_read_multi_begin((uint32_t)sector);
+-        if (results != SPISD_RESULT_OK) {
+-            M_DEBUG("ERROR: failed to start multi-block read\n");
+-            break;
+-        }
++        uint16_t batch    = count - total_done;
++        uint64_t b_sector = sector + total_done;
++        uint8_t *b_buffer = (uint8_t *)buffer + ((uint32_t)total_done * 512);
++        uint16_t sectors_left;
++        uint16_t results = 0;
++        uint16_t retries = 0;
+ 
+-        /* start reading blocks */
+-        results = spisd_read_multi_do(buffer, sectors_left);
+-        sectors_left = sectors_left - results;
++        if (batch > SPISD_MAX_BATCH)
++            batch = SPISD_MAX_BATCH;
+ 
+-        /* fail condition */
+-        if (sectors_left > 0) {
+-            buffer = (uint8_t *)buffer + (results * 512);
+-            M_DEBUG("ERROR: failed to read all sectors, read:%i, abort:%i\n", sectors_left, cmd.abort);
++        sectors_left = batch;
+ 
+-            if (cmd.abort == CMD_ABORT_NO_READ_TOKEN) {
+-                /* this can only be resolved by resetting the card */
+-                if (spisd_recover() != SPISD_RESULT_OK) {
+-                    /* if recovery fails, do not try to continue  */
+-                    break;
++        while (sectors_left > 0 && retries < MAX_RETRIES) {
++
++            /* issue CMD18 to begin transfer */
++            results = spisd_read_multi_begin((uint32_t)b_sector);
++            if (results != SPISD_RESULT_OK) {
++                M_DEBUG("ERROR: failed to start multi-block read\n");
++                break;
++            }
++
++            /* start reading blocks (capped to this batch) */
++            results = spisd_read_multi_do(b_buffer, sectors_left);
++            sectors_left = sectors_left - results;
++
++            /* fail condition */
++            if (sectors_left > 0) {
++                b_buffer = (uint8_t *)b_buffer + (results * 512);
++                b_sector = b_sector + results; /* advance sector too (was a latent bug) */
++                M_DEBUG("ERROR: failed to read all sectors, read:%i, abort:%i\n", sectors_left, cmd.abort);
++
++                if (cmd.abort == CMD_ABORT_NO_READ_TOKEN) {
++                    /* this can only be resolved by resetting the card */
++                    if (spisd_recover() != SPISD_RESULT_OK) {
++                        /* if recovery fails, do not try to continue  */
++                        break;
++                    }
+                 }
+             }
++            /* send CMD12, end transfer */
++            spisd_read_multi_end();
++
++            retries++;
+         }
+-        /* send CMD12, end transfer */
+-        spisd_read_multi_end();
+ 
+-        retries++;
++        /* this batch did not fully complete -> stop, return what we have */
++        if (sectors_left > 0)
++            break;
++
++        total_done += batch;
+     }
+ 
+     sdcard.used = 1;
+ 
+     mx_sio2_unlock(INTR_RX);
+ 
+-    return count - sectors_left;
++    return total_done;
+ }
+ 
+ int spisd_write(struct block_device *bd, uint64_t sector, const void *buffer, uint16_t count)

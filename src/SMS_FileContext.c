@@ -1374,6 +1374,8 @@ static int STIO_FillStm ( FileContext* apCtx ) {
 
 static int STIO_SeekStm ( FileContext* apCtx, unsigned int aPos ) {
 
+ { char lDbg[ 80 ]; sprintf ( lDbg, "MX seekstm %u", aPos ); GUI_Status ( lDbg ); }
+
  apCtx -> Stream ( apCtx, aPos, 0                         );
  apCtx -> Stream ( apCtx, aPos, apCtx -> m_BufSize / 4096 );
 
@@ -1410,6 +1412,13 @@ static int STIO_Stream ( FileContext* apCtx, unsigned int aStartPos, unsigned in
   if ( aStartPos >= apCtx -> m_Size ) return 0;
 
   apCtx -> m_BufSize = anBlocks * 4096;
+#ifndef _WIN32
+  /* MX4SIO/BDM: a large single read over the legacy FILEIO path hangs; cap the
+   * streaming buffer for 'mass' devices so every read stays in the working size
+   * range. Scoped to mass so HDD/CD/DVD/SMB throughput is unaffected. */
+  if ( apCtx -> m_pPath != NULL && strncmp ( apCtx -> m_pPath, "mass", 4 ) == 0 && apCtx -> m_BufSize > 4096 )
+   apCtx -> m_BufSize = 4096;
+#endif
 
   lpData                = SMS_ReallocWithAlign(  apCtx -> m_pBuff[ 0 ], &( apCtx -> m_CurBufSize ), ( apCtx -> m_BufSize + 63 ) & ~63  );
   apCtx -> m_pBuff[ 1 ] = SMS_ReallocWithAlign(  apCtx -> m_pBuff[ 1 ], &( apCtx -> m_CurBufSize ), ( apCtx -> m_BufSize + 63 ) & ~63  );
@@ -1436,10 +1445,7 @@ static int STIO_Stream ( FileContext* apCtx, unsigned int aStartPos, unsigned in
   ) retVal = lnRead;
 #else  /* PS2 */
   fioLseek ( lpPriv -> m_FD, apCtx -> m_CurPos, SEEK_SET );
-  printf ( "STIO_Stream->read()\n" );
-  printf ( "fp=%s fs=%d\n", apCtx->m_pPath, apCtx->m_Size );
-  retVal = lnRead = fioRead ( lpPriv -> m_FD, apCtx -> m_pBuff[ 0 ], apCtx -> m_BufSize ); //mx stuck here
-  printf ( "STIO_Stream->read() finshed\n" );
+  retVal = lnRead = fioRead ( lpPriv -> m_FD, apCtx -> m_pBuff[ 0 ], apCtx -> m_BufSize );
 #endif  /* _WIN32 */
   apCtx -> m_pPos = apCtx -> m_pBuff[ 0 ];
   apCtx -> m_pEnd = apCtx -> m_pPos + retVal;
