@@ -1374,8 +1374,6 @@ static int STIO_FillStm ( FileContext* apCtx ) {
 
 static int STIO_SeekStm ( FileContext* apCtx, unsigned int aPos ) {
 
- { char lDbg[ 80 ]; sprintf ( lDbg, "MX seekstm %u", aPos ); GUI_Status ( lDbg ); }
-
  apCtx -> Stream ( apCtx, aPos, 0                         );
  apCtx -> Stream ( apCtx, aPos, apCtx -> m_BufSize / 4096 );
 
