@@ -1414,17 +1414,17 @@ static void _saveipc_handler ( GUIMenu* apMenu, int aDir ) {
  strncpy ( lDir, g_pIPConf, 13 );
  lDir[ 13 ] = '\x00';
 
+#ifdef BDM
+ /* libmc reports a transient "card changed" status on the first query; retry to
+  * get the stable status so the IP config reliably saves (see _mc_get_info in
+  * SMS_Config.c). */
+ { int lTry; lRes = -1; for ( lTry = 0; lTry < 8; ++lTry ) { MC_GetInfo ( g_MCSlot, 0, &lRes, &lRes, &lRes ); MC_Sync ( &lRes ); if ( lRes >= 0 ) break; } }
+#else
  MC_GetInfo ( g_MCSlot, 0, &lRes, &lRes, &lRes );
  MC_Sync ( &lRes );
-
-#ifdef BDM
- if ( lRes > -5 ) { /* returns a value of -4 first attempt then 0 on second implying its undetected but then the same card..
-                       weird SMS_LoadConfig() is fine.. -1 then 0 (new card, same card)..(its called twice in guiinit)..
-                       _saveipc_handler() in SMS_GUIMenuSMS.c & SMS_SaveConfig() in SMS_Config.c have the same result.
-                       calling MC_GetInfo() & MC_Sync() outside of SMS_LoadConfig() returns -4 on first attempt. */
-#else
- if ( lRes > -2 ) {
 #endif
+
+ if ( lRes > -2 ) {
 
   SMS_MCTable lTbl __attribute__(   (  aligned( 64 )  )   );
 

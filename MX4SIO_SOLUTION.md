@@ -125,9 +125,9 @@ over and built on here:
 | `src/SMS_FileDir.c`, `src/SMS_GUI.c`, `src/SMS_GUIDevMenu.c` | surface the `mass:` device in the browser/device menu |
 | `include/SMS.h`, `src/SMS_GUIMenuSMS.c`, `src/SMS_History.c`, `src/SMS_Config.c` | supporting glue for the libmc/libpad switch |
 
-> Note: `src/SMS_Config.c` / `src/SMS_GUIMenuSMS.c` contain a **memory-card
-> detection workaround** (loosened `MC_GetInfo` threshold) introduced by the
-> sio2man swap. It is a known rough edge — see §8.
+> Note: the sio2man swap moved the memory card onto `libmc`; an early
+> fixed-threshold detection workaround there is now replaced with a proper fix —
+> see **B3** below.
 
 ### Part B — Our fixes
 
@@ -167,6 +167,16 @@ the RAM pressure no longer produces a hard lock; if HDD+network+MX4SIO cannot al
 co-reside on a given console, the planned follow-up is lazy-loading each storage
 stack on demand. See §8.)*
 
+**B3. Settings save/load — memory-card detection on libmc** — `src/SMS_Config.c`, `src/SMS_GUIMenuSMS.c`
+The sio2man swap moved the memory card onto `libmc`, whose `mcGetInfo` returns a
+transient "card changed" status on the first query after init (the legacy custom
+MC driver tolerated a single query). A single query therefore intermittently
+looked like "no card" and **skipped config save/load**. Fixed by retrying
+`mcGetInfo`/`mcSync` until the status stabilises (`_mc_get_info()` in
+`SMS_Config.c`, and the same retry in `_saveipc_handler`), replacing the earlier
+fixed-threshold workaround. SMS settings and the IP-config now save and load
+reliably.
+
 ---
 
 ## 6. Build & reproduce
@@ -201,12 +211,10 @@ Honest list for the reviewer:
 1. **HDD + network coexistence** with MX4SIO is being finalized; if a console
    can't hold all stacks in IOP RAM at once, the fix is lazy-loading storage
    modules on demand rather than all at boot.
-2. **Memory-card detection** carries a threshold workaround from the sio2man swap
-   (`SMS_Config.c`/`SMS_GUIMenuSMS.c`); to be replaced with a proper fix.
-3. **SMB** is unrelated to MX4SIO and remains the legacy SMBv1 stack (broken
+2. **SMB** is unrelated to MX4SIO and remains the legacy SMBv1 stack (broken
    against modern Windows/Samba); modernizing it (libsmb2 / smbman) is separate
    future work.
-4. **Throughput headroom:** the 4 KB cap is a simple, robust fix and is smooth in
+3. **Throughput headroom:** the 4 KB cap is a simple, robust fix and is smooth in
    testing. Routing `mass:` I/O through `fileXio` (the native BDM API, no
    read-size limit) would lift the cap entirely — an optional future improvement,
    exactly the "replace fioxxx by fileXioxxx" path the original author suggested.

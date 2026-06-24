@@ -178,6 +178,28 @@ void SMS_LoadPalette ( void ) {
 
 }  /* end SMS_LoadPalette */
 
+#ifdef BDM
+/* libmc's mcGetInfo reports a transient "card changed" status (a negative value)
+ * on the first call after init; a second call returns the stable status. The
+ * legacy custom MC driver tolerated a single query, but on libmc a single query
+ * intermittently looked like "no card" and skipped config save/load. Retry until
+ * the status stabilises so settings reliably persist. Returns 0 when the card is
+ * present and usable. */
+static int _mc_get_info ( void ) {
+
+ int lRes = -1, i;
+
+ for ( i = 0; i < 8; ++i ) {
+  MC_GetInfo ( g_MCSlot, 0, &lRes, &lRes, &lRes );
+  MC_Sync ( &lRes );
+  if ( lRes >= 0 ) break;
+ }  /* end for */
+
+ return lRes;
+
+}  /* end _mc_get_info */
+#endif  /* BDM */
+
 int SMS_LoadConfig ( void  ) {
 
  int retVal = 0;
@@ -259,9 +281,12 @@ int SMS_LoadConfig ( void  ) {
  SMS_ListPushBack (  g_Config.m_pSkinList = SMS_ListInit (), g_EmptyStr  );
  SMS_ListPushBack (  g_Config.m_pMBFList  = SMS_ListInit (), g_EmptyStr  );
 
+#ifdef BDM
+ lRes = _mc_get_info ();
+#else
  MC_GetInfo ( g_MCSlot, 0, &lRes, &lRes, &lRes );
  MC_Sync ( &lRes );
- printf("lRes=%d!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n", lRes);
+#endif
 
  if ( lRes > -2 ) {
 
@@ -323,17 +348,14 @@ int SMS_SaveConfig ( void ) {
  int retVal = 0;
  int lRes;
 
+#ifdef BDM
+ lRes = _mc_get_info ();
+#else
  MC_GetInfo ( g_MCSlot, 0, &lRes, &lRes, &lRes );
  MC_Sync ( &lRes );
- printf("lRes=%d!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n", lRes);
-#ifdef BDM
- if ( lRes > -5 ) { /* returns a value of -4 first attempt then 0 on second implying its undetected but then the same card..
-                       weird SMS_LoadConfig() is fine.. -1 then 0 (new card, same card)..(its called twice in guiinit)..
-                       _saveipc_handler() in SMS_GUIMenuSMS.c & SMS_SaveConfig() in SMS_Config.c have the same result.
-                       calling MC_GetInfo() & MC_Sync() outside of SMS_LoadConfig() returns -4 on first attempt. */
-#else
- if ( lRes > -2 ) {
 #endif
+
+ if ( lRes > -2 ) {
 
   SMS_MCTable lDir __attribute__(   (  aligned( 64 )  )   );
 
