@@ -47,6 +47,10 @@ extern void* _gp;
 unsigned int g_IOPFlags;
 
 #ifdef BDM
+int g_dbgIoLoad = -99, g_dbgFxLoad = -99, g_dbgFxMod = -99;  /* DBG: iomanx/filexio load results */
+#endif
+
+#ifdef BDM
 #include <fileXio_rpc.h>
 extern unsigned char filexio_irx [];
 extern unsigned int size_filexio_irx;
@@ -242,8 +246,9 @@ void SMS_IOPReset ( int afExit ) {
  SifExecModuleBuffer ( &g_DataBuffer[ SMS_SMSUTILS_OFFSET ], SMS_SMSUTILS_SIZE, 0, NULL, &i );
 
 #ifdef BDM
- SifExecModuleBuffer ( &iomanx_irx, size_iomanx_irx, 0, NULL, &i );
- SifExecModuleBuffer ( &filexio_irx, size_filexio_irx, 0, NULL, &i );
+ g_dbgIoLoad = SifExecModuleBuffer ( &iomanx_irx, size_iomanx_irx, 0, NULL, &i );
+ g_dbgFxLoad = SifExecModuleBuffer ( &filexio_irx, size_filexio_irx, 0, NULL, &i );
+ g_dbgFxMod  = i;
  fileXioInit();
 
  SifExecModuleBuffer ( &bdm_irx, size_bdm_irx, 0, NULL, &i );
