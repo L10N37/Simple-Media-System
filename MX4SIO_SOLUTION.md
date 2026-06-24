@@ -70,14 +70,23 @@ timeout can break. (We proved the freeze was *here* and not in the higher-level
 wait: bounding the thread-side `WaitEventFlag` did not stop it; bounding the
 ISR-side spins did.)
 
-### Bug 2 — IOP RAM exhaustion when the HDD + network stacks co-load
+### Bug 2 — IOP memory pressure (SUSPECTED, not confirmed)
 SMS auto-loads the full HDD stack (`PS2ATAD`/`PS2HDD`/`PS2FS` — `PS2FS` alone
 asks for ~40–48 buffers) and the network stack (`PS2IP` ~67 KB + `SMAP`) at boot.
 Co-resident with the BDM stack (`bdm`, `bdmfs_fatfs` ~36 KB, `iomanx`,
-`mx4sio_bd`, `usbmass_bd`, `sio2man`) plus `mcman`/`padman`/`audsrv`, the **2 MB
-IOP runs out of memory**, and the first large read locks instead of failing
-cleanly. Removing the HDD/network stacks turned the hard freeze into a recoverable
-soft hang — confirming RAM pressure was a contributor to the *hard* lock.
+`mx4sio_bd`, `usbmass_bd`, `sio2man`) plus `mcman`/`padman`/`audsrv`, the 2 MB IOP
+is tight.
+
+**Caveat / honesty:** during debugging, removing the HDD/network stacks turned a
+*hard* freeze (on the MP3 path) into a recoverable *soft* hang, which I attributed
+to RAM pressure. But that observation predates the real read fix (Bug 3). It is
+entirely possible the hard freeze was simply the read bug manifesting worse under
+memory pressure, and that with the read capped, **HDD + network coexist fine**.
+This has **not** been independently confirmed — the current build restores
+HDD/network, and re-testing them with the read fix in place is the deciding
+experiment. If they hard-lock, the fix is lazy-loading each storage stack on
+demand; if they don't, this "bug" was a red herring and only Bugs 1 and 3 were
+real. Treat this item as suspected, pending that test.
 
 ### Bug 3 (the wall) — the legacy `fio` path can't do large reads on BDM
 With the lock and RAM issues handled, one wall remained: a **large single
@@ -162,10 +171,18 @@ if ( apCtx -> m_pPath != NULL && strncmp ( apCtx -> m_pPath, "mass", 4 ) == 0 &&
 The cap is scoped to `mass:` by inspecting the file path, so HDD/CD/DVD/SMB are
 completely unaffected. Playback at 4 KB is smooth in testing.
 
-*(Bug 2 — IOP RAM — is addressed operationally: with the bounded driver in place
-the RAM pressure no longer produces a hard lock; if HDD+network+MX4SIO cannot all
-co-reside on a given console, the planned follow-up is lazy-loading each storage
-stack on demand. See §8.)*
+**Fix vs. workaround (honest):** the driver changes (B1) are *fixes* — they correct
+genuine defects (unbounded loops that can hang any caller). The 4 KB cap is a
+*workaround*: it avoids the legacy FILEIO path's large-read failure rather than
+curing it. The real fix is to route `mass:` I/O through **`fileXio`** (the native
+BDM/IOMANX API, which has no such read-size limit) — exactly the "replace fioxxx by
+fileXioxxx" path the original author flagged. The cap was chosen because it is
+small, safe, and plays smoothly; the fileXio conversion is the recommended
+follow-up to make it a true fix (and would lift the cap entirely).
+
+*(Bug 2 — IOP memory — is moot in practice with the bounded driver + read cap in
+place; whether HDD+network can co-reside with MX4SIO is pending the re-test noted
+under Bug 2 above. If they can't, lazy-loading is the fix. See §8.)*
 
 **B3. Settings save/load — memory-card detection on libmc** — `src/SMS_Config.c`, `src/SMS_GUIMenuSMS.c`
 The sio2man swap moved the memory card onto `libmc`, whose `mcGetInfo` returns a
