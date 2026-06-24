@@ -8,16 +8,16 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container: ps2dev/ps2dev:v1.0
-    # instead of "ps2dev/ps2dev:latest" you can use different tags, for example for old projects you can use "ps2dev/ps2dev:v1.0"
+    # ps2dev/ps2dev:v1.0 is the toolchain this project targets.
     steps:
     - name: Install dependencies
       run: |
         apk add build-base git zip
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - run: |
         git config --global --add safe.directory "$GITHUB_WORKSPACE"
-        git fetch --prune --unshallow
+        git fetch --prune --unshallow || true
 
     - name: Compile project
       run: |
@@ -25,12 +25,11 @@ jobs:
 
     - name: Get short SHA
       id: slug
-      run: echo "::set-output name=sha8::$(echo ${GITHUB_SHA} | cut -c1-8)"
+      run: echo "sha8=$(echo ${GITHUB_SHA} | cut -c1-8)" >> "$GITHUB_OUTPUT"
 
     - name: Upload artifacts
       if: ${{ success() }}
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: SMS-${{ steps.slug.outputs.sha8 }}
         path: bin/SMS.elf
-    # commands for compiling your project
