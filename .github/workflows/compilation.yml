@@ -7,21 +7,17 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: ps2dev/ps2dev:v1.0
-    # ps2dev/ps2dev:v1.0 is the toolchain this project targets.
+    # NOTE: we do NOT run the job *inside* the ps2dev container, because modern
+    # GitHub Actions run their JS (checkout/upload-artifact) on Node, which the
+    # old Alpine musl in ps2dev/ps2dev:v1.0 can't load. Instead we check out on
+    # the host and run only the build inside the toolchain container.
     steps:
-    - name: Install dependencies
-      run: |
-        apk add build-base git zip
-
     - uses: actions/checkout@v4
-    - run: |
-        git config --global --add safe.directory "$GITHUB_WORKSPACE"
-        git fetch --prune --unshallow || true
 
-    - name: Compile project
+    - name: Build (ps2dev v1.0 toolchain)
       run: |
-        make all --trace
+        docker run --rm -v "$PWD":/src -w /src ps2dev/ps2dev:v1.0 \
+          sh -c 'apk add --no-cache build-base git zip && make all'
 
     - name: Get short SHA
       id: slug
