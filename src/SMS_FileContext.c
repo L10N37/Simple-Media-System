@@ -13,7 +13,13 @@
 #include "SMS_GUI.h"
 #ifdef BDM
 #include <fileXio_rpc.h>
-#include <stdio.h>   /* DBG: sprintf for on-screen fileXio diagnostics */
+/* mass: (MX4SIO/BDM) reads are issued to the device in chunks no larger than this.
+ * A single large read stalls in the bdmfs/fileXio large-transfer path under the
+ * loaded SMS IOP; the mx4sio driver reliably services one block transfer of this
+ * size per read, so larger reads are split into MX4SIO_RD_CHUNK-sized pieces.
+ * 4 KiB (one 8-sector driver batch) is the largest size confirmed stable on
+ * hardware -- 8/16/32 KiB single reads stall. */
+#define MX4SIO_RD_CHUNK 4096
 #endif
 
 #include <malloc.h>
@@ -1298,10 +1304,8 @@ static int STIO_Seek ( FileContext* apCtx, unsigned int aPos ) {
  aPos = SetFilePointer ( lpPriv -> m_hFile, aPos, NULL, FILE_BEGIN );
 #else  /* PS2 */
 #ifdef BDM
- if ( lpPriv -> m_fXio ) {
-  char _dbg[ 64 ]; sprintf ( _dbg, "DBG S: seek %u...", aPos ); GUI_Status ( _dbg );
-  aPos = fileXioLseek ( lpPriv -> m_FD, aPos, SEEK_SET );
- } else
+ if ( lpPriv -> m_fXio ) aPos = fileXioLseek ( lpPriv -> m_FD, aPos, SEEK_SET );
+ else
 #endif
  aPos = fioLseek ( lpPriv -> m_FD, aPos, SEEK_SET );
 #endif  /* _WIN32 */
@@ -1333,17 +1337,16 @@ static int STIO_Fill ( FileContext* apCtx ) {
 #else  /* PS2 */
 #ifdef BDM
  if ( lpPriv -> m_fXio ) {
-  char _dbg[ 64 ];
+  /* mass: large reads stall in the bdmfs/fileXio transfer path; issue them to the
+   * device in driver-safe MX4SIO_RD_CHUNK pieces (see note at top of file). */
   int _tot = 0, _want = apCtx -> m_BufSize, _n;
-  sprintf ( _dbg, "DBG E: chunk fill %d...", _want ); GUI_Status ( _dbg );
   while ( _tot < _want ) {
-   int _chunk = _want - _tot; if ( _chunk > 4096 ) _chunk = 4096;
+   int _chunk = _want - _tot; if ( _chunk > MX4SIO_RD_CHUNK ) _chunk = MX4SIO_RD_CHUNK;
    _n = fileXioRead ( lpPriv -> m_FD, ( char* )apCtx -> m_pBuff[ apCtx -> m_CurBuf ] + _tot, _chunk );
    if ( _n <= 0 ) break;
    _tot += _n;
   }
   lLen = _tot;
-  sprintf ( _dbg, "DBG F: fill got=%d", lLen ); GUI_Status ( _dbg );
  } else
 #endif
  lLen = fioRead ( lpPriv -> m_FD, apCtx -> m_pBuff[ apCtx -> m_CurBuf ], apCtx -> m_BufSize );
@@ -1426,7 +1429,8 @@ static int STIO_Stream ( FileContext* apCtx, unsigned int aStartPos, unsigned in
   );
 #else  /* PS2 */
 #ifdef BDM
-  { char _dbg[ 64 ]; sprintf ( _dbg, "DBG I: reset fXio=%d", lpPriv -> m_fXio ); GUI_Status ( _dbg ); }
+  /* mass: uses synchronous fileXio reads -- no async fio op is pending, so skip
+   * the fio sync/blockmode reset (it can stall after heavy use on fileXio fds). */
   if ( !lpPriv -> m_fXio )
 #endif
   { fioSync ( FIO_WAIT, &lnRead ); fioSetBlockMode ( FIO_WAIT ); }
@@ -1461,19 +1465,17 @@ static int STIO_Stream ( FileContext* apCtx, unsigned int aStartPos, unsigned in
    apCtx -> Seek         = STIO_Seek;
    apCtx -> Fill         = STIO_Fill;
 
-   { char _dbg[ 64 ]; sprintf ( _dbg, "DBG G: chunk stream %d...", apCtx -> m_BufSize ); GUI_Status ( _dbg ); }
    fileXioLseek ( lpPriv -> m_FD, apCtx -> m_CurPos, SEEK_SET );
    {
     int _tot = 0, _want = apCtx -> m_BufSize, _n;
     while ( _tot < _want ) {
-     int _chunk = _want - _tot; if ( _chunk > 4096 ) _chunk = 4096;
+     int _chunk = _want - _tot; if ( _chunk > MX4SIO_RD_CHUNK ) _chunk = MX4SIO_RD_CHUNK;
      _n = fileXioRead ( lpPriv -> m_FD, ( char* )apCtx -> m_pBuff[ 0 ] + _tot, _chunk );
      if ( _n <= 0 ) break;
      _tot += _n;
     }
     retVal = _tot;
    }
-   { char _dbg[ 64 ]; sprintf ( _dbg, "DBG H: stream got=%d", retVal ); GUI_Status ( _dbg ); }
 
    apCtx -> m_pPos = apCtx -> m_pBuff[ 0 ];
    apCtx -> m_pEnd = apCtx -> m_pPos + retVal;
@@ -1615,14 +1617,7 @@ FileContext* STIO_InitFileContext ( const char* aFileName, void* apUnused ) {
 #else  /* PS2 */
 #ifdef BDM
  int lXio = ( aFileName != NULL && strncmp ( aFileName, "mass", 4 ) == 0 );
- int lFD;
- if ( lXio ) {
-  char _dbg[ 64 ];
-  { extern int g_dbgIoLoad, g_dbgFxLoad, g_dbgFxMod;
-    sprintf ( _dbg, "DBG A io=%d fx=%d m=%d", g_dbgIoLoad, g_dbgFxLoad, g_dbgFxMod ); GUI_Status ( _dbg ); }
-  lFD = fileXioOpen ( aFileName, O_RDONLY );
-  sprintf ( _dbg, "DBG B: open fd=%d", lFD ); GUI_Status ( _dbg );
- } else lFD = fioOpen ( aFileName, O_RDONLY );
+ int lFD  = lXio ? fileXioOpen ( aFileName, O_RDONLY ) : fioOpen ( aFileName, O_RDONLY );
 #else
  int lFD = fioOpen ( aFileName, O_RDONLY );
 #endif
@@ -1641,12 +1636,7 @@ FileContext* STIO_InitFileContext ( const char* aFileName, void* apUnused ) {
     retVal -> m_pBuff[ 1 ] = NULL;
     retVal -> m_CurBuf     = 0;
 #ifdef BDM
-    if ( lXio ) {
-     char _dbg[ 64 ];
-     sprintf ( _dbg, "DBG C: lseek END..." ); GUI_Status ( _dbg );
-     retVal -> m_Size = fileXioLseek ( lFD, 0, SEEK_END );
-     sprintf ( _dbg, "DBG D: size=%d", retVal -> m_Size ); GUI_Status ( _dbg );
-    } else retVal -> m_Size = fioLseek ( lFD, 0, SEEK_END );
+    retVal -> m_Size = lXio ? fileXioLseek ( lFD, 0, SEEK_END ) : fioLseek ( lFD, 0, SEEK_END );
 #else
     retVal -> m_Size       = fioLseek ( lFD, 0, SEEK_END );
 #endif
