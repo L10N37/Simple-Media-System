@@ -247,6 +247,12 @@ static int GUIDevMenu_HandleMount ( GUIDevMenu* apMenu, unsigned int aMount, u64
   SMS_ListPushBack ( lpList, lDevName ) -> m_Param = ( unsigned int )lpItem;
 
   lpItem -> m_DevID     = lDevID;
+#ifdef BDM
+  {
+   extern unsigned int g_Mx4sioMask;
+   if (  lDevID == 0 && ( g_Mx4sioMask & ( 1 << lpItem -> m_UnitID ) )  ) lpItem -> m_DevID = 7;
+  }
+#endif
   lpItem -> m_XOffset   = apMenu -> m_XOffset + 54 * ( lpList -> m_Size - 1 );
   lpItem -> m_pGSPacket = SMS_SyncMalloc ( 256 );
 
@@ -293,7 +299,11 @@ static int GUIDevMenu_HandleMount ( GUIDevMenu* apMenu, unsigned int aMount, u64
 
    _DevMenuItem* lpItem = ( _DevMenuItem* )( unsigned int )lpNode -> m_Param;
 
+#ifdef BDM
+   if (  lpItem -> m_DevID == lDevID || ( lDevID == 0 && lpItem -> m_DevID == 7 )  ) {
+#else
    if ( lpItem -> m_DevID == lDevID ) {
+#endif
 
     if (   lDevID == 0 && lpItem -> m_UnitID != (  ( aMsg >> 56 ) & 15  )   ) goto next;
 

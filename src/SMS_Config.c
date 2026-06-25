@@ -208,7 +208,7 @@ int SMS_LoadConfig ( void  ) {
  g_Config.m_BrowserABCIdx    = 16;
  g_Config.m_BrowserIBCIdx    = 13;
  g_Config.m_BrowserTxtIdx    = 15;
- g_Config.m_NetworkFlags     = SMS_DF_AUTO_HDD;
+ g_Config.m_NetworkFlags     = SMS_DF_AUTO_HDD | SMS_DF_AUTO_MX4SIO;
  g_Config.m_PlayerVolume     = 12;
  g_Config.m_PlayerAC3RL      =  6;
  g_Config.m_DisplayMode      = GSVideoMode_Default;

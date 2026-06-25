@@ -1347,12 +1347,12 @@ static int s_SizeMiscIcons[ 12 ] __attribute__(   (  section( ".data" )  )   ) =
 
 static unsigned char* s_pBrowserDevIcons[ 8 ] __attribute__(   (  section( ".data" )  )   ) = {
  s_IconUSB,  s_IconCDROM, s_IconHDD, s_IconCDDA,
- s_IconHost, s_IconDVD,   s_IconSMB, s_IconDVD
+ s_IconHost, s_IconDVD,   s_IconSMB, s_IconCDDA
 };
 
 static int s_SizeBrowserDevIcons[ 8 ] __attribute__(   (  section( ".data" )  )   ) = {
  sizeof ( s_IconUSB  ), sizeof ( s_IconCDROM ), sizeof ( s_IconHDD ), sizeof ( s_IconCDDA ),
- sizeof ( s_IconHost ), sizeof ( s_IconDVD   ), sizeof ( s_IconSMB ), sizeof ( s_IconDVD  )
+ sizeof ( s_IconHost ), sizeof ( s_IconDVD   ), sizeof ( s_IconSMB ), sizeof ( s_IconCDDA )
 };
 
 static void*  s_BrowserFileIcons  [ 18 ];

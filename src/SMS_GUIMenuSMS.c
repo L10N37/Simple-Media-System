@@ -67,9 +67,15 @@ static void _lang_handler     ( GUIMenu*, int );
 static void _cntslot_handler  ( GUIMenu*, int );
 static void _autonet_handler  ( GUIMenu*, int );
 static void _autousb_handler  ( GUIMenu*, int );
+#ifdef BDM
+static void _automx4sio_handler ( GUIMenu*, int );
+#endif
 static void _autohdd_handler  ( GUIMenu*, int );
 static void _startnet_handler ( GUIMenu*, int );
 static void _startusb_handler ( GUIMenu*, int );
+#ifdef BDM
+static void _startmx4sio_handler ( GUIMenu*, int );
+#endif
 static void _starthdd_handler ( GUIMenu*, int );
 static void _editipc_handler  ( GUIMenu*, int );
 static void _cdvd_handler     ( GUIMenu*, int );
@@ -184,6 +190,24 @@ static GUIMenuItem s_AdvDispMenu[] __attribute__(   (  section( ".data" )  )   )
  {                   0, &STR_APPLY_SETTINGS,     0, 0, _apply_handler,  0, 0 }
 };
 
+#ifdef BDM
+static char s_pAutoMX4SIO [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart MX4SIO";
+static char s_pStartMX4SIO[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start MX4SIO support";
+static SMString s_StrAutoMX4SIO  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoMX4SIO  ) - 1, s_pAutoMX4SIO  };
+static SMString s_StrStartMX4SIO __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartMX4SIO ) - 1, s_pStartMX4SIO };
+
+static GUIMenuItem s_DevMenu[ 13 ] __attribute__(   (  section( ".data" )  )   ) = {
+ {                   0, &STR_NETWORK_SETTINGS,    0, 0, _network_handler,    0, 0 },
+ { MENU_ITEM_TYPE_TEXT, &STR_CONTROLLER_SLOT2,    0, 0, _cntslot_handler,    0, 0 },
+ {                   0, &STR_AUTOSTART_NETWORK,   0, 0, _autonet_handler,    0, 0 },
+ {                   0, &STR_AUTOSTART_USB,       0, 0, _autousb_handler,    0, 0 },
+ {                   0, &s_StrAutoMX4SIO,         0, 0, _automx4sio_handler, 0, 0 },
+ {                   0, &STR_AUTOSTART_HDD,       0, 0, _autohdd_handler,    0, 0 },
+ {                   0, &STR_DISABLE_CDVD,        0, 0, _cdvd_handler,       0, 0 },
+ { MENU_ITEM_TYPE_TEXT, &STR_CDVD_SPEED,          0, 0, _cdvd_spd_handler,   0, 0 },
+ { MENU_ITEM_TYPE_TEXT, &STR_DIRECTIONAL_BUTTONS, 0, 0, _dirbtn_handler,     0, 0 }
+};
+#else
 static GUIMenuItem s_DevMenu[ 11 ] __attribute__(   (  section( ".data" )  )   ) = {
  {                   0, &STR_NETWORK_SETTINGS,    0, 0, _network_handler,  0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_CONTROLLER_SLOT2,    0, 0, _cntslot_handler,  0, 0 },
@@ -194,6 +218,7 @@ static GUIMenuItem s_DevMenu[ 11 ] __attribute__(   (  section( ".data" )  )   )
  { MENU_ITEM_TYPE_TEXT, &STR_CDVD_SPEED,          0, 0, _cdvd_spd_handler, 0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_DIRECTIONAL_BUTTONS, 0, 0, _dirbtn_handler,   0, 0 }
 };
+#endif
 
 static GUIMenuItem s_IPCMenu[] __attribute__(   (  section( ".data" )  )   ) = {
  { MENU_ITEM_TYPE_TEXT, &STR_PS2_IP1,           0, 0, _ip1_handler,     0, 0 },
@@ -498,7 +523,11 @@ static SMString* s_Speeds[ 3 ] = {
 static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
  GUIMenuState* lpState = GUI_MenuPushState ( apMenu );
+#ifdef BDM
+ unsigned int  lSize   = 8;
+#else
  unsigned int  lSize   = 7;
+#endif
 
  if ( g_Config.m_NetworkFlags & SMS_DF_GAMEPAD )
   s_DevMenu[ 1 ].m_IconRight = ( unsigned int )&STR_GAMEPAD;
@@ -508,10 +537,18 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
  s_DevMenu[ 2 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_NET ? GUICON_ON   : GUICON_OFF;
  s_DevMenu[ 3 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_USB ? GUICON_ON   : GUICON_OFF;
+#ifdef BDM
+ s_DevMenu[ 4 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_MX4SIO ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[ 5 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD ? GUICON_ON   : GUICON_OFF;
+ s_DevMenu[ 6 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_CDVD     ? GUICON_ON   : GUICON_OFF;
+ s_DevMenu[ 7 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed ];
+ s_DevMenu[ 8 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );
+#else
  s_DevMenu[ 4 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD ? GUICON_ON   : GUICON_OFF;
  s_DevMenu[ 5 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_CDVD     ? GUICON_ON   : GUICON_OFF;
  s_DevMenu[ 6 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed ];
  s_DevMenu[ 7 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );
+#endif
 
  if ( g_IOPFlags & SMS_IOPF_DEV9_IS ) {
 
@@ -533,6 +570,15 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
   s_DevMenu[   lSize ].Handler       = _startusb_handler;
 
  }  /* end if */
+
+#ifdef BDM
+ if (  !( g_IOPFlags & SMS_IOPF_MX4SIO )  ) {
+
+  s_DevMenu[ ++lSize ].m_pOptionName = &s_StrStartMX4SIO;
+  s_DevMenu[   lSize ].Handler       = _startmx4sio_handler;
+
+ }  /* end if */
+#endif
 
  lpState -> m_pItems =
  lpState -> m_pFirst =
@@ -1101,9 +1147,21 @@ static void _autousb_handler ( GUIMenu* apMenu, int aDir ) {
 
 }  /* end _autousb_handler */
 
+#ifdef BDM
+static void _automx4sio_handler ( GUIMenu* apMenu, int aDir ) {
+
+ _switch_flag ( apMenu, 4, &g_Config.m_NetworkFlags, SMS_DF_AUTO_MX4SIO );
+
+}  /* end _automx4sio_handler */
+#endif
+
 static void _autohdd_handler ( GUIMenu* apMenu, int aDir ) {
 
+#ifdef BDM
+ _switch_flag ( apMenu, 5, &g_Config.m_NetworkFlags, SMS_DF_AUTO_HDD );
+#else
  _switch_flag ( apMenu, 4, &g_Config.m_NetworkFlags, SMS_DF_AUTO_HDD );
+#endif
 
 }  /* end _autohdd_handler */
 
@@ -1138,6 +1196,14 @@ static void _startusb_handler ( GUIMenu* apMenu, int aDir ) {
  _start_device ( apMenu, SMS_IOPStartUSB );
 
 }  /* end _startusb_handler */
+
+#ifdef BDM
+static void _startmx4sio_handler ( GUIMenu* apMenu, int aDir ) {
+
+ _start_device ( apMenu, SMS_IOPStartMX4SIO );
+
+}  /* end _startmx4sio_handler */
+#endif
 
 static void _starthdd_handler ( GUIMenu* apMenu, int aDir ) {
 
@@ -1217,7 +1283,11 @@ static void _editipc_handler ( GUIMenu* apMenu, int aDir ) {
 
 static void _cdvd_handler ( GUIMenu* apMenu, int aDir ) {
 
+#ifdef BDM
+ _switch_flag ( apMenu, 6, &g_Config.m_NetworkFlags, SMS_DF_CDVD );
+#else
  _switch_flag ( apMenu, 5, &g_Config.m_NetworkFlags, SMS_DF_CDVD );
+#endif
 
 }  /* end _cdvd_handler */
 
@@ -1229,7 +1299,11 @@ static void _cdvd_spd_handler ( GUIMenu* apMenu, int aDir ) {
   lSpeed = 2;
  else if ( lSpeed > 2 ) lSpeed = 0;
 
+#ifdef BDM
+ s_DevMenu[ 7 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed = lSpeed ];
+#else
  s_DevMenu[ 6 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed = lSpeed ];
+#endif
  apMenu -> Redraw ( apMenu );
  CDVD_SetSpeed ();
 
@@ -1238,7 +1312,11 @@ static void _cdvd_spd_handler ( GUIMenu* apMenu, int aDir ) {
 static void _dirbtn_handler ( GUIMenu* apMenu, int aDir ) {
 
  g_Config.m_BrowserFlags ^= SMS_BF_DIRB;
+#ifdef BDM
+ s_DevMenu[ 8 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );
+#else
  s_DevMenu[ 7 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );
+#endif
  apMenu -> Redraw ( apMenu );
 
  SMS_SetDirButtons ();

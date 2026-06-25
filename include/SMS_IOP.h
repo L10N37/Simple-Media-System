@@ -24,6 +24,7 @@
 #define SMS_IOPF_EURO     0x00000400
 #define SMS_IOPF_DEV9_IS  0x00000800
 #define SMS_IOPF_UMS      0x00001000
+#define SMS_IOPF_MX4SIO   0x00002000
 
 #define SMS_SIF_CMD_SMB_CONNECT    0
 #define SMS_SIF_CMD_USB_CONNECT    1
@@ -33,6 +34,7 @@
 #define SMS_SIF_CMD_POWEROFF       5
 
 extern unsigned int g_IOPFlags;
+extern unsigned int g_Mx4sioMask;
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,6 +45,7 @@ void SMS_IOPInit             ( void                                   );
 void SMS_IOPSetSifCmdHandler (  void ( *apFunc ) ( void* ), int aCmd  );
 int  SMS_IOPStartNet         ( int                                    );
 int  SMS_IOPStartUSB         ( int                                    );
+int  SMS_IOPStartMX4SIO      ( int                                    );
 int  SMS_IOPStartHDD         ( int                                    );
 void SMS_IOPSetXLT           ( void                                   );
 int  SMS_IOCtl               ( const char*, int, void*                );

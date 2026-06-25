@@ -47,6 +47,10 @@ extern void* _gp;
 unsigned int g_IOPFlags;
 
 #ifdef BDM
+unsigned int g_Mx4sioMask;
+#endif
+
+#ifdef BDM
 #include <fileXio_rpc.h>
 extern unsigned char filexio_irx [];
 extern unsigned int size_filexio_irx;
@@ -385,8 +389,6 @@ int SMS_IOPStartUSB ( int afStatus ) {
  SifExecModuleBuffer ( &usbmass_bd_irx, size_usbmass_bd_irx, 0, NULL, &i );
  g_IOPFlags |= SMS_IOPF_UMS;
 
- SifExecModuleBuffer ( &mx4sio_bd_irx, size_mx4sio_bd_irx, 0, NULL, &i ); //comment to stop polling
-
  // give the modules a few seconds to load
  for ( i = 0; i < 5; i++ ) {
   ret = 0x01000000;
@@ -435,6 +437,44 @@ int SMS_IOPStartUSB ( int afStatus ) {
  return g_IOPFlags & SMS_IOPF_USB;
 
 }  /* end SMS_IOPStartUSB */
+
+#ifdef BDM
+int SMS_IOPStartMX4SIO ( int afStatus ) {
+
+ static const unsigned int lBit[ 4 ] = { 0x00000002, 0x00000800, 0x00002000, 0x00008000 };
+
+ int i, ret, before = 0;
+
+ for ( i = 0; i < 4; ++i ) if (  checkConnectedMassDev ( i )  ) before |= ( 1 << i );
+
+ SifExecModuleBuffer ( &mx4sio_bd_irx, size_mx4sio_bd_irx, 0, NULL, &i );
+
+ // give the module a few seconds to load
+ for ( i = 0; i < 5; ++i ) {
+  ret = 0x01000000;
+  while ( ret-- ) asm ( "nop\nnop\nnop\nnop" );
+ }  /* end for */
+
+ g_IOPFlags |= SMS_IOPF_MX4SIO;
+
+ for ( i = 0; i < 4; ++i ) {
+
+  if (  checkConnectedMassDev ( i )  ) {
+
+   g_MassFlags |= lBit[ i ];
+
+   if (  !( before & ( 1 << i ) )  ) g_Mx4sioMask |= ( 1 << i );
+
+  }  /* end if */
+
+ }  /* end for */
+
+ return g_IOPFlags & SMS_IOPF_MX4SIO;
+
+}  /* end SMS_IOPStartMX4SIO */
+#else
+int SMS_IOPStartMX4SIO ( int afStatus ) { return 0; }
+#endif
 
 int SMS_IOPStartHDD ( int afStatus ) {
 
@@ -562,6 +602,9 @@ void SMS_IOPInit ( void ) {
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD ) SMS_IOPStartHDD ( 1 );
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_NET ) SMS_IOPStartNet ( 1 );
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_USB ) SMS_IOPStartUSB ( 1 );
+#ifdef BDM
+ if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_MX4SIO ) SMS_IOPStartMX4SIO ( 1 );
+#endif
 
  GUI_Status ( STR_INITIALIZING_SMS.m_pStr );
 
