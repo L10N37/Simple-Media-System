@@ -163,6 +163,48 @@ void SMS_LoadSMBInfo ( void ) {
 
 }  /* end SMS_LoadSMBInfo */
 
+static void _smb_put_line ( int aFD, const char* apStr ) {
+
+ if ( apStr ) fioWrite (  aFD, ( void* )apStr, strlen ( apStr )  );
+
+ fioWrite ( aFD, "\n", 1 );
+
+}  /* end _smb_put_line */
+
+void SMS_SaveSMBInfo ( void ) {
+
+ SMS_ListNode* lpNode;
+ int           lFD;
+
+ if ( !g_Config.m_pSMBList ) return;
+
+ fioMkdir ( g_pMC0SMS );
+
+ lFD = fioOpen ( g_SMSSMB, O_CREAT | O_WRONLY | O_TRUNC );
+
+ if ( lFD < 0 ) return;
+
+ lpNode = g_Config.m_pSMBList -> m_pHead;
+
+ while ( lpNode ) {
+
+  SMBLoginInfo* lpInfo = ( SMBLoginInfo* )( unsigned int )lpNode -> m_Param;
+
+  _smb_put_line ( lFD, lpInfo -> m_ServerIP   );
+  _smb_put_line ( lFD, lpInfo -> m_ServerName );
+  _smb_put_line ( lFD, lpInfo -> m_ClientName );
+  _smb_put_line ( lFD, lpInfo -> m_UserName   );
+  _smb_put_line ( lFD, lpInfo -> m_Password   );
+  _smb_put_line (  lFD, _STR( lpNode )  );
+
+  lpNode = lpNode -> m_pNext;
+
+ }  /* end while */
+
+ fioClose ( lFD );
+
+}  /* end SMS_SaveSMBInfo */
+
 void SMS_LoadPalette ( void ) {
 
  int i, lFD = MC_OpenS ( g_MCSlot, 0, g_SMSPal, O_RDONLY );

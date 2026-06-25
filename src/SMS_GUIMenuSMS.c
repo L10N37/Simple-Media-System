@@ -2342,19 +2342,19 @@ static void _build_net_menu ( GUIMenu* apMenu ) {
  int           lIdx    = 2;
  GUIMenuState* lpState = ( GUIMenuState* )( unsigned int )apMenu -> m_pState -> m_pTail -> m_Param;
 
- lpState -> m_Count = 5;
+ lpState -> m_Count = 6;
 
- if ( g_Config.m_NetworkFlags & SMS_DF_SMB ) {
-  s_NetMenu[ 2 ].m_Type        = 0;
-  s_NetMenu[ 2 ].m_pOptionName = &STR_SMB_SERVER;
-  s_NetMenu[ 2 ].m_IconLeft    = 0;
-  s_NetMenu[ 2 ].m_IconRight   = 0;
-  s_NetMenu[ 2 ].Handler       = _smbsrv_handler;
-  s_NetMenu[ 2 ].Enter         = NULL;
-  s_NetMenu[ 2 ].Leave         = NULL;
-  lpState -> m_Count = 6;
-  ++lIdx;
- }  /* end if */
+ /* The "SMB servers..." entry is ALWAYS listed so SMB is reachable and
+  * configurable from scratch, even with no SMS.smb file and no servers yet
+  * (i.e. independent of SMS_DF_SMB / SMS_IOPF_SMBINFO). */
+ s_NetMenu[ 2 ].m_Type        = 0;
+ s_NetMenu[ 2 ].m_pOptionName = &STR_SMB_SERVER;
+ s_NetMenu[ 2 ].m_IconLeft    = 0;
+ s_NetMenu[ 2 ].m_IconRight   = 0;
+ s_NetMenu[ 2 ].Handler       = _smbsrv_handler;
+ s_NetMenu[ 2 ].Enter         = NULL;
+ s_NetMenu[ 2 ].Leave         = NULL;
+ ++lIdx;
 
  s_NetMenu[ lIdx   ].m_Type        = MENU_ITEM_TYPE_TEXT;
  s_NetMenu[ lIdx   ].m_pOptionName = &STR_OPERATING_MODE;
