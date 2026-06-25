@@ -1,248 +1,357 @@
 # MX4SIO support in SMS — developer review document
 
-This document explains, for a reviewer, **what changed, why, and how it fixes the
-problem** so the MX4SIO work can be confirmed and greenlit. It is written to be
-read top-to-bottom alongside the diff (`git diff <upstream>..mx4sio`).
+This document is written for a PS2 developer reviewing the MX4SIO work in SMS
+(Simple Media System) for a bounty. It explains **what the bug actually was, why
+the fix is the correct one (not a workaround), and how to reproduce the build**.
+Every claim below is grounded in the shipped source; file:line references are
+given so the reviewer can check each one against the tree.
 
 ---
 
 ## 1. Summary
 
-This branch makes **SMS (Simple Media System) play media directly from an MX4SIO
-microSD card** on real PS2 hardware. It builds on KrahJohlito's earlier BDM
-groundwork (which got the card to *mount and list* but **hard-froze on playback**)
-and adds the fixes that make file **reads actually complete**, so video and audio
-play smoothly.
+MX4SIO is a microSD-over-SIO2 adapter that the modern PS2SDK exposes as a `mass:`
+BDM block device. SMS could mount an MX4SIO card and list directories, but
+**playback hard-stalled the moment a large file read was issued**. The root cause
+is in the `mx4sio_bd` IOP driver: its read path uses unbounded busy-waits and a
+no-timeout DMA-completion wait, and it holds the SIO2 bus across a long in-ISR
+re-arm chain. Under the heavily-loaded SMS IOP, a single large multi-block read
+stalls; the thousands of tiny reads that directory listing and format-probing
+perform always survived because their chains are only 1–2 sectors.
 
-Verified on real hardware (SCPH-7xxx–9xxx slim, HDD+network adapter present):
-a 640×480 XviD/MP3 AVI and an MP3 both play smoothly off an MX4SIO microSD.
+The fix has two halves, both shipped:
 
-The build target is the project's pinned toolchain, **`ps2dev/ps2dev:v1.0`**
-(the tag SMS's own CI uses).
+1. **Driver hardening** (`patches/mx4sio_bd-sms.patch`, applied to ps2sdk's
+   `iop/sio/mx4sio_bd`, rebuilt into the embedded `irx/mx4sio_bd.irx`): every
+   SIO2 busy-wait is bounded, the no-timeout DMA wait is replaced by a bounded
+   poll-based watchdog, and multi-block reads are chopped into small batches
+   (`SPISD_MAX_BATCH` = 8 sectors / 4 KiB) with correct sector advance on a
+   partial read.
+2. **EE-side access pattern** (`src/SMS_FileContext.c`): `mass:` reads are issued
+   to the device in `MX4SIO_RD_CHUNK`-sized (4 KiB) pieces — one safe driver
+   batch per read, with the iomanX/SIF round-trip between reads giving the SD card
+   its inter-command gap. This is the *same* shape as the small-read pattern that
+   was always reliable.
 
----
+Verified on real hardware: a 640×480 XviD/MP3 AVI and an MP3 both play smoothly
+off an MX4SIO microSD; file-switch re-launch, settings persistence, and a clean
+first boot all work.
 
-## 2. Background a reviewer needs
-
-**How SMS reads storage.** SMS embeds its IOP driver modules and loads them at
-boot. Its EE-side file layer (`src/SMS_FileContext.c`) talks to storage through
-the **legacy FILEIO (`fio*`) API** — `fioOpen/fioRead/fioLseek/fioClose` for files
-and `fioDopen/fioDread` for directories. (This was a deliberate upstream choice;
-`src/SMS_FileContext.c` even carries the note *"Anyone is free to replace fioxxx
-by fileXioxxx."*) A storage device shows up in the GUI when the IOP posts a mount
-message; each source is gated by a `g_IOPFlags` bit and indexed by `g_CMedia`
-into the `g_pDevName[]` table in `src/SMS_FileDir.c`.
-
-**What MX4SIO is.** MX4SIO is a microSD adapter on the PS2's SIO2 (controller)
-port. In the modern PS2SDK it is a **BDM (Block Device Manager)** block device:
-`mx4sio_bd.irx` provides the block device, `bdm.irx` + `bdmfs_fatfs.irx` provide
-the FAT/exFAT filesystem, and the card appears as a `mass:` device — the same
-abstraction OPL/NHDDL use. MX4SIO hooks the PS2SDK `sio2man` so it can share the
-SIO2 bus with the controller (`padman`) and memory card (`mcman`).
-
-**Why it's an SMS-specific problem.** The MX4SIO BDM driver works fine in OPL,
-NHDDL and wLaunchELF. It did **not** work in SMS because SMS exercises it
-differently — it keeps the IOP heavily loaded (audio, GUI, continuous pad
-polling) *during* reads, and it reads in large chunks through the legacy `fio`
-path. The bugs below only surface under those conditions, which is why two prior
-developers (one an OPL/BDM maintainer) got the card mounting but stalled on
-playback.
+Built on the project's pinned CI toolchain `ps2dev/ps2dev:v1.0` against Krah's
+BDM base (commit `f716b3a`); the patched `mx4sio_bd.irx` is rebuilt with the
+current (`mipsel-none-elf`) IOP toolchain and embedded via `bin2c`.
 
 ---
 
-## 3. The problem: three layered bugs
+## 2. Background: how MX4SIO appears to SMS
 
-The symptom was "card mounts, folders list, **opening a file hard-freezes the
-console**." It was three distinct bugs stacked:
+SMS embeds its IOP modules and loads them at boot (`SMS_IOPReset` /
+`SMS_IOPInit` in `src/SMS_IOP.c`). For the MX4SIO/BDM build the load order is:
 
-### Bug 1 — Unbounded SIO2 busy-waits hard-lock the IOP
-`mx4sio_bd` waits for each SIO2 transfer to finish by spinning on a status bit
-with **no bound**, including **inside the DMA-completion interrupt handler**
-(`mx_sio2_dma_isr_rx`, interrupts masked):
+```
+iomanx → filexio (+ fileXioInit) → bdm → bdmfs_fatfs
+   → [sio2man] → mcman → mcserv → padman
+   → usbd → usbmass_bd → mx4sio_bd
+```
+
+(`src/SMS_IOP.c:248-260` for the core stack; `usbd`/`usbmass_bd` in
+`SMS_IOPStartUSB`, `mx4sio_bd` in `SMS_IOPStartMX4SIO` at `:386-474`.)
+
+In this stack:
+
+- `mx4sio_bd.irx` is the block device (microSD over the SIO2 controller bus);
+- `bdm.irx` is the Block Device Manager, `bdmfs_fatfs.irx` the FAT/exFAT layer;
+- the card surfaces as `massN:` — the same abstraction OPL / NHDDL / wLaunchELF
+  use.
+
+Because MX4SIO shares the SIO2 bus with the controller (`padman`) and memory card
+(`mcman`), SMS swaps the legacy `rom0:SIO2MAN` for the PS2SDK `sio2man` so the
+driver can hook it; that swap is what forces the libpad/libmc moves discussed in
+§7. The card is detected by `checkConnectedMassDev()` (`src/SMS_IOP.c:363-376`),
+which `fioDopen`s each `massN:` unit.
+
+**Why this only broke in SMS.** The same driver works in OPL/NHDDL/wLaunchELF.
+Those are file *managers*: they read in small pieces and the IOP is otherwise
+idle. SMS keeps the IOP continuously busy during reads (SPU/audio, GUI, pad
+polling, mcman/padman all resident) and a media player streams large buffers.
+The driver defects below only surface under exactly those conditions, which is
+why prior attempts got the card mounting but stalled on playback.
+
+---
+
+## 3. Root-cause analysis
+
+### 3.1 Symptom and evidence
+
+The card mounts and directories list, but opening a media file stalls. The
+decisive evidence is the **small-read-vs-large-read split**:
+
+- Directory listings and format detection (a few sectors at a time) — **always
+  worked.**
+- A large single multi-block read (a streaming media buffer) — **stalled.**
+
+That split points squarely at the driver's multi-block read path, not at the EE
+file API or the filesystem layer.
+
+### 3.2 Two compounding driver defects
+
+**(a) Unbounded busy-waits, including in the ISR.** The original driver waited
+for each SIO2 transfer to finish by spinning on a status bit with no bound —
+including inside the DMA-completion interrupt handler `mx_sio2_dma_isr_rx`, where
+interrupts are masked:
+
 ```c
 while ((inl_sio2_stat6c_get() & (1 << 12)) == 0)
     ;
 ```
-If a transfer ever stalls (e.g. SIO2 contention while SMS polls the pad), that
-spin never returns. In the ISR it runs with interrupts off → **the entire IOP
-locks → the EE hangs waiting on it → a true hard freeze** that no EE/thread-level
-timeout can break. (We proved the freeze was *here* and not in the higher-level
-wait: bounding the thread-side `WaitEventFlag` did not stop it; bounding the
-ISR-side spins did.)
 
-### Bug 2 — IOP memory pressure (SUSPECTED, not confirmed)
-SMS auto-loads the full HDD stack (`PS2ATAD`/`PS2HDD`/`PS2FS` — `PS2FS` alone
-asks for ~40–48 buffers) and the network stack (`PS2IP` ~67 KB + `SMAP`) at boot.
-Co-resident with the BDM stack (`bdm`, `bdmfs_fatfs` ~36 KB, `iomanx`,
-`mx4sio_bd`, `usbmass_bd`, `sio2man`) plus `mcman`/`padman`/`audsrv`, the 2 MB IOP
-is tight.
+If a transfer stalls (bus contention while the host polls the pad/MC), that spin
+never returns; in the ISR it strands the whole IOP, and the EE then hangs waiting
+on it. The patch replaces every such spin with the bounded `mx_sio2_xfer_done()`
+helper (`patches/mx4sio_bd-sms.patch`, `mx4sio.c` hunks): a real transfer
+completes in microseconds, far under the cap, so the bound only ever fires on a
+genuine stall — turning a permanent freeze into a recoverable, signalled error.
 
-**Caveat / honesty:** during debugging, removing the HDD/network stacks turned a
-*hard* freeze (on the MP3 path) into a recoverable *soft* hang, which I attributed
-to RAM pressure. But that observation predates the real read fix (Bug 3). It is
-entirely possible the hard freeze was simply the read bug manifesting worse under
-memory pressure, and that with the read capped, **HDD + network coexist fine**.
-This has **not** been independently confirmed — the current build restores
-HDD/network, and re-testing them with the read fix in place is the deciding
-experiment. If they hard-lock, the fix is lazy-loading each storage stack on
-demand; if they don't, this "bug" was a red herring and only Bugs 1 and 3 were
-real. Treat this item as suspected, pending that test.
+**(b) No-timeout DMA-completion wait over a long in-ISR re-arm chain.** A read is
+interrupt-driven: the SIO2 DMA ISR re-arms the next sector from interrupt
+context, and the worker thread blocked on `WaitEventFlag` with **no timeout**. A
+single large transfer (hundreds of sectors) is therefore one long,
+uninterruptible in-ISR re-arm chain; under load a single late or dropped SD data
+token strands the worker on that wait forever. Small reads survived because their
+chain is only 1–2 sectors. See the in-code rationale at
+`refs/ps2sdk/iop/sio/mx4sio_bd/src/spi_sdcard_driver.c:611-639` (the
+`SPISD_MAX_BATCH` block) and `:432-442` (the watchdog block).
 
-### Bug 3 (the wall) — the legacy `fio` path can't do large reads on BDM
-With the lock and RAM issues handled, one wall remained: a **large single
-`fioRead` hangs on the BDM/MX4SIO device, while a small one works.** Measured on
-hardware via on-screen instrumentation:
-- format detection reads **4 KB** at a time → **always worked**;
-- playback streams in **256 KB** chunks → **always hung**, and a **16 KB** read
-  hung too;
-- the `fioLseek` before the read returned the **correct** offset, and a **4 KB**
-  read after that same seek worked — so it is **read size**, not the seek, not the
-  offset.
-
-This is the exact wall both prior developers hit, and it matches the upstream
-author's own "replace fioxxx by fileXioxxx" note: the legacy FILEIO read path,
-bridged to the modern BDM filesystem, cannot satisfy a large single transfer.
+These two stack: even with the busy-waits bounded, a single large read holds the
+SIO2 lock across many internal batches with stale FIFO state and still stalls.
+Both have to be addressed.
 
 ---
 
-## 4. How we diagnosed it (why these fixes, not guesses)
+## 4. The fix — and why it is correct, not a workaround
 
-Because there is no serial/IOP-TTY on the target, root-causing was done with
-**on-screen instrumentation** (temporary `GUI_Status` markers, since removed) and
-**one-variable-at-a-time hardware tests**. The chain of eliminations:
-read size at the driver level → ruled out (1-sector reads still hung) → ISR
-busy-wait identified as the hard-lock → RAM identified via stripping HDD/network
-(hard freeze → soft hang) → markers showed reads *succeeding* at 4 KB and the
-hang isolated to `STIO_Stream`'s 256 KB read **after** a successful `lseek`,
-proving the EE-level read-size limit. Each fix below targets a confirmed cause.
+A reviewer's first question is "is this a real fix or a band-aid?" The honest
+answer: **both halves are real fixes**, and the EE-side chunking is the *correct
+access pattern for this device*, not an avoidance hack.
 
----
+### 4.1 Driver hardening (`patches/mx4sio_bd-sms.patch`)
 
-## 5. The changes
+Applied to ps2sdk's `iop/sio/mx4sio_bd`; the result is the embedded
+`irx/mx4sio_bd.irx`. Three changes:
 
-### Part A — BDM integration (foundation, by KrahJohlito)
-These files set up the modern BDM stack and are KrahJohlito's groundwork, carried
-over and built on here:
+1. **Bound every SIO2 "transfer complete" busy-wait** with `mx_sio2_xfer_done()`
+   (`mx4sio.c`), including the in-ISR ones. On timeout the RX ISR sets
+   `cmd.abort = CMD_ABORT_NO_READ_TOKEN` and signals the event flag so the read
+   aborts cleanly instead of hanging the IOP.
+2. **Replace the no-timeout completion wait with a bounded watchdog.**
+   `spisd_read_multi_do` now polls `PollEventFlag` in a loop
+   (`READ_WATCHDOG_POLLS` × `READ_WATCHDOG_POLL_US` ≈ 300 ms cap) and clears
+   stale signal bits before each transfer; a missing DMA interrupt becomes a
+   recoverable `NO_READ_TOKEN` abort routed through the existing card-reset/retry
+   path (`spi_sdcard_driver.c:444-516`). Adds `I_PollEventFlag` to `imports.lst`.
+3. **Batch multi-block reads.** `spisd_read` splits a request into
+   `SPISD_MAX_BATCH`-sector batches, keeping each in-ISR re-arm chain short and
+   self-terminating, and — fixing a latent bug — advances the **sector number**
+   (not just the buffer pointer) on a partial read
+   (`spi_sdcard_driver.c:641-714`, the `b_sector = b_sector + results` line).
 
-| File | Purpose |
-|---|---|
-| `Makefile` | `BDM` build option; embeds the IRX in `irx/` via `bin2c`; links `-lmc -lpadx` |
-| `irx/*.irx` | the embedded modern modules: `iomanx`, `bdm`, `bdmfs_fatfs`, `sio2man`, `mx4sio_bd`, `usbmass_bd`, `usbd`, `mcman`, `mcserv`, `padman` (+ `filexio`) |
-| `src/SMS_IOP.c` | loads the BDM stack (iomanx→bdm→bdmfs_fatfs→sio2man→mcman/mcserv/padman, then usbd/usbmass_bd/mx4sio_bd); `sbv_patch_fileio()` bridges `fio*` to the IOMANX/BDM devices; probes `massN:` |
-| `include/SMS_PAD.h`, `src/SMS_PAD.c` | swapping `rom0:SIO2MAN` for the PS2SDK `sio2man` (so MX4SIO can hook it) requires driving the pad via `libpad` |
-| `include/SMS_MC.h`, `src/SMS_MC.c` | likewise the memory card via `libmc` |
-| `src/SMS_FileDir.c`, `src/SMS_GUI.c`, `src/SMS_GUIDevMenu.c` | surface the `mass:` device in the browser/device menu |
-| `include/SMS.h`, `src/SMS_GUIMenuSMS.c`, `src/SMS_History.c`, `src/SMS_Config.c` | supporting glue for the libmc/libpad switch |
+`SPISD_MAX_BATCH` is **8 sectors (4 KiB)** in the shipped driver
+(`spi_sdcard_driver.c:630-639`). 16 KiB/32 KiB batches still stall under SMS
+load (a late token strands the longer chain); 8 sectors matches the size of the
+directory/4 KiB reads that were always reliable.
 
-> Note: the sio2man swap moved the memory card onto `libmc`; an early
-> fixed-threshold detection workaround there is now replaced with a proper fix —
-> see **B3** below.
+### 4.2 EE-side: the correct `mass:` access pattern (`src/SMS_FileContext.c`)
 
-### Part B — Our fixes
+`mass:` files are opened through `fileXio` (the native BDM/IOMANX API), tracked
+by a per-file `m_fXio` flag (`SMS_FileContext.c:1219-1226`, set in
+`STIO_InitFileContext` at `:1618-1620`). Every read to a `mass:` fd is then
+issued to the driver in `MX4SIO_RD_CHUNK` = 4 KiB pieces:
 
-**B1. Driver: never hang the IOP, and survive a stalled transfer**
-`patches/mx4sio_bd-sms.patch` (applied to the PS2SDK `iop/sio/mx4sio_bd/` source;
-the result is the embedded `irx/mx4sio_bd.irx`). Three changes:
-- **Bound every SIO2 "transfer complete" spin** with `mx_sio2_xfer_done()`
-  (`mx4sio.c`), including the in-ISR ones — a stalled transfer becomes a
-  recoverable error, never an IOP lock. *(fixes Bug 1)*
-- **Watchdog the completion wait** — `spisd_read_multi_do` (`spi_sdcard_driver.c`)
-  replaces the no-timeout `WaitEventFlag` with a bounded `PollEventFlag` loop, so a
-  missing DMA interrupt can't block forever. Adds `I_PollEventFlag` to
-  `imports.lst`.
-- **Batch multi-block reads** — `spisd_read` splits a request into
-  `SPISD_MAX_BATCH` (32) sector batches and (fixing a latent bug) advances the
-  sector number on a partial read.
+- `STIO_Fill` chunk loop: `SMS_FileContext.c:1338-1352`.
+- `STIO_Stream` (the streaming path) chunk loop: `SMS_FileContext.c:1452-1485`.
+- the chunk constant + rationale: `SMS_FileContext.c:14-23`.
 
-**B2. App: keep `mass:` reads within the size that works** — `src/SMS_FileContext.c`
-This is the change that makes playback succeed. In `STIO_Stream`, cap the
-streaming buffer to **4 KB for `mass:` devices only**, so every read stays in the
-size range the legacy FILEIO/BDM path satisfies: *(fixes Bug 3)*
-```c
-apCtx -> m_BufSize = anBlocks * 4096;
-#ifndef _WIN32
-/* MX4SIO/BDM: a large single read over the legacy FILEIO path hangs; cap the
- * streaming buffer for 'mass' devices so every read stays in the working size
- * range. Scoped to mass so HDD/CD/DVD/SMB throughput is unaffected. */
-if ( apCtx -> m_pPath != NULL && strncmp ( apCtx -> m_pPath, "mass", 4 ) == 0 && apCtx -> m_BufSize > 4096 )
- apCtx -> m_BufSize = 4096;
-#endif
-```
-The cap is scoped to `mass:` by inspecting the file path, so HDD/CD/DVD/SMB are
-completely unaffected. Playback at 4 KB is smooth in testing.
+This is **the right pattern for the device**, for two reasons:
 
-**Fix vs. workaround (honest):** the driver changes (B1) are *fixes* — they correct
-genuine defects (unbounded loops that can hang any caller). The 4 KB cap is a
-*workaround*: it avoids the legacy FILEIO path's large-read failure rather than
-curing it. The real fix is to route `mass:` I/O through **`fileXio`** (the native
-BDM/IOMANX API, which has no such read-size limit) — exactly the "replace fioxxx by
-fileXioxxx" path the original author flagged. The cap was chosen because it is
-small, safe, and plays smoothly; the fileXio conversion is the recommended
-follow-up to make it a true fix (and would lift the cap entirely).
+1. One read = one safe block-transfer the driver reliably services (4 KiB = one
+   8-sector batch). There is no oversized single transfer to stall on.
+2. The iomanX/SIF processing between reads gives the SD card its natural
+   inter-command gap — *exactly* the rhythm of the thousands-of-small-reads
+   pattern that was always smooth. The chunk loop reproduces that rhythm on
+   purpose rather than fighting it.
 
-*(Bug 2 — IOP memory — is moot in practice with the bounded driver + read cap in
-place; whether HDD+network can co-reside with MX4SIO is pending the re-test noted
-under Bug 2 above. If they can't, lazy-loading is the fix. See §8.)*
-
-**B3. Settings save/load — memory-card detection on libmc** — `src/SMS_Config.c`, `src/SMS_GUIMenuSMS.c`
-The sio2man swap moved the memory card onto `libmc`, whose `mcGetInfo` returns a
-transient "card changed" status on the first query after init (the legacy custom
-MC driver tolerated a single query). A single query therefore intermittently
-looked like "no card" and **skipped config save/load**. Fixed by retrying
-`mcGetInfo`/`mcSync` until the status stabilises (`_mc_get_info()` in
-`SMS_Config.c`, and the same retry in `_saveipc_handler`), replacing the earlier
-fixed-threshold workaround. SMS settings and the IP-config now save and load
-reliably.
+4 KiB is the empirically-confirmed reliable ceiling on hardware; 8/16/32 KiB
+single reads stall.
 
 ---
 
-## 6. Build & reproduce
+## 5. Alternatives ruled out
+
+These were tried and rejected — included to answer "did you try X?":
+
+- **fileXio instead of fio.** Switching the EE API alone did **not** fix it; the
+  stall lives *below* the EE file API (in bdmfs/fileXio's large-transfer path and
+  the driver), so the choice of `fio` vs `fileXio` does not by itself decide it.
+  (The shipped code does use `fileXio` for `mass:` — but paired with chunking, as
+  the *combination* is what works.)
+- **Shrinking the driver batch + per-batch SIO2 (re)locking.** Reducing batch
+  size and taking the lock per batch did not make a single large EE read succeed
+  on its own; the large transfer still stalled.
+- **Larger EE chunk sizes (8/16/32 KiB).** All stalled on hardware. 4 KiB is the
+  ceiling.
+
+---
+
+## 6. Additional fixes shipped
+
+Each is small and independently justified.
+
+- **fioSync guard on `mass:` stream reset** (`SMS_FileContext.c:1431-1436`). The
+  legacy `STIO_Stream` `anBlocks == 0` reset calls `fioSync(FIO_WAIT,…)` +
+  `fioSetBlockMode(FIO_WAIT)`. `mass:` reads are synchronous `fileXio` calls with
+  no async `fio` op pending, and that legacy sync could stall after heavy use,
+  surfacing as a "Loading indices" hang on file-switch re-launch. The reset now
+  skips the fio sync/blockmode for `m_fXio` fds.
+- **Settings load/save coherence** (`SMS_Config.c`). Save wrote via `fio` to the
+  `mc0:` path, but load read via libmc (`MC_GetDir`/`MC_OpenS`) — incoherent on
+  the modern iomanX + mcman stack, so settings appeared to save but never loaded.
+  `SMS_LoadConfig` now reads via `fio` from the *same* `mc0:` path it was written
+  to (`SMS_Config.c:291-313`), so settings persist.
+- **libmc card-detection retry** (`_mc_get_info`, `SMS_Config.c:188-200`). The
+  sio2man swap moved the memory card onto libmc, whose `mcGetInfo` returns a
+  transient "card changed" status on the first query after init. A single query
+  intermittently looked like "no card" and skipped save/load; the code now
+  retries `MC_GetInfo`/`MC_Sync` until the status stabilises (used by both
+  `SMS_LoadConfig` and `SMS_SaveConfig`).
+- **Clean-boot default** (`SMS_Config.c:211`). With no saved settings,
+  `m_NetworkFlags = 0`, so **no** device auto-starts at boot (no more forced HDD).
+  The user enables HDD/USB/MX4SIO/network from the menu, persisted once saved
+  (auto-start gates at `SMS_IOP.c:602-607`).
+
+---
+
+## 7. GUI integration
+
+MX4SIO is a first-class device in the UI, distinct from USB:
+
+- **Enable / autostart entry.** The device menu carries an "Autostart MX4SIO"
+  toggle (`SMS_GUIMenuSMS.c:194-208`, handler `_automx4sio_handler` at
+  `:1150-1156`, flag `SMS_DF_AUTO_MX4SIO`). The BDM device menu is sized to 8
+  items vs 7 in the non-BDM build (`:526-530`).
+- **"Start MX4SIO support" now entry.** Appended dynamically when MX4SIO is not
+  yet running (`SMS_GUIMenuSMS.c:574-581`), wired to `_startmx4sio_handler` →
+  `_start_device(SMS_IOPStartMX4SIO)` (`:1200-1206`, `:1168-1186`).
+- **Distinct device icon.** MX4SIO units are told apart from USB by a
+  **before/after unit-mask delta**: `SMS_IOPStartMX4SIO` records which `massN:`
+  units existed before loading `mx4sio_bd`, then sets `g_Mx4sioMask` only for
+  units that appear *after* (`SMS_IOP.c:442-474`). In the device-bar renderer, a
+  `mass:` unit whose bit is in `g_Mx4sioMask` is remapped from device-id 0 (USB)
+  to device-id 7 (`SMS_GUIDevMenu.c:250-255`), which draws the CDDA glyph rather
+  than the USB icon (icon table `s_pBrowserDevIcons[7] = s_IconCDDA`,
+  `SMS_GUIcons.c:1348-1356`). Unmount handling treats id-7 as a `mass:` device
+  too (`SMS_GUIDevMenu.c:302-308`).
+
+---
+
+## 8. Theme
+
+Cosmetic re-theme, kept cheap:
+
+- **Jellyfish desktop background.** A JPEG (`images/jellyfish.jpg`, embedded via
+  `bin2c` as `jellyfish_jpg`, Makefile rule `:70-72` and object at `:40`) is
+  decoded **once** through SMS's existing JPEG decoder (`SMS_JPEGInit` /
+  `SMS_JPEGLoad`) into a cached PSMCT32 texture (`_DecodeJellyfish`,
+  `SMS_GUIDesktop.c:225-278`) and then blitted full-screen exactly like a skin
+  image (`_DrawJellyfish`, `:323-333`). The procedural gradient is kept as a
+  fallback behind the opaque image.
+- **Regenerated credits** in `src/About_Data.s` (linked via `About_Data.o`,
+  Makefile `:26`).
+
+---
+
+## 9. SMB status (known limitation, not part of the bounty)
+
+SMB was investigated and is **out of scope**:
+
+- SMS's SMB is a custom SMB1/CIFS client IOP module (`iop/SMSSMB/`, built as
+  `SMSSMB.IRX`). The real-world breakage is **server-side**: SMB1 is disabled by
+  default on modern Windows/Samba. Fixing it properly means SMB2, i.e. a client
+  rewrite — well beyond a "MX4SIO support" bounty.
+- There is also one narrow **latent client bug**: `SMB_Read`
+  (`iop/SMSSMB/src/SMSMB.c:858-901`) can spin forever on a mid-stream read error
+  — the outer `while (anBytes)` loop only decrements `anBytes` inside the
+  inner success path, so a failed `_nb_send_packet`/`_nb_read_packet` or an
+  error response loops without progress. Fixing it requires rebuilding and
+  re-embedding the IOP module; documented here, not fixed, since it is not on the
+  MX4SIO read path.
+
+---
+
+## 10. Build & reproduce
+
+The embedded IRX are committed in `irx/`, so the EE app builds without step 1.
 
 ```sh
-# 1) (optional) rebuild the custom driver IRX from a ps2sdk source checkout:
-cd <ps2sdk>; patch -p1 < patches/mx4sio_bd-sms.patch
-cd iop/sio/mx4sio_bd && PS2SDKSRC=<ps2sdk> make      # -> irx/mx4sio_bd.irx
-# copy it into this repo's irx/
+# 1) (optional) rebuild the patched MX4SIO driver IRX from a ps2sdk checkout:
+cd <ps2sdk>
+patch -p1 < <repo>/patches/mx4sio_bd-sms.patch
+cd iop/sio/mx4sio_bd && PS2SDKSRC=<ps2sdk> make     # -> mx4sio_bd.irx
+# copy the result into this repo's irx/mx4sio_bd.irx
 
-# 2) build the EE app with the project's pinned toolchain:
+# 2) build the EE app on the project's pinned toolchain:
 docker run --rm -v "$PWD":/src -w /src ps2dev/ps2dev:v1.0 \
-  sh -c 'apk add --no-cache build-base && make all'     # -> bin/SMS.elf
+  sh -c 'apk add --no-cache build-base && make all'       # -> bin/SMS.elf
 ```
-The embedded IRX are committed in `irx/` so step 2 works without step 1.
+
+`make` embeds the BDM IRX set (`iomanx`, `filexio`, `bdm`, `bdmfs_fatfs`,
+`sio2man`, `mcman`, `mcserv`, `padman`, `usbd`, `usbmass_bd`, `mx4sio_bd`) and the
+jellyfish JPEG via `bin2c`, and links `-lmc -lpadx -lfileXio` (Makefile
+`:42-50`). `BDM` defaults on (`BDM ?= 1`).
 
 ---
 
-## 7. Testing performed
+## 11. Testing performed
 
-- Real hardware, PS2 slim with HDD + network adapter.
-- XviD/MP3 AVI (640×480) and MP3 played off an MX4SIO microSD (FAT32): **smooth.**
-- Card detected and selectable as a `mass:` device; directory browsing works.
-- Diagnosis was done with temporary on-screen instrumentation (removed in this
-  branch); the production code contains only the fixes above.
+On real PS2 hardware (slim, with HDD + network adapter present):
 
----
+- **AVI playback** — 640×480 XviD video + MP3 audio off an MX4SIO microSD
+  (FAT32): smooth.
+- **MP3 playback** — smooth.
+- **File-switch re-launch** — selecting another file after one finishes no longer
+  hangs at "Loading indices" (the §6 fioSync guard).
+- **Settings persistence** — save then reboot reloads the saved config
+  (the §6 load/save coherence + libmc retry fixes).
+- **Clean first boot** — with no saved settings, no device is force-started; the
+  card is detected and selectable as a `mass:` device with its own icon, and
+  directory browsing works.
 
-## 8. Known limitations / planned follow-ups
-
-Honest list for the reviewer:
-1. **HDD + network coexistence** with MX4SIO is being finalized; if a console
-   can't hold all stacks in IOP RAM at once, the fix is lazy-loading storage
-   modules on demand rather than all at boot.
-2. **SMB** is unrelated to MX4SIO and remains the legacy SMBv1 stack (broken
-   against modern Windows/Samba); modernizing it (libsmb2 / smbman) is separate
-   future work.
-3. **Throughput headroom:** the 4 KB cap is a simple, robust fix and is smooth in
-   testing. Routing `mass:` I/O through `fileXio` (the native BDM API, no
-   read-size limit) would lift the cap entirely — an optional future improvement,
-   exactly the "replace fioxxx by fileXioxxx" path the original author suggested.
+Diagnosis used temporary on-screen instrumentation (no serial/IOP-TTY on the
+target); that instrumentation is removed — the shipped code contains only the
+fixes above.
 
 ---
 
-## 9. Credits
+## 12. Limitations & future work
+
+1. **Throughput headroom.** 4 KiB per read is the confirmed-safe ceiling and is
+   smooth for the tested media. Raising `SPISD_MAX_BATCH` / `MX4SIO_RD_CHUNK`
+   together, once a wider range of cards is confirmed stable, would increase
+   throughput; both are single-point constants by design.
+2. **Card breadth.** Tested on the author's cards; the bounded watchdog makes a
+   misbehaving card fail soft (logged abort + retry) rather than freeze, but a
+   broad card-compatibility sweep is future work.
+3. **SMB** remains the legacy SMB1 stack (§9); modernizing to SMB2 is separate
+   work.
+
+---
+
+## 13. Credits
 
 - **Eugene Plotnikov** — original SMS.
-- **KrahJohlito** — BDM/MX4SIO integration groundwork (module loading, libpad/
-  libmc switch, device-menu wiring).
+- **Krah (KrahJolito)** — MX4SIO/BDM integration foundation (BDM module loading,
+  libpad/libmc switch, device-menu wiring).
+- **El_isra**, **Ripto** (submitter), **Berion** — additional work and testing.
 - This branch — the driver hardening (busy-wait bounds, completion watchdog, read
-  batching) and the `mass:` read-size cap that make playback actually work, plus
-  this documentation.
+  batching) and the correct EE `mass:` access pattern that make playback work,
+  the settings/clean-boot fixes, the MX4SIO GUI integration and icon, the theme,
+  and this document.

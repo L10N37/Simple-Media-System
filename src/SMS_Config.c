@@ -208,7 +208,7 @@ int SMS_LoadConfig ( void  ) {
  g_Config.m_BrowserABCIdx    = 16;
  g_Config.m_BrowserIBCIdx    = 13;
  g_Config.m_BrowserTxtIdx    = 15;
- g_Config.m_NetworkFlags     = SMS_DF_AUTO_HDD | SMS_DF_AUTO_MX4SIO;
+ g_Config.m_NetworkFlags     = 0;  /* no-settings default: auto-start NO device (clean boot); user enables HDD/USB/MX4SIO/net from the menu, persisted once saved */
  g_Config.m_PlayerVolume     = 12;
  g_Config.m_PlayerAC3RL      =  6;
  g_Config.m_DisplayMode      = GSVideoMode_Default;
@@ -290,38 +290,33 @@ int SMS_LoadConfig ( void  ) {
 
  if ( lRes > -2 ) {
 
-  SMS_MCTable lDir __attribute__(   (  aligned( 64 )  )   );
+  /* Read the config the SAME way SMS_SaveConfig writes it -- via fio on the
+   * mc0: path. The legacy split (save = fio, load = libmc) is incoherent on the
+   * modern iomanX + mcman stack: a fio-created dir/file is not seen by libmc's
+   * MC_GetDir/MC_OpenS, so settings appeared to save but never loaded back. */
+  int lFD = fioOpen ( s_pMC0SMC, O_RDONLY );
 
-  MC_GetDir ( g_MCSlot, 0, s_pSMS, 0, 1, &lDir );
-  MC_Sync ( &lRes );
+  if ( lFD >= 0 ) {
 
-  if ( lRes ) {
+   int lLen = fioRead ( lFD, &g_Config, 4 );
 
-   int lFD = MC_OpenS ( g_MCSlot, 0, s_pSMSCfg, O_RDONLY );
+   if ( lLen == 4 && g_Config.m_Version == 14 ) {
 
-   if ( lFD >= 0 ) {
+    lLen = fioRead ( lFD, &g_Config.m_DisplayMode, 892 );
 
-    int lLen = MC_ReadS ( lFD, &g_Config, 4 );
-
-    if ( lLen == 4 && g_Config.m_Version == 14 ) {
-
-     lLen = MC_ReadS ( lFD, &g_Config.m_DisplayMode, 892 );
-
-     if ( lLen == 892 ) retVal = 1;
-
-    }  /* end if */
-
-    MC_CloseS ( lFD );
+    if ( lLen == 892 ) retVal = 1;
 
    }  /* end if */
 
-   SMS_LoadPalette ();
-
-   for ( lRes = 0; lRes < 5; ++lRes ) _load_font ( lRes );
-
-   SMS_EEScanDir ( g_pSMSSkn, g_pExtSMI, g_Config.m_pSkinList );
+   fioClose ( lFD );
 
   }  /* end if */
+
+  SMS_LoadPalette ();
+
+  for ( lRes = 0; lRes < 5; ++lRes ) _load_font ( lRes );
+
+  SMS_EEScanDir ( g_pSMSSkn, g_pExtSMI, g_Config.m_pSkinList );
 
  }  /* end if */
 

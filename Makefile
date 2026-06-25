@@ -37,7 +37,7 @@ EE_OBJS  = main.o SMS_OS.o SMS_GS_0.o SMS_GS_1.o SMS_GS_2.o SMS_Timer.o         
            SMS_History.o SMS_PgInd.o SMS_VSync.o SMS_GUIClock.o SMS_DateTime.o    \
            SMS_PlayerBallSim.o SMS_SIF.o SMS_ContainerJPG.o SMS_FileMapping.o     \
            SMS_JPEGData.o SMS_JPEG.o SMS_Rescale.o SMS_MPEGInit.o                 \
-           lzma2.o xz_crc32.o xz_dec_lzma2.o xz_dec_stream.o
+           lzma2.o xz_crc32.o xz_dec_lzma2.o xz_dec_stream.o jellyfish_jpg.o
 
 ifeq ($(BDM),1)
   IRX_DIR = irx/
@@ -61,9 +61,14 @@ $(EE_BIN_DIR):
 	@$(MKDIR) -p $(EE_BIN_DIR)
 
 vpath %.irx $(IRX_DIR)
+vpath %.jpg images/
 
 $(EE_OBJ_DIR)%_irx.c: %.irx
 	bin2c $< $@ $(*F)_irx
+	@sed 's/aligned(16)/aligned(16), section(\"data\")/' -i $@
+
+$(EE_OBJ_DIR)%_jpg.c: %.jpg
+	bin2c $< $@ $(*F)_jpg
 	@sed 's/aligned(16)/aligned(16), section(\"data\")/' -i $@
 
 $(EE_OBJ_DIR)%.o : $(EE_OBJ_DIR)%.c

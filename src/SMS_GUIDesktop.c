@@ -26,12 +26,17 @@
 #include "SMS_Sounds.h"
 #include "SMS_MC.h"
 #include "SMS_RC.h"
+#include "SMS_JPEG.h"
+#include "SMS_Rescale.h"
 
 #include <kernel.h>
 #include <malloc.h>
 #include <stdio.h>
 #include <string.h>
 #include <libhdd.h>
+
+extern unsigned char jellyfish_jpg[];
+extern unsigned int  size_jellyfish_jpg;
 
 #define LOGO_W 17
 #define LOGO_H  5
@@ -217,6 +222,116 @@ static int DrawSkin ( void ) {
 
 }  /* end DrawSkin */
 
+/* Decoded-once cache for the embedded jellyfish background.        */
+/* s_pJFTex holds the image as PSMCT32 (RGBA) ready for GS upload.   */
+static unsigned char* s_pJFTex __attribute__(   (  section( ".data" )  )   ) = NULL;
+static int            s_JFW    __attribute__(   (  section( ".data" )  )   ) = 0;
+static int            s_JFH    __attribute__(   (  section( ".data" )  )   ) = 0;
+
+static int _DecodeJellyfish ( void ) {
+
+ SMS_JPEGContext* lpCtx;
+ int              lW, lH, i, lN;
+ unsigned char*   lpSrc;
+ unsigned char*   lpDst;
+
+ if ( s_pJFTex ) return 1;  /* already decoded & cached */
+
+ lpCtx = SMS_JPEGInit ( NULL, NULL );
+
+ if ( !lpCtx ) return 0;
+
+ if (  SMS_JPEGLoad ( lpCtx, jellyfish_jpg, size_jellyfish_jpg )  ) {
+
+  lW = lpCtx -> m_pRC -> m_NewWidth;
+  lH = lpCtx -> m_pRC -> m_NewHeight;
+
+  s_pJFTex = ( unsigned char* )memalign (  64, lW * lH * 4  );
+
+  if ( s_pJFTex ) {
+/* expand packed 24-bit RGB -> 32-bit RGBA expected by RenderTexSprite */
+   lpSrc = lpCtx -> m_pBitmap;
+   lpDst = s_pJFTex;
+   lN    = lW * lH;
+
+   for ( i = 0; i < lN; ++i ) {
+    lpDst[ 0 ] = lpSrc[ 0 ];
+    lpDst[ 1 ] = lpSrc[ 1 ];
+    lpDst[ 2 ] = lpSrc[ 2 ];
+    lpDst[ 3 ] = 0x80;       /* opaque ( GS uses 0x80 as full alpha ) */
+    lpSrc += 3;
+    lpDst += 4;
+   }  /* end for */
+
+   SyncDCache (  s_pJFTex, s_pJFTex + lW * lH * 4  );
+
+   s_JFW = lW;
+   s_JFH = lH;
+
+  }  /* end if */
+
+ }  /* end if */
+
+ SMS_JPEGDestroy ( lpCtx );
+
+ return s_pJFTex != NULL;
+
+}  /* end _DecodeJellyfish */
+
+static int _DrawJellyfish ( void ) {
+
+ int          lY, lBand;
+ u64*         lpDMA;
+ GSLoadImage  lLI;
+ GSLoadImage* lpLI = UNCACHED_SEG( &lLI );
+
+ if (  !_DecodeJellyfish ()  ) return 0;
+
+ g_GSCtx.m_TBW = ( s_JFW + 63 ) >> 6;
+
+ g_GSCtx.m_VRAMTexPtr = 0x4000 - (
+  (   ( g_GSCtx.m_TBW << 6 ) * (  ( s_JFH + 31 ) & ~31  ) * 4   ) >> 8
+ );
+ PowerOf2 ( s_JFW, s_JFH, ( int* )&g_GSCtx.m_TW, ( int* )&g_GSCtx.m_TH );
+
+/* upload the cached texture to VRAM in 32-row bands so each image    */
+/* transfer stays within the GIF NLOOP ( 0x7FFF QWC ) limit.          */
+ lBand = 32;
+
+ GS_InitLoadImage (
+  &lLI, g_GSCtx.m_VRAMTexPtr, g_GSCtx.m_TBW, GSPixelFormat_PSMCT32, 0, 0, s_JFW, lBand
+ );
+ SyncDCache ( &lLI, &lLI + 1 );
+
+ for ( lY = 0; lY < s_JFH; lY += lBand ) {
+
+  int lRows = ( lY + lBand <= s_JFH ) ? lBand : ( s_JFH - lY );
+
+  if ( lRows != lBand ) {
+   GS_InitLoadImage (
+    &lLI, g_GSCtx.m_VRAMTexPtr, g_GSCtx.m_TBW, GSPixelFormat_PSMCT32, 0, 0, s_JFW, lRows
+   );
+   SyncDCache ( &lLI, &lLI + 1 );
+  }  /* end if */
+
+  lpLI -> m_TrxPosReg.m_Value = GS_SET_TRXPOS( 0, 0, 0, lY, 0 );
+  GS_LoadImage (  &lLI, s_pJFTex + s_JFW * lY * 4  );
+  DMA_Wait ( DMAC_GIF );
+
+ }  /* end for */
+
+/* blit full-screen, exactly like DrawSkin does for a skin image */
+ lpDMA = GSContext_NewPacket (  0, GS_TSP_PACKET_SIZE(), GSPaintMethod_Init  );
+ GSContext_RenderTexSprite (
+  ( GSTexSpritePacket* )( lpDMA - 2 ),
+  0, 0, g_GSCtx.m_Width, g_GSCtx.m_Height, 0, 0, s_JFW, s_JFH
+ );
+ GSContext_Flush ( 0, GSFlushMethod_KeepLists );
+
+ return 1;
+
+}  /* end _DrawJellyfish */
+
 static void Desktop_Render ( GUIObject* apObj, int aCtx ) {
 
  if ( !apObj -> m_pGSPacket ) {
@@ -236,12 +351,17 @@ static void Desktop_Render ( GUIObject* apObj, int aCtx ) {
 
    GUI_LoadIcons ();
 
+/* Base layer: keep the procedural gradient as a fallback. It is */
+/* fully covered by the opaque jellyfish image when that decodes. */
    GSContext_RenderVGRect (
     lpDMA, 0, 0, g_GSCtx.m_Width, g_GSCtx.m_Height,
     GS_SET_RGBAQ( 0x00, 0x00, 0x40, 0x80, 0x00 ),
     GS_SET_RGBAQ( 0x00, 0x00, 0x00, 0x80, 0x00 )
    );
    GSContext_Flush ( 0, GSFlushMethod_KeepLists );
+
+/* Replace the gradient background with the embedded jellyfish image. */
+   _DrawJellyfish ();
 
    for (  i = 0; i < sizeof ( s_LogoXY ) / sizeof ( s_LogoXY[ 0 ] ) / 3; ++i  ) {
 

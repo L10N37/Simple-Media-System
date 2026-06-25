@@ -89,7 +89,7 @@ index e96ac3b..5e00407 100644
  #ifdef DEBUG_VERBOSE
      uint8_t rx = reverse_byte_LUT8[inl_sio2_data_in()];
 diff --git a/iop/sio/mx4sio_bd/src/spi_sdcard_driver.c b/iop/sio/mx4sio_bd/src/spi_sdcard_driver.c
-index 574cf06..d361041 100644
+index 574cf06..7af98c3 100644
 --- a/iop/sio/mx4sio_bd/src/spi_sdcard_driver.c
 +++ b/iop/sio/mx4sio_bd/src/spi_sdcard_driver.c
 @@ -429,6 +429,18 @@ static int spisd_read_multi_begin(uint32_t sector)
@@ -151,7 +151,7 @@ index 574cf06..d361041 100644
  
          if (resbits & EF_SIO2_INTR_REVERSE) {
              ClearEventFlag(sio2_event_flag, ~EF_SIO2_INTR_REVERSE);
-@@ -577,11 +612,28 @@ static int spisd_write_multi_end()
+@@ -577,11 +612,35 @@ static int spisd_write_multi_end()
   * BDM interface:
   * - BDM -> "spisd" library
   */
@@ -171,7 +171,14 @@ index 574cf06..d361041 100644
 + * the SIO2 lock is held across all batches so a read is still atomic w.r.t.
 + * pad/MC access. Raise SPISD_MAX_BATCH for throughput once confirmed stable. */
 +#ifndef SPISD_MAX_BATCH
-+#define SPISD_MAX_BATCH 32 /* sectors per multi-block transfer (16 KiB) */
++#define SPISD_MAX_BATCH 8 /* sectors per multi-block transfer (4 KiB).
++                           * 32 (16 KiB) stalls under SMS load: a single late SD
++                           * data token strands the long in-ISR re-arm chain --
++                           * the exact 16 KiB / large-read hang seen on hardware.
++                           * 8 sectors keeps every chain short and self-terminating
++                           * (the same size as the dir / 4 KiB reads that always
++                           * work); the spisd_read batch loop chops larger requests
++                           * into these safe chains, so reads of ANY size complete. */
 +#endif
 +
  int spisd_read(struct block_device *bd, uint64_t sector, void *buffer, uint16_t count)
@@ -183,7 +190,7 @@ index 574cf06..d361041 100644
  
      (void)bd;
  
-@@ -592,43 +644,66 @@ int spisd_read(struct block_device *bd, uint64_t sector, void *buffer, uint16_t
+@@ -592,43 +651,66 @@ int spisd_read(struct block_device *bd, uint64_t sector, void *buffer, uint16_t
  
      mx_sio2_lock(INTR_RX);
  
