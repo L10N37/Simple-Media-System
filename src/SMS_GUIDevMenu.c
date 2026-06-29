@@ -41,6 +41,22 @@ typedef struct _DevMenuItem {
 
 } _DevMenuItem;
 
+#ifdef BDM
+extern unsigned int g_Mx4sioMask;
+#endif
+
+/* MX4SIO units are mass: devices (m_DevID == 0) but get a distinct browser icon.
+ * Compute the icon index ONLY at draw time -- m_DevID itself MUST stay the real
+ * device id (0), because it is copied to g_CMedia and indexes the 7-entry
+ * device-name / file-dir tables; a fake id of 7 there reads out of bounds and
+ * crashes (NULL strcpy in SMS_FileDirInit). */
+static int _dev_icon_index ( _DevMenuItem* apItem ) {
+#ifdef BDM
+ if (  apItem -> m_DevID == 0 && ( g_Mx4sioMask & ( 1 << apItem -> m_UnitID ) )  ) return 7;
+#endif
+ return apItem -> m_DevID;
+}
+
 typedef struct GUIDevMenu {
 
  DECLARE_GUI_OBJECT()
@@ -130,7 +146,7 @@ static void GUIDevMenu_Render ( GUIObject* apObj, int aCtx ) {
     lpItem -> m_XOffset = lpMenu -> m_XOffset + 54 * lIdx++;
 
     GUI_DrawIcon (
-     lpItem -> m_DevID, lpItem -> m_XOffset, 2, GUIcon_Device,
+     _dev_icon_index ( lpItem ), lpItem -> m_XOffset, 2, GUIcon_Device,
      UNCACHED_SEG( lpItem -> m_pGSPacket )
     );
 
@@ -247,12 +263,6 @@ static int GUIDevMenu_HandleMount ( GUIDevMenu* apMenu, unsigned int aMount, u64
   SMS_ListPushBack ( lpList, lDevName ) -> m_Param = ( unsigned int )lpItem;
 
   lpItem -> m_DevID     = lDevID;
-#ifdef BDM
-  {
-   extern unsigned int g_Mx4sioMask;
-   if (  lDevID == 0 && ( g_Mx4sioMask & ( 1 << lpItem -> m_UnitID ) )  ) lpItem -> m_DevID = 7;
-  }
-#endif
   lpItem -> m_XOffset   = apMenu -> m_XOffset + 54 * ( lpList -> m_Size - 1 );
   lpItem -> m_pGSPacket = SMS_SyncMalloc ( 256 );
 
@@ -299,11 +309,7 @@ static int GUIDevMenu_HandleMount ( GUIDevMenu* apMenu, unsigned int aMount, u64
 
    _DevMenuItem* lpItem = ( _DevMenuItem* )( unsigned int )lpNode -> m_Param;
 
-#ifdef BDM
-   if (  lpItem -> m_DevID == lDevID || ( lDevID == 0 && lpItem -> m_DevID == 7 )  ) {
-#else
    if ( lpItem -> m_DevID == lDevID ) {
-#endif
 
     if (   lDevID == 0 && lpItem -> m_UnitID != (  ( aMsg >> 56 ) & 15  )   ) goto next;
 
@@ -315,7 +321,7 @@ static int GUIDevMenu_HandleMount ( GUIDevMenu* apMenu, unsigned int aMount, u64
 
      lpCurItem -> m_XOffset -= 55;
      GUI_DrawIcon (
-      lpCurItem -> m_DevID,
+      _dev_icon_index ( lpCurItem ),
       lpCurItem -> m_XOffset, 2, GUIcon_Device,
       UNCACHED_SEG( lpCurItem -> m_pGSPacket )
      );
