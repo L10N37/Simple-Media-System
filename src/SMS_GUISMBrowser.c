@@ -15,6 +15,9 @@
 #include "SMS_IOP.h"
 #include "SMS_GUIcons.h"
 #include "SMS_PgInd.h"
+#include "SMS_GS.h"
+#include "SMS_PAD.h"
+#include "SMS_RC.h"
 
 #include <malloc.h>
 #include <string.h>
@@ -67,8 +70,6 @@ static char s_pUserName   [] __attribute__(   (  section( ".data" ), aligned( 1 
 static char s_pPassword   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Password";
 static char s_pClientName [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Client name";
 static char s_pEditTitle  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "SMB server";
-static char s_pPickTitle  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Edit text";
-static char s_pDone       [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Done";
 
 static SMString s_StrAddServer  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAddServer  ) - 1, s_pAddServer  };
 static SMString s_StrEditServer __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pEditServer ) - 1, s_pEditServer };
@@ -77,12 +78,6 @@ static SMString s_StrUserName   __attribute__(   (  section( ".data" )  )   ) = 
 static SMString s_StrPassword   __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pPassword   ) - 1, s_pPassword   };
 static SMString s_StrClientName __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pClientName ) - 1, s_pClientName };
 static SMString s_StrEditTitle  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pEditTitle  ) - 1, s_pEditTitle  };
-static SMString s_StrPickTitle  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pPickTitle  ) - 1, s_pPickTitle  };
-static SMString s_StrDone       __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pDone       ) - 1, s_pDone       };
-
-/* charset cycled by the per-character picker spinners */
-static char s_pPickChars[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) =
- " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-";
 
 /* working copy of the record being added / edited */
 static SMBLoginInfo s_AddInfo  __attribute__(   (  section( ".bss" )  )   );
@@ -100,127 +95,322 @@ static SMString s_StrValUser   __attribute__(   (  section( ".data" )  )   ) = {
 static SMString s_StrValPass   __attribute__(   (  section( ".data" )  )   ) = { 0, s_AddInfo.m_Password   };
 static SMString s_StrValClient __attribute__(   (  section( ".data" )  )   ) = { 0, s_AddInfo.m_ClientName };
 
-/* ---- character picker ---- */
+/* ----------------------------------------------------------------------------
+ * On-screen keyboard ( GUI_TextInput )
+ *
+ * A self-contained, modal text-entry sub-screen rendered with the same GS
+ * round-rect + GSFont primitives the rest of the GUI uses. The user navigates
+ * a 2-D key grid with the D-pad ( UP / DOWN / LEFT / RIGHT, all of which the
+ * input model delivers to a custom handler -- see GUIDevMenu_HandlePad ) and
+ * types with Cross. Both letter cases, all digits and the common host / user /
+ * password symbols are on-screen at once, so nothing needs paging.
+ *
+ *   Cross    : type the focused key ( or run SPACE / DEL / OK action keys )
+ *   Circle   : backspace
+ *   Square   : space ( shortcut )
+ *   Triangle : commit ( same as the OK key )
+ *   Start    : commit
+ *   L1 / R1  : jump the cursor in the typed string
+ *
+ * The whole thing is driven by an in-place GUI_ReadButtons () poll loop (the
+ * same approach GUI_WaitButtons / _wait_user use for the modal dialogs); on
+ * exit a full GUI_Redraw restores the form underneath.
+ * ------------------------------------------------------------------------- */
 
-#define SMB_PICK_MAX 32
+extern int ( *GUI_ReadButtons ) ( void );
 
-static char*     s_pPickTarget  __attribute__(   (  section( ".bss" )  )   );  /* buffer being edited      */
-static int       s_PickLen      __attribute__(   (  section( ".bss" )  )   );  /* number of slots shown    */
-static SMString* s_pPickValStr  __attribute__(   (  section( ".bss" )  )   );  /* form item view to refresh */
+/* static labels for the keyboard ( not in the .lng table -- mirrors the
+ * s_StrAutoMX4SIO static-label pattern in SMS_GUIMenuSMS.c ) */
+static char s_pKbSpace [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "SPACE";
+static char s_pKbDel   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "DEL";
+static char s_pKbOK    [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "OK";
+static char s_pKbHelp  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "X:type  O:back  []:space  /\\:done";
 
-static char        s_PickSlot   [ SMB_PICK_MAX     ] __attribute__(   (  section( ".bss" )  )   );  /* one char per slot       */
-static char        s_PickSlotStr[ SMB_PICK_MAX ][ 2 ] __attribute__(   (  section( ".bss" )  )   );  /* displayable char + NUL  */
-static SMString    s_PickSlotSMS[ SMB_PICK_MAX     ] __attribute__(   (  section( ".data" )  )   );
-static GUIMenuItem s_PickMenu   [ SMB_PICK_MAX + 1 ] __attribute__(   (  section( ".data" )  )   );
+static SMString s_StrKbSpace __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pKbSpace ) - 1, s_pKbSpace };
+static SMString s_StrKbDel   __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pKbDel   ) - 1, s_pKbDel   };
+static SMString s_StrKbOK    __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pKbOK    ) - 1, s_pKbOK    };
+static SMString s_StrKbHelp  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pKbHelp  ) - 1, s_pKbHelp  };
 
-static int _smb_char_index ( char aChar ) {
+/* The character grid. Every printable key the SMB login fields need is here at
+ * once -- both cases, digits and the common symbols ( . _ - / @ : etc. ). The
+ * rows are padded to KB_COLS so grid navigation is a simple ( row, col ). */
+#define KB_COLS 13
+#define KB_ROWS  7
 
- const char* lpPos = strchr ( s_pPickChars, aChar );
+static const char s_KbRows[ KB_ROWS ][ KB_COLS + 1 ] __attribute__(   (  section( ".rodata" )  )   ) = {
+ "1234567890-_.",
+ "qwertyuiop@:/",
+ "asdfghjkl+=~?",
+ "zxcvbnm,;'\"()",
+ "QWERTYUIOP[]{",
+ "ASDFGHJKL!#$%",
+ "ZXCVBNM&*<>^}"
+};
 
- if ( lpPos ) return lpPos - s_pPickChars;
+/* action keys sit on a final row */
+#define KB_ACT_SPACE 0
+#define KB_ACT_DEL   1
+#define KB_ACT_OK    2
+#define KB_ACT_COUNT 3
 
- return 0;
+static char        s_KbBuf  [ 80 ] __attribute__(   (  section( ".bss" )  )   );  /* working copy of the text */
+static char        s_KbCell [  2 ] __attribute__(   (  section( ".bss" )  )   );  /* one focused char + NUL   */
 
-}  /* end _smb_char_index */
+/* Draw one immediate frame of the keyboard on context 1, over whatever is on
+ * screen ( the panel is opaque, so it fully repaints itself each frame ). */
+static void _kb_render ( const char* apTitle, int aRow, int aCol, int aLen, int aCurs ) {
 
-static void _smb_pick_slot_handler ( GUIMenu* apMenu, int aDir ) {
+ int  lW   = g_GSCtx.m_Width  - ( g_GSCtx.m_Width >> 3 );
+ int  lH   = g_GSCtx.m_Height - ( g_GSCtx.m_Height >> 3 );
+ int  lX   = ( g_GSCtx.m_Width  - lW ) >> 1;
+ int  lY   = ( g_GSCtx.m_Height - lH ) >> 1;
+ int  lCW  = ( lW - 32 ) / KB_COLS;          /* key cell width  */
+ int  lGY  = lY + 96;                         /* grid top        */
+ int  lRH  = 30;                              /* key row height  */
+ int  lGX  = lX + 16;
+ int  i, lRow, lCol;
+ u64* lpDMA;
+ u64  lSel = g_Palette[ g_Config.m_BrowserSCIdx - 1 ];
 
- GUIMenuState* lpState = (  ( GUIMenuState* )( unsigned int )apMenu -> m_pState -> m_pTail -> m_Param  );
- int           lSlot   = lpState -> m_pCurr - s_PickMenu;
- int           lIdx;
- int           lLast   = strlen ( s_pPickChars ) - 1;
+ GSContext_NewPacket ( 1, 0, GSPaintMethod_Init );
 
- if ( lSlot < 0 || lSlot >= s_PickLen ) return;
+ /* opaque background panel ( shadow + body, like GUIMenu_Render ) */
+ lpDMA = GSContext_NewPacket (  1, GS_RRT_PACKET_SIZE (), GSPaintMethod_Continue  );
+ GS_RenderRoundRect (  ( GSRoundRectPacket* )( lpDMA - 2 ), lX, lY, lW, lH, -12, 0x80008000UL  );
+ lpDMA = GSContext_NewPacket (  1, GS_RRT_PACKET_SIZE (), GSPaintMethod_Continue  );
+ GS_RenderRoundRect (  ( GSRoundRectPacket* )( lpDMA - 2 ), lX, lY, lW, lH, 12, g_Palette[ g_Config.m_BrowserABCIdx - 1 ]  );
 
- lIdx = _smb_char_index ( s_PickSlot[ lSlot ] ) + aDir;
+ /* title */
+ g_GSCtx.m_TextColor = 1;
+ i     = strlen ( apTitle );
+ lpDMA = GSContext_NewPacket (  1, GS_TXT_PACKET_SIZE( i ), GSPaintMethod_Continue  );
+ GSFont_RenderEx (  ( char* )apTitle, i, lX + 16, lY + 8, lpDMA, -2, 0  );
 
- if ( lIdx < 0 )
-  lIdx = lLast;
- else if ( lIdx > lLast ) lIdx = 0;
+ /* typed-text box */
+ lpDMA = GSContext_NewPacket (  1, GS_RRT_PACKET_SIZE (), GSPaintMethod_Continue  );
+ GS_RenderRoundRect (  ( GSRoundRectPacket* )( lpDMA - 2 ), lX + 12, lY + 40, lW - 24, 34, -8, 0x80303030UL  );
 
- s_PickSlot[ lSlot ] = s_pPickChars[ lIdx ];
+ if ( aLen ) {
+  lpDMA = GSContext_NewPacket (  1, GS_TXT_PACKET_SIZE( aLen ), GSPaintMethod_Continue  );
+  g_GSCtx.m_TextColor = 1;
+  GSFont_RenderEx ( s_KbBuf, aLen, lX + 20, lY + 44, lpDMA, -2, 0 );
+ }  /* end if */
 
- s_PickSlotStr[ lSlot ][ 0 ] = s_PickSlot[ lSlot ];
- s_PickSlotStr[ lSlot ][ 1 ] = '\x00';
- s_PickSlotSMS[ lSlot ].m_Len = 1;
+ /* text cursor ( a thin bar after aCurs characters ) */
+ {
+  char lSave = s_KbBuf[ aCurs ];
+  int  lCX;
+  s_KbBuf[ aCurs ] = '\x00';
+  lCX = lX + 20 + GSFont_WidthEx ( s_KbBuf, aCurs, -2 );
+  s_KbBuf[ aCurs ] = lSave;
+  lpDMA = GSContext_NewPacket (  1, GS_RRT_PACKET_SIZE (), GSPaintMethod_Continue  );
+  GS_RenderRoundRect (  ( GSRoundRectPacket* )( lpDMA - 2 ), lCX, lY + 44, 2, 24, 0, 0x80FFFFFFUL  );
+ }
 
- apMenu -> Redraw ( apMenu );
+ /* key grid */
+ for ( lRow = 0; lRow < KB_ROWS; ++lRow ) {
 
-}  /* end _smb_pick_slot_handler */
+  int lKY = lGY + lRow * lRH;
 
-static void _smb_pick_done_handler ( GUIMenu* apMenu, int aDir ) {
+  for ( lCol = 0; lCol < KB_COLS; ++lCol ) {
 
- int i, lEnd;
+   char lCh = s_KbRows[ lRow ][ lCol ];
+   int  lKX;
 
- for ( i = 0; i < s_PickLen; ++i ) s_pPickTarget[ i ] = s_PickSlot[ i ];
+   if ( !lCh ) continue;
 
- s_pPickTarget[ s_PickLen ] = '\x00';
+   lKX = lGX + lCol * lCW;
 
- for ( lEnd = ( int )strlen ( s_pPickTarget ); lEnd > 0 && s_pPickTarget[ lEnd - 1 ] == ' '; --lEnd )
-  s_pPickTarget[ lEnd - 1 ] = '\x00';
+   if ( lRow == aRow && lCol == aCol ) {
+    lpDMA = GSContext_NewPacket (  1, GS_RRT_PACKET_SIZE (), GSPaintMethod_Continue  );
+    GS_RenderRoundRect (  ( GSRoundRectPacket* )( lpDMA - 2 ), lKX - 2, lKY - 2, lCW - 2, lRH - 2, -8, lSel  );
+   }  /* end if */
 
- if ( s_pPickValStr ) s_pPickValStr -> m_Len = strlen ( s_pPickTarget );
+   s_KbCell[ 0 ]       = lCh;
+   s_KbCell[ 1 ]       = '\x00';
+   g_GSCtx.m_TextColor = 1;
+   lpDMA = GSContext_NewPacket (  1, GS_TXT_PACKET_SIZE( 1 ), GSPaintMethod_Continue  );
+   GSFont_RenderEx ( s_KbCell, 1, lKX + ( lCW >> 1 ) - 4, lKY, lpDMA, -2, 0 );
 
- GUI_MenuPopState ( apMenu );
-
- GUIMenuSMS_UpdateStatus ( apMenu );
- apMenu -> Redraw ( apMenu );
-
-}  /* end _smb_pick_done_handler */
-
-/* aMax = full capacity of the buffer (including NUL) */
-static void _smb_pick_open ( GUIMenu* apMenu, char* apTarget, int aMax, SMString* apValStr ) {
-
- int           i;
- GUIMenuState* lpState;
- int           lLen = aMax - 1;
-
- if ( lLen > SMB_PICK_MAX ) lLen = SMB_PICK_MAX;
-
- s_pPickTarget = apTarget;
- s_PickLen     = lLen;
- s_pPickValStr = apValStr;
-
- for ( i = 0; i < lLen; ++i ) {
-
-  s_PickSlot[ i ] = ( i < ( int )strlen ( apTarget ) && apTarget[ i ] ) ? apTarget[ i ] : ' ';
-
-  s_PickSlotStr[ i ][ 0 ] = s_PickSlot[ i ];
-  s_PickSlotStr[ i ][ 1 ] = '\x00';
-
-  s_PickSlotSMS[ i ].m_Len = 1;
-  s_PickSlotSMS[ i ].m_pStr = s_PickSlotStr[ i ];
-
-  s_PickMenu[ i ].m_Type        = MENU_ITEM_TYPE_TEXT;
-  s_PickMenu[ i ].m_pOptionName = &s_PickSlotSMS[ i ];
-  s_PickMenu[ i ].m_IconLeft    = 0;
-  s_PickMenu[ i ].m_IconRight   = ( unsigned int )&s_PickSlotSMS[ i ];
-  s_PickMenu[ i ].Handler       = _smb_pick_slot_handler;
-  s_PickMenu[ i ].Enter         = NULL;
-  s_PickMenu[ i ].Leave         = NULL;
+  }  /* end for */
 
  }  /* end for */
 
- s_PickMenu[ lLen ].m_Type        = 0;
- s_PickMenu[ lLen ].m_pOptionName = &s_StrDone;
- s_PickMenu[ lLen ].m_IconLeft    = 0;
- s_PickMenu[ lLen ].m_IconRight   = GUICON_FINISH;
- s_PickMenu[ lLen ].Handler       = _smb_pick_done_handler;
- s_PickMenu[ lLen ].Enter         = NULL;
- s_PickMenu[ lLen ].Leave         = NULL;
+ /* action row : SPACE | DEL | OK */
+ {
+  int      lAY  = lGY + KB_ROWS * lRH + 6;
+  int      lAW  = ( lW - 48 ) / KB_ACT_COUNT;
+  SMString* lpAct[ KB_ACT_COUNT ] = { &s_StrKbSpace, &s_StrKbDel, &s_StrKbOK };
 
- lpState = GUI_MenuPushState ( apMenu );
+  for ( i = 0; i < KB_ACT_COUNT; ++i ) {
 
- lpState -> m_pItems =
- lpState -> m_pFirst =
- lpState -> m_pCurr  = s_PickMenu;
- lpState -> m_pLast  = &s_PickMenu[ lLen ];
- lpState -> m_pTitle = &s_StrPickTitle;
+   int lAX = lX + 16 + i * ( lAW + 4 );
 
- GUIMenuSMS_UpdateStatus ( apMenu );
- apMenu -> Redraw ( apMenu );
+   if ( aRow == KB_ROWS && aCol == i ) {
+    lpDMA = GSContext_NewPacket (  1, GS_RRT_PACKET_SIZE (), GSPaintMethod_Continue  );
+    GS_RenderRoundRect (  ( GSRoundRectPacket* )( lpDMA - 2 ), lAX, lAY, lAW, 30, -8, lSel  );
+   } else {
+    lpDMA = GSContext_NewPacket (  1, GS_RRT_PACKET_SIZE (), GSPaintMethod_Continue  );
+    GS_RenderRoundRect (  ( GSRoundRectPacket* )( lpDMA - 2 ), lAX, lAY, lAW, 30, -8, 0x80303030UL  );
+   }  /* end else */
 
-}  /* end _smb_pick_open */
+   g_GSCtx.m_TextColor = 1;
+   lpDMA = GSContext_NewPacket (  1, GS_TXT_PACKET_SIZE( lpAct[ i ] -> m_Len ), GSPaintMethod_Continue  );
+   GSFont_RenderEx (
+    lpAct[ i ] -> m_pStr, lpAct[ i ] -> m_Len,
+    lAX + ( lAW >> 1 ) - ( GSFont_WidthEx ( lpAct[ i ] -> m_pStr, lpAct[ i ] -> m_Len, -2 ) >> 1 ),
+    lAY, lpDMA, -2, 0
+   );
+
+  }  /* end for */
+
+  /* help line */
+  g_GSCtx.m_TextColor = 2;
+  lpDMA = GSContext_NewPacket (  1, GS_TXT_PACKET_SIZE( s_StrKbHelp.m_Len ), GSPaintMethod_Continue  );
+  GSFont_RenderEx ( s_StrKbHelp.m_pStr, s_StrKbHelp.m_Len, lX + 16, lY + lH - 28, lpDMA, -2, 0 );
+
+ }
+
+ GSContext_Flush ( 1, GSFlushMethod_KeepLists );
+
+}  /* end _kb_render */
+
+/* Modal on-screen keyboard. Fills apBuf ( capacity aMaxLen including NUL ).
+ * Returns 1 if committed ( OK / Triangle / Start ), 0 if cancelled. */
+int GUI_TextInput ( char* apBuf, int aMaxLen, const char* apTitle ) {
+
+ int lRow  = 1;   /* start on the lower-case home row */
+ int lCol  = 0;
+ int lCurs;
+ int lMax  = aMaxLen - 1;
+ int lBtn;
+ int retVal = 0;
+
+ if ( lMax > ( int )sizeof ( s_KbBuf ) - 1 ) lMax = ( int )sizeof ( s_KbBuf ) - 1;
+
+ memset ( s_KbBuf, 0, sizeof ( s_KbBuf ) );
+ strncpy ( s_KbBuf, apBuf, lMax );
+ s_KbBuf[ lMax ] = '\x00';
+ lCurs = ( int )strlen ( s_KbBuf );
+
+ while (  GUI_ReadButtons ()  );  /* swallow the press that opened us */
+
+ while ( 1 ) {
+
+  int lLen = ( int )strlen ( s_KbBuf );
+
+  _kb_render ( apTitle, lRow, lCol, lLen, lCurs );
+
+  do { lBtn = GUI_ReadButtons (); } while ( !lBtn );
+
+  switch ( lBtn ) {
+
+   case SMS_PAD_UP:
+   case RC_PREV:
+    if ( --lRow < 0 ) lRow = KB_ROWS;
+    if ( lRow == KB_ROWS && lCol >= KB_ACT_COUNT ) lCol = KB_ACT_COUNT - 1;
+   break;
+
+   case SMS_PAD_DOWN:
+   case RC_NEXT:
+    if ( ++lRow > KB_ROWS ) lRow = 0;
+    if ( lRow == KB_ROWS && lCol >= KB_ACT_COUNT ) lCol = KB_ACT_COUNT - 1;
+   break;
+
+   case SMS_PAD_LEFT:
+   case RC_LEFT: {
+    int lMaxCol = ( lRow == KB_ROWS ? KB_ACT_COUNT : KB_COLS ) - 1;
+    if ( --lCol < 0 ) lCol = lMaxCol;
+   } break;
+
+   case SMS_PAD_RIGHT:
+   case RC_RIGHT: {
+    int lMaxCol = ( lRow == KB_ROWS ? KB_ACT_COUNT : KB_COLS ) - 1;
+    if ( ++lCol > lMaxCol ) lCol = 0;
+   } break;
+
+   case SMS_PAD_L1:
+    if ( lCurs > 0 ) --lCurs;
+   break;
+
+   case SMS_PAD_R1:
+    if ( lCurs < lLen ) ++lCurs;
+   break;
+
+   case SMS_PAD_CROSS:
+   case RC_ENTER:
+   case RC_PLAY:
+
+    if ( lRow == KB_ROWS ) {  /* action key */
+
+     if ( lCol == KB_ACT_OK ) { retVal = 1; goto done; }
+
+     if ( lCol == KB_ACT_DEL ) {
+      if ( lCurs > 0 ) {
+       memmove ( &s_KbBuf[ lCurs - 1 ], &s_KbBuf[ lCurs ], lLen - lCurs + 1 );
+       --lCurs;
+      }  /* end if */
+      break;
+     }  /* end if */
+
+     /* KB_ACT_SPACE falls through as a space insert */
+     if ( lLen < lMax ) {
+      memmove ( &s_KbBuf[ lCurs + 1 ], &s_KbBuf[ lCurs ], lLen - lCurs + 1 );
+      s_KbBuf[ lCurs++ ] = ' ';
+     }  /* end if */
+
+    } else {  /* character key */
+
+     char lCh = s_KbRows[ lRow ][ lCol ];
+
+     if ( lCh && lLen < lMax ) {
+      memmove ( &s_KbBuf[ lCurs + 1 ], &s_KbBuf[ lCurs ], lLen - lCurs + 1 );
+      s_KbBuf[ lCurs++ ] = lCh;
+     }  /* end if */
+
+    }  /* end else */
+
+   break;
+
+   case SMS_PAD_CIRCLE:   /* backspace */
+    if ( lCurs > 0 ) {
+     memmove ( &s_KbBuf[ lCurs - 1 ], &s_KbBuf[ lCurs ], lLen - lCurs + 1 );
+     --lCurs;
+    }  /* end if */
+   break;
+
+   case SMS_PAD_SQUARE:   /* space shortcut */
+    if ( lLen < lMax ) {
+     memmove ( &s_KbBuf[ lCurs + 1 ], &s_KbBuf[ lCurs ], lLen - lCurs + 1 );
+     s_KbBuf[ lCurs++ ] = ' ';
+    }  /* end if */
+   break;
+
+   case SMS_PAD_TRIANGLE:
+   case SMS_PAD_START:
+   case RC_RETURN:
+   case RC_STOP:
+    retVal = 1;
+   goto done;
+
+  }  /* end switch */
+
+  while (  GUI_ReadButtons ()  );  /* debounce : wait for release */
+
+ }  /* end while */
+done:
+ while (  GUI_ReadButtons ()  );
+
+ if ( retVal ) {
+  strncpy ( apBuf, s_KbBuf, aMaxLen - 1 );
+  apBuf[ aMaxLen - 1 ] = '\x00';
+ }  /* end if */
+
+ GUI_Redraw ( GUIRedrawMethod_Redraw );
+
+ return retVal;
+
+}  /* end GUI_TextInput */
 
 /* ---- add / edit form ---- */
 
@@ -249,25 +439,41 @@ static void _addip4_handler ( GUIMenu* apMenu, int aDir ) { _addip_roll ( apMenu
 
 static void _addname_handler ( GUIMenu* apMenu, int aDir ) {
 
- _smb_pick_open (  apMenu, s_AddInfo.m_ServerName, sizeof ( s_AddInfo.m_ServerName ), &s_StrValName  );
+ GUI_TextInput (  s_AddInfo.m_ServerName, sizeof ( s_AddInfo.m_ServerName ), s_pServerName  );
+ s_StrValName.m_Len = strlen ( s_AddInfo.m_ServerName );
+
+ GUIMenuSMS_UpdateStatus ( apMenu );
+ apMenu -> Redraw ( apMenu );
 
 }  /* end _addname_handler */
 
 static void _adduser_handler ( GUIMenu* apMenu, int aDir ) {
 
- _smb_pick_open (  apMenu, s_AddInfo.m_UserName, sizeof ( s_AddInfo.m_UserName ), &s_StrValUser  );
+ GUI_TextInput (  s_AddInfo.m_UserName, sizeof ( s_AddInfo.m_UserName ), s_pUserName  );
+ s_StrValUser.m_Len = strlen ( s_AddInfo.m_UserName );
+
+ GUIMenuSMS_UpdateStatus ( apMenu );
+ apMenu -> Redraw ( apMenu );
 
 }  /* end _adduser_handler */
 
 static void _addpass_handler ( GUIMenu* apMenu, int aDir ) {
 
- _smb_pick_open (  apMenu, s_AddInfo.m_Password, sizeof ( s_AddInfo.m_Password ), &s_StrValPass  );
+ GUI_TextInput (  s_AddInfo.m_Password, sizeof ( s_AddInfo.m_Password ), s_pPassword  );
+ s_StrValPass.m_Len = strlen ( s_AddInfo.m_Password );
+
+ GUIMenuSMS_UpdateStatus ( apMenu );
+ apMenu -> Redraw ( apMenu );
 
 }  /* end _addpass_handler */
 
 static void _addclient_handler ( GUIMenu* apMenu, int aDir ) {
 
- _smb_pick_open (  apMenu, s_AddInfo.m_ClientName, sizeof ( s_AddInfo.m_ClientName ), &s_StrValClient  );
+ GUI_TextInput (  s_AddInfo.m_ClientName, sizeof ( s_AddInfo.m_ClientName ), s_pClientName  );
+ s_StrValClient.m_Len = strlen ( s_AddInfo.m_ClientName );
+
+ GUIMenuSMS_UpdateStatus ( apMenu );
+ apMenu -> Redraw ( apMenu );
 
 }  /* end _addclient_handler */
 
