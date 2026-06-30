@@ -210,21 +210,25 @@ static int GUIDevMenu_HandleMount ( GUIDevMenu* apMenu, unsigned int aMount, u64
 
    if ( g_SMBUnit < 0 ) {
 
-    char lBuff[ 512 ];
+    char        lBuff[ 512 ];
+    const char* lpStage;
 
+    /* Self-diagnosing failure: surface the numeric g_SMBError / g_SMBServerError
+     * and a short stage label so a failed connect reveals COMM (never reached
+     * SMB: port 139 / NetBIOS name / server down) vs NEGOTIATE (no SMB1) vs
+     * LOGIN (bad creds). SMB_ERROR_* are defined in SMS_SMB.h. */
     switch ( g_SMBError )  {
 
-     case SMB_ERROR_NEGOTIATE:
-      sprintf ( lBuff, STR_PROT_NEG_ERROR.m_pStr, g_SMBServerError );
-     break;
-
-     case SMB_ERROR_LOGIN:
-      sprintf ( lBuff, STR_LOGIN_ERROR.m_pStr, g_SMBServerError );
-     break;
-
-     default: strcpy ( lBuff, STR_COMM_ERROR.m_pStr );
+     case SMB_ERROR_NEGOTIATE: lpStage = "NEGOTIATE"; break;
+     case SMB_ERROR_LOGIN:     lpStage = "LOGIN";     break;
+     case SMB_ERROR_COMM:      lpStage = "COMM";      break;
+     default:                  lpStage = "COMM";
 
     }  /* end switch */
+
+    sprintf (
+     lBuff, "SMB FAIL [%s] err=%d srv=%d", lpStage, g_SMBError, g_SMBServerError
+    );
 
     GUI_Error ( lBuff );
 
@@ -472,6 +476,13 @@ static int GUIDevMenu_HandleEvent ( GUIObject* apObj, u64           anEvent ) {
   int lDevID = ( anEvent >> 16 ) & 0xFF;
 
   if ( lDevID == 0x18 ) {
+
+   char lBuff[ 64 ];
+
+   /* Confirm which server we are about to log in to (tests that a freshly
+    * added/edited server became the active target via g_Config.m_SMBIP). */
+   sprintf ( lBuff, "SMB: connecting %s...", g_Config.m_SMBIP );
+   GUI_Status ( lBuff );
 
    SMS_IOCtl (  g_pSMBS, SMB_IOCTL_LOGIN, _lookup_login_info ()  );
 

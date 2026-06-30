@@ -1504,27 +1504,23 @@ static void _saveipc_handler ( GUIMenu* apMenu, int aDir ) {
 
  if ( lRes > -2 ) {
 
-  SMS_MCTable lTbl __attribute__(   (  aligned( 64 )  )   );
+  /* libmc on the modern iomanX + mcman stack does NOT see fio-created dirs, so
+   * a MC_GetDir precheck returns inconsistent status and would wrongly skip the
+   * write. Mirror SMS_SaveSMBInfo: fioMkdir unconditionally, accept 0 (created)
+   * or -4 (EEXIST), then write via fio coherently with how SMS_IOP.c reads
+   * g_pIPConf at boot. */
+  lRes = fioMkdir ( lDir );
 
-  MC_GetDir ( g_MCSlot, 0, lDir, 0, 1, &lTbl );
-  MC_Sync ( &lRes );
+  if ( lRes == 0 || lRes == -4 ) {
 
-  if ( lRes ) {
+   int lFD = fioOpen ( g_pIPConf, O_CREAT | O_WRONLY );
 
-   lRes = fioMkdir ( lDir );
+   if ( lFD >= 0 ) {
 
-   if ( lRes == 0 || lRes == -4 ) {
+    i = strlen ( lBuf );
 
-    int lFD = fioOpen ( g_pIPConf, O_CREAT | O_WRONLY );
-
-    if ( lFD >= 0 ) {
-
-     i = strlen ( lBuf );
-
-     lSts = fioWrite ( lFD, lBuf, i ) == i;
-     fioClose ( lFD );
-
-    }  /* end if */
+    lSts = fioWrite ( lFD, lBuf, i ) == i;
+    fioClose ( lFD );
 
    }  /* end if */
 

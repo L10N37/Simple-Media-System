@@ -170,7 +170,7 @@ static void _kb_render ( const char* apTitle, int aRow, int aCol, int aLen, int 
  int  lGX  = lX + 16;
  int  i, lRow, lCol;
  u64* lpDMA;
- u64  lSel = g_Palette[ g_Config.m_BrowserSCIdx - 1 ];
+ u64  lSel = 0x80FF8000UL;  /* fixed azure highlight: the palette selection colour (BrowserSCIdx) matched the panel (BrowserABCIdx) -- both default to white -- so the focus was invisible. */
 
  GSContext_NewPacket ( 1, 0, GSPaintMethod_Init );
 
@@ -493,7 +493,22 @@ static void _addsave_handler ( GUIMenu* apMenu, int aDir ) {
 
  }  /* end if */
 
+ /* SMS_LoadSMBInfo silently drops records with strlen ( m_ServerName ) >= 14,
+  * so a 14-15 char name would Save here yet vanish on next boot. Reject it. */
+ if (  strlen ( s_AddInfo.m_ServerName ) >= 14  ) {
+
+  GUI_Error ( STR_ERROR.m_pStr );
+  return;
+
+ }  /* end if */
+
  strcpy ( s_AddInfo.m_ServerIP, lIP );
+
+ /* Make the just-added/edited server the active connect target. _lookup_login_info
+  * matches the node whose m_ServerIP == g_Config.m_SMBIP (else falls back to the
+  * list head), so without this a new server is never the login target. Mirror the
+  * write in _smb_handler. */
+ strcpy ( g_Config.m_SMBIP, s_AddInfo.m_ServerIP );
 
  if (  !s_AddInfo.m_ClientName[ 0 ]  ) strcpy ( s_AddInfo.m_ClientName, "PS2" );
 
