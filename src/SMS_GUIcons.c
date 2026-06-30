@@ -20,6 +20,15 @@
 
 #include <kernel.h>
 #include <malloc.h>
+#include <string.h>
+
+/* GUI icons are baked from theme/icons/*.png by tools/bake_icons_rgba.py into
+ * SMS_IconsRGBA.c (RGBA, the exact byte format the IPU used to emit). PNG is the
+ * source of truth now; the IPU is no longer used to load icons (it stays for the
+ * player ball / desktop). */
+extern const unsigned char* const g_RGBA_Browser[  9 ];
+extern const unsigned char* const g_RGBA_Misc   [ 12 ];
+extern const unsigned char* const g_RGBA_Dev    [  8 ];
 
 unsigned char g_IconBall[ 316 ] __attribute__(   (  aligned( 16 ), section( ".data" )  )   ) = {
 	0x00, 0x00, 0x01, 0xb2, 0x00, 0x20, 0x00, 0x20, 0x00, 0x00, 0x01, 0x01, 0x1b, 0xf8, 0x18, 0x15, 
@@ -1360,19 +1369,38 @@ static void*  s_MiscIcons         [ 12 ];
 static void*  s_BrowserDeviceIcons[  8 ];
 static char*  s_pIconData;
 
+static void _icon_darken ( void* apBuf, int aNumPix ) {
+
+ unsigned char* lpP = ( unsigned char* )apBuf;
+ int            i;
+
+ for ( i = 0; i < aNumPix; ++i, lpP += 4 ) {
+  lpP[ 0 ] = lpP[ 0 ] >> 1;  /* R */
+  lpP[ 1 ] = lpP[ 1 ] >> 1;  /* G */
+  lpP[ 2 ] = lpP[ 2 ] >> 1;  /* B  ( alpha lpP[ 3 ] preserved ) */
+ }  /* end for */
+
+}  /* end _icon_darken */
+
 void GUI_LoadIcons ( void ) {
 
  if ( !s_pIconData ) {
 
   int   i, j;
-  char* lpPtr = s_pIconData = ( char* )SMS_SyncMalloc ( i = 18 * 4096 + 12 * 4096 + 9216 * 8 );
+  char* lpPtr = s_pIconData = ( char* )SMS_SyncMalloc ( 18 * 4096 + 12 * 4096 + 9216 * 8 );
 
+  /* Icons are pre-baked to RGBA ( SMS_IconsRGBA.c, from theme/icons/*.png ).
+   * Copy each into the icon buffer; browser file icons also get a darkened
+   * "not selected" twin. Layout / pointer arrays are unchanged, so the GS draw
+   * path is untouched. */
   for ( i = 0, j = 0; i < 9; ++i, j += 2 ) {
 
-   IPU_UnpackImage ( lpPtr, s_pBrowserIcons[ i ], s_SizeBrowserIcons[ i ], 32, 32, 0, 1, 16 );
+   memcpy ( lpPtr, g_RGBA_Browser[ i ], 4096 );
    s_BrowserFileIcons[ j + 0 ] = lpPtr;
    lpPtr += 4096;
-   IPU_UnpackImage ( lpPtr, s_pBrowserIcons[ i ], s_SizeBrowserIcons[ i ], 32, 32, 1, 1, 16 );
+
+   memcpy ( lpPtr, g_RGBA_Browser[ i ], 4096 );
+   _icon_darken ( lpPtr, 32 * 32 );
    s_BrowserFileIcons[ j + 1 ] = lpPtr;
    lpPtr += 4096;
 
@@ -1380,7 +1408,7 @@ void GUI_LoadIcons ( void ) {
 
   for ( i = 0; i < 12; ++i ) {
 
-   IPU_UnpackImage ( lpPtr, s_pMiscIcons[ i ], s_SizeMiscIcons[ i ], 32, 32, 0, 1, 16 );
+   memcpy ( lpPtr, g_RGBA_Misc[ i ], 4096 );
    s_MiscIcons[ i ] = lpPtr;
    lpPtr += 4096;
 
@@ -1388,7 +1416,7 @@ void GUI_LoadIcons ( void ) {
 
   for ( i = 0; i < 8; ++i ) {
 
-   IPU_UnpackImage ( lpPtr, s_pBrowserDevIcons[ i ], s_SizeBrowserDevIcons[ i ], 48, 48, 0, 1, 16 );
+   memcpy ( lpPtr, g_RGBA_Dev[ i ], 9216 );
    s_BrowserDeviceIcons[ i ] = lpPtr;
    lpPtr += 9216;
 
