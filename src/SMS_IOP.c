@@ -66,6 +66,7 @@ extern unsigned char iomanx_irx  [];
 extern unsigned char mcman_irx   [];
 extern unsigned char mcserv_irx  [];
 extern unsigned char padman_irx  [];
+extern unsigned char smbman_irx  [];
 
 extern unsigned int size_bdm_irx;
 extern unsigned int size_bdmfs_fatfs_irx;
@@ -78,6 +79,7 @@ extern unsigned int size_iomanx_irx;
 extern unsigned int size_mcman_irx;
 extern unsigned int size_mcserv_irx;
 extern unsigned int size_padman_irx;
+extern unsigned int size_smbman_irx;
 
 extern unsigned int g_MassFlags;
 #else
@@ -333,23 +335,28 @@ int SMS_IOPStartNet ( int afStatus ) {
 
   if ( i >= 0 ) {
 
-   void* lpModule;
-   int   lSize;
-   int   lFlags;
-
    if ( g_Config.m_NetworkFlags & SMS_DF_SMB ) {
-    lpModule = &g_DataBuffer[ SMS_SMB_OFFSET ];
-    lSize    = SMS_SMB_SIZE;
-    lFlags   = SMS_IOPF_SMB;
+
+    /* Modern smbman: an iomanX device "smb" reached via fileXioDevctl. iomanx
+     * and filexio are already loaded in SMS_IOPReset, and smbman binds to the
+     * untouched SMSTCPIP ( SMS_PS2IP ) stack loaded just above. The smbman_irx
+     * blob + its size are only compiled/embedded in BDM builds ( see Makefile ),
+     * so guard the reference -- SMS_IOPStartNet itself is built in all configs. */
+#ifdef BDM
+    SifExecModuleBuffer ( &smbman_irx, size_smbman_irx, 0, NULL, &i );
+
+    if ( i >= 0 ) g_IOPFlags |= SMS_IOPF_SMB;
+#else
+    i = -1;  /* SMB unavailable in non-BDM builds */
+#endif
+
    } else {
-    lpModule = &g_DataBuffer[ SMS_PS2HOST_OFFSET ];
-    lSize    = SMS_PS2HOST_SIZE;
-    lFlags   = SMS_IOPF_NET;
+
+    SifExecModuleBuffer ( &g_DataBuffer[ SMS_PS2HOST_OFFSET ], SMS_PS2HOST_SIZE, 0, NULL, &i );
+
+    if ( i >= 0 ) g_IOPFlags |= SMS_IOPF_NET;
+
    }  /* end else */
-
-   SifExecModuleBuffer ( lpModule, lSize, 0, NULL, &i );
-
-   if ( i >= 0 ) g_IOPFlags |= lFlags;
 
   }  /* end if */
 
@@ -498,7 +505,8 @@ int SMS_IOPStartHDD ( int afStatus ) {
 
 void SMS_IOPSetXLT ( void ) {
 
- if ( g_IOPFlags & SMS_IOPF_SMBLOGIN ) SMS_IOCtl ( g_pSMBS, SMB_IOCTL_SETCP, g_XLT[ g_Config.m_DisplayCharset ] );
+ /* smbman has no codepage ioctl ( the legacy SMSSMB SMB_IOCTL_SETCP is gone ).
+  * Server share/file names come back UTF-8 / OEM as the server sends them. */
 
 }  /* end SMS_IOPSetXLT */
 

@@ -18,10 +18,12 @@
 #include "SMS_GS.h"
 #include "SMS_PAD.h"
 #include "SMS_RC.h"
+#include "SMS_SMB.h"
 
 #include <malloc.h>
 #include <string.h>
 #include <fileio.h>
+#include <fileXio_rpc.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -69,6 +71,8 @@ static char s_pServerName [] __attribute__(   (  section( ".data" ), aligned( 1 
 static char s_pUserName   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Username";
 static char s_pPassword   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Password";
 static char s_pClientName [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Client name";
+static char s_pPort       [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Port";
+static char s_pShare      [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Share ( optional )";
 static char s_pEditTitle  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "SMB server";
 
 static SMString s_StrAddServer  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAddServer  ) - 1, s_pAddServer  };
@@ -77,11 +81,14 @@ static SMString s_StrServerName __attribute__(   (  section( ".data" )  )   ) = 
 static SMString s_StrUserName   __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pUserName   ) - 1, s_pUserName   };
 static SMString s_StrPassword   __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pPassword   ) - 1, s_pPassword   };
 static SMString s_StrClientName __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pClientName ) - 1, s_pClientName };
+static SMString s_StrPort       __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pPort       ) - 1, s_pPort       };
+static SMString s_StrShare      __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pShare      ) - 1, s_pShare      };
 static SMString s_StrEditTitle  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pEditTitle  ) - 1, s_pEditTitle  };
 
 /* working copy of the record being added / edited */
 static SMBLoginInfo s_AddInfo  __attribute__(   (  section( ".bss" )  )   );
 static char         s_AddIP[ 4 ][ 4 ] __attribute__(   (  section( ".bss" )  )   );
+static char         s_AddPort[ 8 ]    __attribute__(   (  section( ".bss" )  )   );  /* port as typed text */
 static char         s_AddDescr[ 64 ]  __attribute__(   (  section( ".bss" )  )   );
 
 static SMS_ListNode* s_pEditNode __attribute__(   (  section( ".bss" )  )   );
@@ -94,6 +101,8 @@ static SMString s_StrValName   __attribute__(   (  section( ".data" )  )   ) = {
 static SMString s_StrValUser   __attribute__(   (  section( ".data" )  )   ) = { 0, s_AddInfo.m_UserName   };
 static SMString s_StrValPass   __attribute__(   (  section( ".data" )  )   ) = { 0, s_AddInfo.m_Password   };
 static SMString s_StrValClient __attribute__(   (  section( ".data" )  )   ) = { 0, s_AddInfo.m_ClientName };
+static SMString s_StrValPort   __attribute__(   (  section( ".data" )  )   ) = { 0, s_AddPort            };
+static SMString s_StrValShare  __attribute__(   (  section( ".data" )  )   ) = { 0, s_AddInfo.m_Share    };
 
 /* ----------------------------------------------------------------------------
  * On-screen keyboard ( GUI_TextInput )
@@ -477,6 +486,33 @@ static void _addclient_handler ( GUIMenu* apMenu, int aDir ) {
 
 }  /* end _addclient_handler */
 
+static void _addport_handler ( GUIMenu* apMenu, int aDir ) {
+
+ /* TCP port for the direct-TCP smbman connection ( default 1445 for the
+  * PS2-Servers SMB1 host; 445 for a normal SMB server, 139 for NetBIOS ). */
+ GUI_TextInput (  s_AddPort, sizeof ( s_AddPort ), s_pPort  );
+
+ if ( !s_AddPort[ 0 ] ) strcpy ( s_AddPort, "1445" );
+
+ s_StrValPort.m_Len = strlen ( s_AddPort );
+
+ GUIMenuSMS_UpdateStatus ( apMenu );
+ apMenu -> Redraw ( apMenu );
+
+}  /* end _addport_handler */
+
+static void _addshare_handler ( GUIMenu* apMenu, int aDir ) {
+
+ /* Optional: pre-set the share to open. Left empty, the browser lists the
+  * server's shares ( GETSHARELIST ) and the user picks one. */
+ GUI_TextInput (  s_AddInfo.m_Share, sizeof ( s_AddInfo.m_Share ), s_pShare  );
+ s_StrValShare.m_Len = strlen ( s_AddInfo.m_Share );
+
+ GUIMenuSMS_UpdateStatus ( apMenu );
+ apMenu -> Redraw ( apMenu );
+
+}  /* end _addshare_handler */
+
 static void _addsave_handler ( GUIMenu* apMenu, int aDir ) {
 
  SMBLoginInfo* lpInfo;
@@ -511,6 +547,10 @@ static void _addsave_handler ( GUIMenu* apMenu, int aDir ) {
  strcpy ( g_Config.m_SMBIP, s_AddInfo.m_ServerIP );
 
  if (  !s_AddInfo.m_ClientName[ 0 ]  ) strcpy ( s_AddInfo.m_ClientName, "PS2" );
+
+ /* Persist the typed TCP port ( default 1445 when empty / 0 ). */
+ s_AddInfo.m_Port = atoi ( s_AddPort );
+ if ( s_AddInfo.m_Port <= 0 || s_AddInfo.m_Port > 65535 ) s_AddInfo.m_Port = 1445;
 
  strupr ( s_AddInfo.m_ServerName );
 
@@ -550,7 +590,7 @@ static void _addsave_handler ( GUIMenu* apMenu, int aDir ) {
 
 }  /* end _addsave_handler */
 
-static GUIMenuItem s_AddMenu[ 10 ] __attribute__(   (  section( ".data" )  )   ) = {
+static GUIMenuItem s_AddMenu[ 12 ] __attribute__(   (  section( ".data" )  )   ) = {
  { MENU_ITEM_TYPE_TEXT, &STR_PS2_IP1,      0, 0, _addip1_handler,   0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_PS2_IP2,      0, 0, _addip2_handler,   0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_PS2_IP3,      0, 0, _addip3_handler,   0, 0 },
@@ -559,6 +599,8 @@ static GUIMenuItem s_AddMenu[ 10 ] __attribute__(   (  section( ".data" )  )   )
  { MENU_ITEM_TYPE_TEXT, &s_StrUserName,    0, 0, _adduser_handler,  0, 0 },
  { MENU_ITEM_TYPE_TEXT, &s_StrPassword,    0, 0, _addpass_handler,  0, 0 },
  { MENU_ITEM_TYPE_TEXT, &s_StrClientName,  0, 0, _addclient_handler,0, 0 },
+ { MENU_ITEM_TYPE_TEXT, &s_StrPort,        0, 0, _addport_handler,  0, 0 },
+ { MENU_ITEM_TYPE_TEXT, &s_StrShare,       0, 0, _addshare_handler, 0, 0 },
  { 0,                   &STR_SAVE_SETTINGS,0, 0, _addsave_handler,  0, 0 }
 };
 
@@ -603,27 +645,35 @@ static void _smb_addedit_form ( GUIMenu* apMenu, SMS_ListNode* apNode ) {
 
  }  /* end else */
 
+ /* Port: default 1445 ( PS2-Servers ) for a new server or an old record whose
+  * m_Port is 0 / unset. */
+ sprintf (  s_AddPort, "%d", s_AddInfo.m_Port ? s_AddInfo.m_Port : 1445  );
+
  for ( i = 0; i < 4; ++i ) s_StrAddIP[ i ].m_Len = strlen ( s_AddIP[ i ] );
 
  s_StrValName.m_Len   = strlen ( s_AddInfo.m_ServerName );
  s_StrValUser.m_Len   = strlen ( s_AddInfo.m_UserName   );
  s_StrValPass.m_Len   = strlen ( s_AddInfo.m_Password   );
  s_StrValClient.m_Len = strlen ( s_AddInfo.m_ClientName );
+ s_StrValPort.m_Len   = strlen ( s_AddPort             );
+ s_StrValShare.m_Len  = strlen ( s_AddInfo.m_Share     );
 
  for ( i = 0; i < 4; ++i ) s_AddMenu[ i ].m_IconRight = ( unsigned int )&s_StrAddIP[ i ];
 
- s_AddMenu[ 4 ].m_IconRight = ( unsigned int )&s_StrValName;
- s_AddMenu[ 5 ].m_IconRight = ( unsigned int )&s_StrValUser;
- s_AddMenu[ 6 ].m_IconRight = ( unsigned int )&s_StrValPass;
- s_AddMenu[ 7 ].m_IconRight = ( unsigned int )&s_StrValClient;
- s_AddMenu[ 8 ].m_IconRight = GUICON_SAVE;
+ s_AddMenu[ 4  ].m_IconRight = ( unsigned int )&s_StrValName;
+ s_AddMenu[ 5  ].m_IconRight = ( unsigned int )&s_StrValUser;
+ s_AddMenu[ 6  ].m_IconRight = ( unsigned int )&s_StrValPass;
+ s_AddMenu[ 7  ].m_IconRight = ( unsigned int )&s_StrValClient;
+ s_AddMenu[ 8  ].m_IconRight = ( unsigned int )&s_StrValPort;
+ s_AddMenu[ 9  ].m_IconRight = ( unsigned int )&s_StrValShare;
+ s_AddMenu[ 10 ].m_IconRight = GUICON_SAVE;
 
  lpState = GUI_MenuPushState ( apMenu );
 
  lpState -> m_pItems =
  lpState -> m_pFirst =
  lpState -> m_pCurr  = s_AddMenu;
- lpState -> m_pLast  = &s_AddMenu[ 8 ];
+ lpState -> m_pLast  = &s_AddMenu[ 10 ];
  lpState -> m_pTitle = &s_StrEditTitle;
 
  GUIMenuSMS_UpdateStatus ( apMenu );
@@ -649,35 +699,32 @@ static void _smb_handler ( GUIMenu* apMenu, int aDir ) {
 
   if ( g_IOPFlags & SMS_IOPF_NET_UP ) {
 
-   int lFD = fioDopen ( g_pSMBS );
+   /* smbman is synchronous + single-connection: there is no in-progress connect
+    * to STOPC. If a session is up, close any open share + LOGOFF first, then
+    * trigger a fresh synchronous logon to the newly selected server via the
+    * 0x18 ( GUI_MSG_LOGIN ) connect action ( -> _smb_logon ). */
+   if ( g_IOPFlags & SMS_IOPF_SMBLOGIN ) {
 
-   if ( lFD >= 0 ) {
+    GUI_Status ( STR_SMB_CLOSING.m_pStr );
+    SMS_PgIndStart ();
+     if ( g_SMBU >= 0 ) fileXioDevctl (  g_pSMBS, SMB_DEVCTL_CLOSESHARE, NULL, 0, NULL, 0  );
+     fileXioDevctl (  g_pSMBS, SMB_DEVCTL_LOGOFF, NULL, 0, NULL, 0  );
+    SMS_PgIndStop ();
 
-    if ( g_IOPFlags & SMS_IOPF_SMBLOGIN ) {
-redo:
-     fioIoctl ( lFD, SMB_IOCTL_LOGOUT, &g_SMBUnit );
-     g_SMBU      = 0x80000000;
-     g_IOPFlags &= ~SMS_IOPF_SMBLOGIN;
-     GUI_PostMessage ( GUI_MSG_SMB );
+    g_SMBU      = 0x80000000;
+    g_IOPFlags &= ~SMS_IOPF_SMBLOGIN;
+    /* Removing the smb: device itself re-posts the 0x18 login ( see
+     * SMS_GUIDevMenu.c, lDevID == 6 ), so do NOT post a second login here --
+     * doing so logs on twice and adds a duplicate smb: device entry. */
+    GUI_PostMessage ( GUI_MSG_SMB );
 
-    } else {
+   } else {
 
-     int lSts;
+    GUI_PostMessage ( GUI_MSG_MOUNT_BIT | GUI_MSG_LOGIN );
 
-     GUI_Status ( STR_SMB_CLOSING.m_pStr );
-     SMS_PgIndStart ();
-      lSts = fioIoctl ( lFD, SMB_IOCTL_STOPC, &g_SMBUnit );
-     SMS_PgIndStop ();
-     if ( lSts < 0 ) goto redo;
+   }  /* end else */
 
-     GUI_PostMessage ( GUI_MSG_MOUNT_BIT | GUI_MSG_LOGIN );
-
-    }  /* end else */
-
-    fioDclose ( lFD );
-    GUIMenuSMS_UpdateStatus ( apMenu );
-
-   }  /* end if */
+   GUIMenuSMS_UpdateStatus ( apMenu );
 
   }  /* end if */
 

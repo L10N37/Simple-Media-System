@@ -1616,7 +1616,7 @@ FileContext* STIO_InitFileContext ( const char* aFileName, void* apUnused ) {
  }  /* end if */
 #else  /* PS2 */
 #ifdef BDM
- int lXio = ( aFileName != NULL && strncmp ( aFileName, "mass", 4 ) == 0 );
+ int lXio = ( aFileName != NULL && ( strncmp ( aFileName, "mass", 4 ) == 0 || strncmp ( aFileName, "smb", 3 ) == 0 ) );
  int lFD  = lXio ? fileXioOpen ( aFileName, O_RDONLY ) : fioOpen ( aFileName, O_RDONLY );
 #else
  int lFD = fioOpen ( aFileName, O_RDONLY );

@@ -25,10 +25,12 @@
 #include "SMS_Sounds.h"
 #include "SMS_RC.h"
 #include "SMS_IOP.h"
+#include "SMS_SMB.h"
 
 #include <kernel.h>
 #include <malloc.h>
 #include <fileio.h>
+#include <fileXio_rpc.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -213,16 +215,17 @@ static int GUIDevMenu_HandleMount ( GUIDevMenu* apMenu, unsigned int aMount, u64
     char        lBuff[ 512 ];
     const char* lpStage;
 
-    /* Self-diagnosing failure: surface the numeric g_SMBError / g_SMBServerError
-     * and a short stage label so a failed connect reveals COMM (never reached
-     * SMB: port 139 / NetBIOS name / server down) vs NEGOTIATE (no SMB1) vs
-     * LOGIN (bad creds). SMB_ERROR_* are defined in SMS_SMB.h. */
-    switch ( g_SMBError )  {
+    /* Self-diagnosing failure: surface the numeric g_SMBError and a short stage
+     * label so a failed connect reveals CONN (TCP connect to IP:port failed)
+     * vs PROTO (SMB negotiate failed) vs LOGON (bad credentials). The codes are
+     * smbman's SMB_DEVCTL_LOGON_ERR_* ( defined in SMS_SMB.h ); g_SMBError holds
+     * the raw devctl return ( <0 ), so test the absolute value too. */
+    switch (  g_SMBError < 0 ? -g_SMBError : g_SMBError  )  {
 
-     case SMB_ERROR_NEGOTIATE: lpStage = "NEGOTIATE"; break;
-     case SMB_ERROR_LOGIN:     lpStage = "LOGIN";     break;
-     case SMB_ERROR_COMM:      lpStage = "COMM";      break;
-     default:                  lpStage = "COMM";
+     case SMB_DEVCTL_LOGON_ERR_CONN:  lpStage = "CONN";  break;
+     case SMB_DEVCTL_LOGON_ERR_PROT:  lpStage = "PROTO"; break;
+     case SMB_DEVCTL_LOGON_ERR_LOGON: lpStage = "LOGON"; break;
+     default:                         lpStage = "CONN";
 
     }  /* end switch */
 
@@ -466,6 +469,46 @@ SMBLoginInfo* _lookup_login_info ( void ) {
 
 }  /* end _lookup_login_info */
 
+/* Synchronous smbman logon. smbman blocks inside the devctl and returns the
+ * result directly ( there is no async SIF login callback any more ), so unlike
+ * the legacy SMB_IOCTL_LOGIN we set g_SMBUnit / g_SMBError here. Returns the
+ * devctl result ( 0 on success, < 0 / a SMB_DEVCTL_LOGON_ERR_* code on error ). */
+int _smb_logon ( void ) {
+
+ int           lRes;
+ smbLogOn_in_t lLogOn;
+ SMBLoginInfo* lpInfo = _lookup_login_info ();
+
+ if ( !lpInfo ) {
+  g_SMBUnit  = -1;
+  g_SMBError = SMB_DEVCTL_LOGON_ERR_CONN;
+  return -1;
+ }  /* end if */
+
+ memset (  &lLogOn, 0, sizeof ( lLogOn )  );
+ strncpy ( lLogOn.serverIP, lpInfo -> m_ServerIP, 15 );
+ lLogOn.serverPort = lpInfo -> m_Port ? lpInfo -> m_Port : 1445;
+ strncpy ( lLogOn.User,     lpInfo -> m_UserName, 255 );
+ strncpy ( lLogOn.Password, lpInfo -> m_Password, 255 );
+ lLogOn.PasswordType = lpInfo -> m_Password[ 0 ] ? PLAINTEXT_PASSWORD : NO_PASSWORD;
+
+ lRes = fileXioDevctl (  g_pSMBS, SMB_DEVCTL_LOGON, &lLogOn, sizeof ( lLogOn ), NULL, 0  );
+
+ if ( lRes == 0 ) {
+  g_SMBUnit        = 0;
+  g_SMBError       = 0;
+  g_SMBServerError = 0;
+  g_IOPFlags      |= SMS_IOPF_SMBLOGIN;
+ } else {
+  g_SMBUnit        = -1;
+  g_SMBError       = lRes;
+  g_SMBServerError = 0;
+ }  /* end else */
+
+ return lRes;
+
+}  /* end _smb_logon */
+
 static int GUIDevMenu_HandleEvent ( GUIObject* apObj, u64           anEvent ) {
 
  int         retVal = GUIHResult_Void;
@@ -477,14 +520,23 @@ static int GUIDevMenu_HandleEvent ( GUIObject* apObj, u64           anEvent ) {
 
   if ( lDevID == 0x18 ) {
 
-   char lBuff[ 64 ];
+   char          lBuff[ 64 ];
+   SMBLoginInfo* lpInfo = _lookup_login_info ();
 
    /* Confirm which server we are about to log in to (tests that a freshly
-    * added/edited server became the active target via g_Config.m_SMBIP). */
-   sprintf ( lBuff, "SMB: connecting %s...", g_Config.m_SMBIP );
+    * added/edited server became the active target via g_Config.m_SMBIP).
+    * smbman connects by direct TCP to IP:port, so show the port too. */
+   sprintf (
+    lBuff, "SMB: connecting %s:%d...", g_Config.m_SMBIP,
+    ( lpInfo && lpInfo -> m_Port ) ? lpInfo -> m_Port : 1445
+   );
    GUI_Status ( lBuff );
 
-   SMS_IOCtl (  g_pSMBS, SMB_IOCTL_LOGIN, _lookup_login_info ()  );
+   /* Synchronous: _smb_logon() sets g_SMBUnit / g_SMBError directly. Post the
+    * SMB mount message either way -- GUIDevMenu_HandleMount ( lDevID == 6 )
+    * surfaces the failure ( g_SMBUnit < 0 ) or adds the smb: device. */
+   _smb_logon ();
+   GUI_PostMessage ( GUI_MSG_MOUNT_BIT | GUI_MSG_SMB );
 
    retVal = GUIHResult_Handled;
 

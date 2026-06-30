@@ -21,12 +21,14 @@
 #include "SMS_FileContext.h"
 #include "SMS_Sounds.h"
 #include "SMS_IOP.h"
+#include "SMS_SMB.h"
 #include "SMS_Container.h"
 #include "SMS_ContainerM3U.h"
 
 #include <kernel.h>
 #include <string.h>
 #include <fileio.h>
+#include <fileXio_rpc.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <malloc.h>
@@ -38,7 +40,7 @@ char g_pCDDA  [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "
 char g_pHOST  [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "host";
 char g_pDVD   [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "cdfs";
 char g_pCDDAFS[] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "cddafs:/";
-char g_pSMB   [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "smb0";
+char g_pSMB   [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "smb";
 char g_pSMBS  [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "smb:";
 
 static char s_pAVI [] __attribute__(   (  aligned( 4 ), section( ".data" ), aligned( 1 )  )   ) = ".avi";
@@ -276,33 +278,43 @@ void SMS_FileDirInit ( char* apPath ) {
 
   } else if ( g_CMedia == 6 ) {
 
-   lFD = fioDopen ( g_pSMBS );
+   int           lMaxEnt = 64;
+   ShareEntry_t* lpShare = ( ShareEntry_t* )memalign (  64, lMaxEnt * sizeof ( ShareEntry_t )  );
 
-   if ( lFD >= 0 ) {
+   if ( lpShare ) {
 
-    SMBShareInfo* lpShareInfo = ( SMBShareInfo* )malloc ( SMB_SENUM_SIZE );
+    int                  i, lnShares;
+    smbGetShareList_in_t lIn;
 
-    if ( lpShareInfo ) {
+    lIn.EE_addr = lpShare;
+    lIn.maxent  = lMaxEnt;
 
-     int          i, lnShares;
-     SMBSEnumInfo lInfo;
+    /* smbman delivers the share entries ONLY via its own SifSetDma into
+     * lIn.EE_addr ( = lpShare ); it never writes the iomanX devctl out-buffer.
+     * So pass NULL/0 for buf/buflen -- a non-NULL buf would trigger fileXio's
+     * return-buffer path and memcpy a stale IOP rwbuf over the first entries. */
+    lnShares = fileXioDevctl (  g_pSMBS, SMB_DEVCTL_GETSHARELIST, &lIn, sizeof ( lIn ), NULL, 0  );
 
-     lInfo.m_Unit  = g_SMBUnit;
-     lInfo.m_pInfo = lpShareInfo;
+    /* The IOP DMA'd straight to RAM, bypassing the EE D-cache. Invalidate the
+     * region AFTER the synchronous devctl so the reads below fetch the fresh
+     * data ( SyncDCache = writeback+invalidate; the EE wrote nothing here so the
+     * writeback half is a no-op ). */
+    if ( lnShares > 0 ) SyncDCache (  lpShare, ( char* )lpShare + lMaxEnt * sizeof ( ShareEntry_t )  );
 
-     SyncDCache (  lpShareInfo, ( char* )lpShareInfo + SMB_SENUM_SIZE  );
+    for ( i = 0; i < lnShares; ++i ) {
 
-     lnShares = fioIoctl ( lFD, SMB_IOCTL_SENUM, &lInfo );
+     char* lpShName = lpShare[ i ].ShareName;
+     int   lShLen   = strlen ( lpShName );
 
-     for ( i = 0; i < lnShares; ++i ) if (  !lpShareInfo[ i ].m_Type && lpShareInfo[ i ].m_Name[ strlen ( lpShareInfo[ i ].m_Name ) - 1 ] != '$'  ) {
+     if (  lShLen && lpShName[ lShLen - 1 ] != '$'  ) {  /* skip admin ( $ ) shares */
 
-      char* lpName = ( char* )malloc (  strlen ( lpShareInfo[ i ].m_Name ) + strlen ( lpShareInfo[ i ].m_pRemark ) + 4  );
+      char* lpName = ( char* )malloc (  lShLen + strlen ( lpShare[ i ].ShareComment ) + 4  );
 
       if ( lpName ) {
 
-       strcpy ( lpName, lpShareInfo[ i ].m_Name    );
-       strcat ( lpName, g_ColonSStr );
-       strcat ( lpName, lpShareInfo[ i ].m_pRemark );
+       strcpy ( lpName, lpShName                 );
+       strcat ( lpName, g_ColonSStr              );
+       strcat ( lpName, lpShare[ i ].ShareComment );
 
        SMS_ListPushBack ( g_pFileList, lpName ) -> m_Param = GUICON_SHARE;
 
@@ -310,13 +322,11 @@ void SMS_FileDirInit ( char* apPath ) {
 
       }  /* end if */
 
-     }  /* end for */
+     }  /* end if */
 
-     free ( lpShareInfo );
+    }  /* end for */
 
-    }  /* end if */
-
-    fioDclose ( lFD );
+    free ( lpShare );
 
     if ( lfSort ) SMS_ListSort ( g_pFileList );
 

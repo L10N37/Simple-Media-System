@@ -24,6 +24,7 @@
 #include "SMS_DMA.h"
 #include "SMS_Locale.h"
 #include "SMS_IOP.h"
+#include "SMS_SMB.h"
 #include "SMS_CDDA.h"
 #include "SMS_CDVD.h"
 #include "SMS_FileDir.h"
@@ -37,6 +38,7 @@
 #include <loadfile.h>
 #include <libhdd.h>
 #include <fileio.h>
+#include <fileXio_rpc.h>
 #include <malloc.h>
 #include <sifrpc.h>
 #include <string.h>
@@ -575,19 +577,19 @@ static int _gui_thread ( void* apParam ) {
 
     if (  !( s_lCntr++ & 0x3F )  ) {
 
-     int lStat, lSD = fioDopen ( g_pSMBS );
+     /* smbman keepalive: a synchronous ECHO devctl ( no fioDopen fd needed ).
+      * If it fails the connection is dead -- LOGOFF and signal a drop. */
+     smbEcho_in_t lEcho;
+     int          lStat;
 
-     if ( lSD >= 0 ) {
+     strcpy ( lEcho.echo, "ping" );
+     lEcho.len = 4;
 
-      lStat = fioIoctl ( lSD, SMB_IOCTL_ECHO, &g_SMBUnit );
+     lStat = fileXioDevctl (  g_pSMBS, SMB_DEVCTL_ECHO, &lEcho, sizeof ( lEcho ), NULL, 0  );
 
-      if ( lStat < 0 ) fioIoctl ( lSD, SMB_IOCTL_LOGOUT, &g_SMBUnit );
+     if ( lStat < 0 ) {
 
-      fioDclose ( lSD );
-
-     }  /* end if */
-
-     if ( lSD < 0 || lStat < 0 ) {
+      fileXioDevctl (  g_pSMBS, SMB_DEVCTL_LOGOFF, NULL, 0, NULL, 0  );
 
       g_SMBU      = 0x80000000;
       g_IOPFlags &= ~SMS_IOPF_SMBLOGIN;

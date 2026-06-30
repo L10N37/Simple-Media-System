@@ -27,11 +27,13 @@
 #include "SMS_PgInd.h"
 #include "SMS_IOP.h"
 #include "SMS_ioctl.h"
+#include "SMS_SMB.h"
 
 #include <kernel.h>
 #include <malloc.h>
 #include <string.h>
 #include <fileio.h>
+#include <fileXio_rpc.h>
 #include <fcntl.h>
 
 static char s_pPPHDL[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "PP.HDL.";
@@ -636,41 +638,39 @@ static void _context_action_fold ( GUIFileMenu* apMenu, int afPopup ) {
 
 static void _action_share ( GUIFileMenu* apMenu, int afPopup ) {
 
- int          lSD;
- SMBMountInfo lMountInfo;
- char         lPath[ 2 ] __attribute__(   (  aligned( 4 )  )   );
- char*        lpPath = _STR( apMenu -> m_pCurrent );
+ smbOpenShare_in_t lOpen;
+ char              lPath[ 2 ] __attribute__(   (  aligned( 4 )  )   );
+ char*             lpPath = _STR( apMenu -> m_pCurrent );  /* "ShareName: comment" */
 
- lSD = fioDopen ( g_pSMBS );
+ /* smbman is single-share: drop any share already open before opening a new one. */
+ if ( g_SMBU >= 0 ) {
 
- if ( lSD >= 0 ) {
+  fileXioDevctl (  g_pSMBS, SMB_DEVCTL_CLOSESHARE, NULL, 0, NULL, 0  );
+  g_SMBU = 0x80000000;
 
-  if ( g_SMBU >= 0 ) {
+ }  /* end if */
 
-   fioIoctl ( lSD, SMB_IOCTL_UMOUNT, &g_SMBU );
-   g_SMBU = 0x80000000;
+ memset (  &lOpen, 0, sizeof ( lOpen )  );
+ strncpy ( lOpen.ShareName, lpPath, sizeof ( lOpen.ShareName ) - 1 );
 
-  }  /* end if */
+ {
+  char* lpColon = strchr ( lOpen.ShareName, ':' );  /* trim the ": comment" tail */
+  if ( lpColon ) *lpColon = '\x00';
+ }
 
-  lMountInfo.m_Unit = g_SMBUnit;
-  strcpy ( lMountInfo.m_Path, lpPath );
-  *strchr ( lMountInfo.m_Path, ':' ) = '\x00';
+ lOpen.PasswordType = NO_PASSWORD;
 
-  g_SMBU = fioIoctl ( lSD, SMB_IOCTL_MOUNT, &lMountInfo );
-  fioDclose ( lSD );
+ if (  fileXioDevctl ( g_pSMBS, SMB_DEVCTL_OPENSHARE, &lOpen, sizeof ( lOpen ), NULL, 0 ) == 0  ) {
 
-  if ( g_SMBU > 0 ) {
+  g_SMBU = 0;  /* share open -- single device "smb:", no unit digit */
 
-   *( unsigned int* )g_CWD       = *( int* )g_pSMB;
-   g_CWD[ 3 ]                    = '0' + g_SMBU;
-   *( unsigned int* )&g_CWD[ 4 ] = 0x0000003A;
-   *( unsigned short* )lPath     = 0x002F;
+  *( unsigned int* )g_CWD   = *( int* )g_pSMBS;  /* "smb:" */
+  g_CWD[ 4 ]                = '\x00';
+  *( unsigned short* )lPath = 0x002F;            /* "/"    */
 
-   _push_state ( apMenu );
-   _fill ( apMenu, lPath, 0 );
-   _redraw ( apMenu, 0 );
-
-  }  /* end if */
+  _push_state ( apMenu );
+  _fill ( apMenu, lPath, 0 );
+  _redraw ( apMenu, 0 );
 
  }  /* end if */
 
@@ -842,7 +842,7 @@ redraw:
   } else if (  lBtn == RC_DISPLAY || lBtn == ( SMS_PAD_R1 | SMS_PAD_CIRCLE )  ) {
 
    if (  ( g_CMedia == 2 && g_PD     >= 0 && g_CWD[ 0 ] != 'h' ) ||
-         ( g_CMedia == 6 && g_SMBU   >  0                      ) ||
+         ( g_CMedia == 6 && g_SMBU   >= 0                      ) ||  /* smbman: share open == g_SMBU 0 */
          ( g_CMedia != 2 && g_CMedia != 6                      )
    ) _context_action_file ( lpMenu, 4 );
 

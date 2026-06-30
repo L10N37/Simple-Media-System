@@ -20,6 +20,8 @@
 #include <malloc.h>
 #include <fileio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 extern void _check_dc_offset ( void );
 extern unsigned char g_IconSMS[ 2020 ] __attribute__(   (  section( ".data" )  )   );
@@ -132,6 +134,9 @@ void SMS_LoadSMBInfo ( void ) {
 
    SMBLoginInfo lInfo;
    char         lDescr[ 64 ];
+   char         lPort [ 8 ];
+
+   memset (  &lInfo, 0, sizeof ( lInfo )  );
 
    File_GetString (  lpFileCtx, lInfo.m_ServerIP,   sizeof ( lInfo.m_ServerIP   )  );
    File_GetString (  lpFileCtx, lInfo.m_ServerName, sizeof ( lInfo.m_ServerName )  );
@@ -139,6 +144,23 @@ void SMS_LoadSMBInfo ( void ) {
    File_GetString (  lpFileCtx, lInfo.m_UserName,   sizeof ( lInfo.m_UserName   )  );
    File_GetString (  lpFileCtx, lInfo.m_Password,   sizeof ( lInfo.m_Password   )  );
    File_GetString (  lpFileCtx, lDescr,             sizeof ( lDescr             )  );
+
+   lPort[ 0 ] = '\x00';
+   /* Port/Share exist only in the new format. A legacy 6-line record ends right
+    * after the description; reading further would steal the next record's lines,
+    * so only consume them when the record isn't already exhausted. */
+   if (  !FILE_EOF( lpFileCtx )  ) {
+    File_GetString (  lpFileCtx, lPort,         sizeof ( lPort         )  );
+    File_GetString (  lpFileCtx, lInfo.m_Share, sizeof ( lInfo.m_Share )  );
+   }  /* end if */
+
+   {  /* Only an all-digit token is a port; a misaligned IP/name line is not. */
+    char* lpDig = lPort;
+    int   lfDig = ( *lpDig != '\x00' );
+    for ( ; *lpDig; ++lpDig ) if ( *lpDig < '0' || *lpDig > '9' ) { lfDig = 0; break; }
+    lInfo.m_Port = lfDig ? atoi ( lPort ) : 0;
+   }
+   if ( lInfo.m_Port <= 0 || lInfo.m_Port > 65535 ) lInfo.m_Port = 1445;
 
    if ( lInfo.m_ServerIP  [ 0 ] &&
         lInfo.m_ServerName[ 0 ] &&
@@ -189,6 +211,9 @@ void SMS_SaveSMBInfo ( void ) {
  while ( lpNode ) {
 
   SMBLoginInfo* lpInfo = ( SMBLoginInfo* )( unsigned int )lpNode -> m_Param;
+  char          lPort[ 8 ];
+
+  sprintf (  lPort, "%d", lpInfo -> m_Port ? lpInfo -> m_Port : 1445  );
 
   _smb_put_line ( lFD, lpInfo -> m_ServerIP   );
   _smb_put_line ( lFD, lpInfo -> m_ServerName );
@@ -196,6 +221,9 @@ void SMS_SaveSMBInfo ( void ) {
   _smb_put_line ( lFD, lpInfo -> m_UserName   );
   _smb_put_line ( lFD, lpInfo -> m_Password   );
   _smb_put_line (  lFD, _STR( lpNode )  );
+  /* Appended smbman fields ( legacy readers stop after the description ). */
+  _smb_put_line ( lFD, lPort                  );
+  _smb_put_line ( lFD, lpInfo -> m_Share      );
 
   lpNode = lpNode -> m_pNext;
 
