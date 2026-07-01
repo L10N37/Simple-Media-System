@@ -275,9 +275,9 @@ int SMS_LoadConfig ( void  ) {
  int retVal = 0;
  int lRes;
 
- g_Config.m_BrowserABCIdx    = 16;
- g_Config.m_BrowserIBCIdx    = 13;
- g_Config.m_BrowserTxtIdx    = 15;
+ g_Config.m_BrowserABCIdx    = 16;  /* active accent: white */
+ g_Config.m_BrowserIBCIdx    = 11;  /* inactive panels / info bar / spectrum: cyan ( was red 13 ) -> matches jellyfish theme */
+ g_Config.m_BrowserTxtIdx    = 16;  /* browser text: white ( was yellow 15 ) */
  g_Config.m_NetworkFlags     = 0;  /* no-settings default: auto-start NO device (clean boot); user enables HDD/USB/MX4SIO/net from the menu, persisted once saved */
  g_Config.m_PlayerVolume     = 12;
  g_Config.m_PlayerAC3RL      =  6;
@@ -288,8 +288,8 @@ int SMS_LoadConfig ( void  ) {
  g_Config.m_PlayerSCBIdx     = 16;
  g_Config.m_PlayerSCIIdx     = 11;
  g_Config.m_PlayerSCUIdx     = 10;
- g_Config.m_BrowserSCIdx     = 16;
- g_Config.m_BrowserSBCIdx    = 16;
+ g_Config.m_BrowserSCIdx     = 9;   /* selection highlight: blue ( was white 16 ) -> matches jellyfish theme */
+ g_Config.m_BrowserSBCIdx    = 16;  /* text secondary / shadow: white */
  g_Config.m_PlayerSubOffset  = 32;
  g_Config.m_PlayerVBCIdx     = 11;
  g_Config.m_PlayerSBCIdx     = 11;
