@@ -280,7 +280,7 @@ static int _DecodeJellyfish ( void ) {
 
 }  /* end _DecodeJellyfish */
 
-static int _DrawJellyfish ( void ) {
+static int _DrawJellyfish ( int afFade ) {
 
  int          lY, lBand;
  u64*         lpDMA;
@@ -322,13 +322,38 @@ static int _DrawJellyfish ( void ) {
 
  }  /* end for */
 
-/* blit full-screen, exactly like DrawSkin does for a skin image */
- lpDMA = GSContext_NewPacket (  0, GS_TSP_PACKET_SIZE(), GSPaintMethod_Init  );
- GSContext_RenderTexSprite (
-  ( GSTexSpritePacket* )( lpDMA - 2 ),
-  0, 0, g_GSCtx.m_Width, g_GSCtx.m_Height, 0, 0, s_JFW, s_JFH
- );
- GSContext_Flush ( 0, GSFlushMethod_KeepLists );
+/* Blit full-screen. On the boot draw ( afFade ) ramp up from black with a
+ * shrinking black overlay so the splash's fade-out flows straight into the
+ * desktop; otherwise just blit once. */
+ if ( afFade ) {
+
+  int lA;
+
+  for ( lA = 0x80; lA >= 0; lA -= 8 ) {
+   lpDMA = GSContext_NewPacket (  0, GS_TSP_PACKET_SIZE(), GSPaintMethod_Init  );
+   GSContext_RenderTexSprite (
+    ( GSTexSpritePacket* )( lpDMA - 2 ),
+    0, 0, g_GSCtx.m_Width, g_GSCtx.m_Height, 0, 0, s_JFW, s_JFH
+   );
+   lpDMA = GSContext_NewPacket (  0, GS_VGR_PACKET_SIZE(), GSPaintMethod_Continue  );
+   GSContext_RenderVGRect (
+    lpDMA, 0, 0, g_GSCtx.m_Width, g_GSCtx.m_Height,
+    GS_SET_RGBAQ( 0, 0, 0, lA, 0 ), GS_SET_RGBAQ( 0, 0, 0, lA, 0 )
+   );
+   GSContext_Flush ( 0, GSFlushMethod_KeepLists );
+   GS_VSync ();
+  }  /* end for */
+
+ } else {
+
+  lpDMA = GSContext_NewPacket (  0, GS_TSP_PACKET_SIZE(), GSPaintMethod_Init  );
+  GSContext_RenderTexSprite (
+   ( GSTexSpritePacket* )( lpDMA - 2 ),
+   0, 0, g_GSCtx.m_Width, g_GSCtx.m_Height, 0, 0, s_JFW, s_JFH
+  );
+  GSContext_Flush ( 0, GSFlushMethod_KeepLists );
+
+ }  /* end else */
 
  return 1;
 
@@ -484,24 +509,20 @@ static void Desktop_Render ( GUIObject* apObj, int aCtx ) {
 
    GUI_LoadIcons ();
 
-/* Boot splash: an opaque full-screen image ( jellyfish + "SMS" sphere logo +
- * authors strip ). Show it, hold ~1.2s, then paint the desktop over it.
- * _DrawSplash issues its own GS packets, so re-arm lpDMA for the gradient. */
+/* Pre-decode the desktop background now so it is cached and ready the instant
+ * the splash ends -- otherwise the JPEG decode runs after the fade-out and
+ * shows as a black gap before the desktop lands. */
+   _DecodeJellyfish ();
+
+/* Boot splash: fades in, holds ~1s, fades out to black ( all inside
+ * _DrawSplash ). */
    _DrawSplash ();
-   SMS_TimerWait ( 1200 );
-   lpDMA = GSContext_NewPacket ( 0, GS_VGR_PACKET_SIZE(), GSPaintMethod_InitClear );
 
-/* Base layer: keep the procedural gradient as a fallback. It is */
-/* fully covered by the opaque jellyfish image when that decodes. */
-   GSContext_RenderVGRect (
-    lpDMA, 0, 0, g_GSCtx.m_Width, g_GSCtx.m_Height,
-    GS_SET_RGBAQ( 0x00, 0x00, 0x40, 0x80, 0x00 ),
-    GS_SET_RGBAQ( 0x00, 0x00, 0x00, 0x80, 0x00 )
-   );
-   GSContext_Flush ( 0, GSFlushMethod_KeepLists );
-
-/* Replace the gradient background with the embedded jellyfish image. */
-   _DrawJellyfish ();
+/* Fade the desktop background up from black, so the splash's fade-out flows
+ * straight into the desktop with no black gap. The opaque jellyfish covers the
+ * whole screen, so the old gradient fill is no longer needed. */
+   _DrawJellyfish ( 1 );
+   ( void )lpDMA;
 
    ( void )lBP;  /* animated "SMS" ball-logo watermark removed -- SMS branding
                   * now appears on the boot splash ( _DrawSplash ) above. */
