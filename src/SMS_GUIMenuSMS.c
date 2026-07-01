@@ -79,6 +79,7 @@ static void _startmx4sio_handler ( GUIMenu*, int );
 static void _starthdd_handler ( GUIMenu*, int );
 static void _refresh_handler  ( GUIMenu*, int );
 extern int  _smb_logon        ( void );   /* SMS_GUIDevMenu.c -- (re)connect SMB */
+extern int  g_SMBError;                   /* SMS_GUI.c -- last SMB logon result  */
 static void _editipc_handler  ( GUIMenu*, int );
 static void _cdvd_handler     ( GUIMenu*, int );
 static void _cdvd_spd_handler ( GUIMenu*, int );
@@ -1226,14 +1227,40 @@ static void _starthdd_handler ( GUIMenu* apMenu, int aDir ) {
 static void _refresh_handler ( GUIMenu* apMenu, int aDir ) {
 
 /* Re-probe / reconnect the devices that are already up, without a reboot:
- * re-scan the BDM mass slots ( USB / MX4SIO ) so a hot-swapped or reconnected
- * drive is detected, and re-log-on to SMB if it is active. Then rebuild the
- * device submenu so any change is reflected. */
+ * re-scan the BDM mass slots ( USB / MX4SIO ) for hot-swapped drives, then
+ * reconnect the network -- retry the SMB log-on a few times if it is active,
+ * since a dropped session / brief link loss just needs a fresh connect over the
+ * ( still-loaded ) TCP stack. On repeated failure the SMB error code tells you
+ * whether it is the link ( CONN ) or the credentials ( LOGON ). */
 #ifdef BDM
  SMS_IOPRefreshMass ();
 #endif
 
- if ( g_IOPFlags & SMS_IOPF_SMB ) _smb_logon ();
+ if ( g_IOPFlags & SMS_IOPF_SMB ) {
+
+  int  lTry;
+  int  lRes = -1;
+  char lBuf[ 64 ];
+
+  for ( lTry = 1; lTry <= 3 && lRes != 0; ++lTry ) {
+
+   sprintf ( lBuf, "Reconnecting network... %d/3", lTry );
+   GUI_Status ( lBuf );
+
+   lRes = _smb_logon ();
+
+   if ( lRes != 0 && lTry < 3 ) SMS_TimerWait ( 700 );
+
+  }  /* end for */
+
+  if ( lRes != 0 ) {
+
+   sprintf ( lBuf, "Network reconnect failed ( err %d ) -- retry or reboot", g_SMBError );
+   GUI_Error ( lBuf );
+
+  }  /* end if */
+
+ }  /* end if */
 
  GUI_MenuPopState ( apMenu );
  _device_handler  ( apMenu, 0 );
