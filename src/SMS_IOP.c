@@ -82,6 +82,13 @@ extern unsigned int size_padman_irx;
 extern unsigned int size_smbman_irx;
 
 extern unsigned int g_MassFlags;
+/* Units ( 0..3 ) whose "connected" event has already been emitted into
+ * g_MassFlags ( i.e. already present in the device strip ). g_MassFlags is a
+ * one-shot event flag: the GUI loop consumes each set bit, ADDS the device and
+ * clears the bit -- with no duplicate check. So re-setting a bit for a unit that
+ * is already in the strip appends a second copy. s_MassAdded lets refresh emit a
+ * connect event only for units that are NOT already added. */
+static unsigned int s_MassAdded;
 #else
 static char s_pSIO2MAN[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "rom0:SIO2MAN";
 static char s_pPADMAN [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "rom0:PADMAN";
@@ -403,10 +410,10 @@ int SMS_IOPStartUSB ( int afStatus ) {
  }
 
  // check for connected devices.. hot plugging isn't going to work
- if (  checkConnectedMassDev ( 0 )  ) g_MassFlags |= 0x00000002;
- if (  checkConnectedMassDev ( 1 )  ) g_MassFlags |= 0x00000800;
- if (  checkConnectedMassDev ( 2 )  ) g_MassFlags |= 0x00002000;
- if (  checkConnectedMassDev ( 3 )  ) g_MassFlags |= 0x00008000;
+ if (  checkConnectedMassDev ( 0 )  ) { g_MassFlags |= 0x00000002; s_MassAdded |= ( 1 << 0 ); }
+ if (  checkConnectedMassDev ( 1 )  ) { g_MassFlags |= 0x00000800; s_MassAdded |= ( 1 << 1 ); }
+ if (  checkConnectedMassDev ( 2 )  ) { g_MassFlags |= 0x00002000; s_MassAdded |= ( 1 << 2 ); }
+ if (  checkConnectedMassDev ( 3 )  ) { g_MassFlags |= 0x00008000; s_MassAdded |= ( 1 << 3 ); }
 #else
  char lBuf[ 64 ];
 
@@ -468,7 +475,10 @@ int SMS_IOPStartMX4SIO ( int afStatus ) {
 
   if (  checkConnectedMassDev ( i )  ) {
 
-   g_MassFlags |= lBit[ i ];
+   if (  !( s_MassAdded & ( 1 << i ) )  ) {   /* don't re-add a unit already in the strip */
+    g_MassFlags |= lBit[ i ];
+    s_MassAdded |= ( 1 << i );
+   }  /* end if */
 
    if (  !( before & ( 1 << i ) )  ) g_Mx4sioMask |= ( 1 << i );
 
@@ -490,13 +500,27 @@ void SMS_IOPRefreshMass ( void ) {
 
  int i;
 
- /* Re-probe the BDM mass slots ( USB / MX4SIO ) so a hot-swapped or reconnected
-  * drive is detected without a reboot. Set/clear each connected bit; the device
-  * menu re-reads g_MassFlags the next time it is opened. */
+ /* Re-probe the BDM mass slots ( USB / MX4SIO ) so a newly connected drive is
+  * picked up without a reboot. g_MassFlags is a one-shot "device connected"
+  * event flag: the GUI loop consumes each set bit, adds the device to the strip
+  * and clears the bit -- with NO duplicate check. So we must only raise a
+  * connect event for a unit that is NOT already in the strip; otherwise every
+  * refresh would append another copy of the same drive ( the reported bug ).
+  * Units that were present and are now gone are left in place -- SMS has no safe
+  * hot-remove path here ( a disconnect bit set in g_MassFlags would re-fire every
+  * GUI loop, since the disconnect handler never clears it from g_MassFlags ). */
  for ( i = 0; i < 4; ++i ) {
 
-  if (  checkConnectedMassDev ( i )  ) g_MassFlags |=  lBit[ i ];
-  else                                 g_MassFlags &= ~lBit[ i ];
+  if (  checkConnectedMassDev ( i ) && !( s_MassAdded & ( 1 << i ) )  ) {
+
+   g_MassFlags |= lBit[ i ];
+   s_MassAdded |= ( 1 << i );
+
+   /* If MX4SIO is the active BDM backend, tag the freshly detected unit so it
+    * shows the MX4SIO icon rather than the default USB one. */
+   if ( g_IOPFlags & SMS_IOPF_MX4SIO ) g_Mx4sioMask |= ( 1 << i );
+
+  }  /* end if */
 
  }  /* end for */
 
