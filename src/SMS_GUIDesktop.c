@@ -409,12 +409,51 @@ static void _DrawSplash ( void ) {
 
    }  /* end for */
 
-   lpDMA = GSContext_NewPacket (  0, GS_TSP_PACKET_SIZE(), GSPaintMethod_Init  );
-   GSContext_RenderTexSprite (
-    ( GSTexSpritePacket* )( lpDMA - 2 ),
-    0, 0, g_GSCtx.m_Width, g_GSCtx.m_Height, 0, 0, lW, lH
-   );
-   GSContext_Flush ( 0, GSFlushMethod_KeepLists );
+/* Present with a fade: each frame re-blits the ( resident ) splash and lays a
+ * full-screen black quad over it whose alpha ramps, so the image fades up from
+ * black, holds, then fades back to black. Splash + overlay go in ONE packet
+ * chain ( Init + Continue ) flushed once per vsync -> a single clean frame, no
+ * flicker. Black-quad alpha 0x80 = full black, 0 = full image. */
+   {
+    int lA;
+
+    for ( lA = 0x80; lA >= 0; lA -= 8 ) {   /* fade IN: black -> image */
+
+     lpDMA = GSContext_NewPacket (  0, GS_TSP_PACKET_SIZE(), GSPaintMethod_Init  );
+     GSContext_RenderTexSprite (
+      ( GSTexSpritePacket* )( lpDMA - 2 ),
+      0, 0, g_GSCtx.m_Width, g_GSCtx.m_Height, 0, 0, lW, lH
+     );
+     lpDMA = GSContext_NewPacket (  0, GS_VGR_PACKET_SIZE(), GSPaintMethod_Continue  );
+     GSContext_RenderVGRect (
+      lpDMA, 0, 0, g_GSCtx.m_Width, g_GSCtx.m_Height,
+      GS_SET_RGBAQ( 0, 0, 0, lA, 0 ), GS_SET_RGBAQ( 0, 0, 0, lA, 0 )
+     );
+     GSContext_Flush ( 0, GSFlushMethod_KeepLists );
+     GS_VSync ();
+
+    }  /* end for */
+
+    SMS_TimerWait ( 1000 );                  /* hold at full brightness */
+
+    for ( lA = 0; lA <= 0x80; lA += 8 ) {    /* fade OUT: image -> black */
+
+     lpDMA = GSContext_NewPacket (  0, GS_TSP_PACKET_SIZE(), GSPaintMethod_Init  );
+     GSContext_RenderTexSprite (
+      ( GSTexSpritePacket* )( lpDMA - 2 ),
+      0, 0, g_GSCtx.m_Width, g_GSCtx.m_Height, 0, 0, lW, lH
+     );
+     lpDMA = GSContext_NewPacket (  0, GS_VGR_PACKET_SIZE(), GSPaintMethod_Continue  );
+     GSContext_RenderVGRect (
+      lpDMA, 0, 0, g_GSCtx.m_Width, g_GSCtx.m_Height,
+      GS_SET_RGBAQ( 0, 0, 0, lA, 0 ), GS_SET_RGBAQ( 0, 0, 0, lA, 0 )
+     );
+     GSContext_Flush ( 0, GSFlushMethod_KeepLists );
+     GS_VSync ();
+
+    }  /* end for */
+
+   }
 
    free ( lpTex );
 
