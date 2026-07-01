@@ -483,6 +483,28 @@ int SMS_IOPStartMX4SIO ( int afStatus ) {
 int SMS_IOPStartMX4SIO ( int afStatus ) { return 0; }
 #endif
 
+#ifdef BDM
+void SMS_IOPRefreshMass ( void ) {
+
+ static const unsigned int lBit[ 4 ] = { 0x00000002, 0x00000800, 0x00002000, 0x00008000 };
+
+ int i;
+
+ /* Re-probe the BDM mass slots ( USB / MX4SIO ) so a hot-swapped or reconnected
+  * drive is detected without a reboot. Set/clear each connected bit; the device
+  * menu re-reads g_MassFlags the next time it is opened. */
+ for ( i = 0; i < 4; ++i ) {
+
+  if (  checkConnectedMassDev ( i )  ) g_MassFlags |=  lBit[ i ];
+  else                                 g_MassFlags &= ~lBit[ i ];
+
+ }  /* end for */
+
+}  /* end SMS_IOPRefreshMass */
+#else
+void SMS_IOPRefreshMass ( void ) {}
+#endif
+
 int SMS_IOPStartHDD ( int afStatus ) {
 
  int i;

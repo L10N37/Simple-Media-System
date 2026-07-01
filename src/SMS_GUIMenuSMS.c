@@ -77,6 +77,8 @@ static void _startusb_handler ( GUIMenu*, int );
 static void _startmx4sio_handler ( GUIMenu*, int );
 #endif
 static void _starthdd_handler ( GUIMenu*, int );
+static void _refresh_handler  ( GUIMenu*, int );
+extern int  _smb_logon        ( void );   /* SMS_GUIDevMenu.c -- (re)connect SMB */
 static void _editipc_handler  ( GUIMenu*, int );
 static void _cdvd_handler     ( GUIMenu*, int );
 static void _cdvd_spd_handler ( GUIMenu*, int );
@@ -190,13 +192,18 @@ static GUIMenuItem s_AdvDispMenu[] __attribute__(   (  section( ".data" )  )   )
  {                   0, &STR_APPLY_SETTINGS,     0, 0, _apply_handler,  0, 0 }
 };
 
+/* "Refresh connections" label -- a static SMString ( like the MX4SIO labels )
+ * so no .lng files need touching. */
+static char     s_pRefreshConn[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Refresh connections";
+static SMString s_StrRefreshConn __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pRefreshConn ) - 1, s_pRefreshConn };
+
 #ifdef BDM
 static char s_pAutoMX4SIO [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart MX4SIO";
 static char s_pStartMX4SIO[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start MX4SIO support";
 static SMString s_StrAutoMX4SIO  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoMX4SIO  ) - 1, s_pAutoMX4SIO  };
 static SMString s_StrStartMX4SIO __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartMX4SIO ) - 1, s_pStartMX4SIO };
 
-static GUIMenuItem s_DevMenu[ 13 ] __attribute__(   (  section( ".data" )  )   ) = {
+static GUIMenuItem s_DevMenu[ 14 ] __attribute__(   (  section( ".data" )  )   ) = {
  {                   0, &STR_NETWORK_SETTINGS,    0, 0, _network_handler,    0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_CONTROLLER_SLOT2,    0, 0, _cntslot_handler,    0, 0 },
  {                   0, &STR_AUTOSTART_NETWORK,   0, 0, _autonet_handler,    0, 0 },
@@ -208,7 +215,7 @@ static GUIMenuItem s_DevMenu[ 13 ] __attribute__(   (  section( ".data" )  )   )
  { MENU_ITEM_TYPE_TEXT, &STR_DIRECTIONAL_BUTTONS, 0, 0, _dirbtn_handler,     0, 0 }
 };
 #else
-static GUIMenuItem s_DevMenu[ 11 ] __attribute__(   (  section( ".data" )  )   ) = {
+static GUIMenuItem s_DevMenu[ 12 ] __attribute__(   (  section( ".data" )  )   ) = {
  {                   0, &STR_NETWORK_SETTINGS,    0, 0, _network_handler,  0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_CONTROLLER_SLOT2,    0, 0, _cntslot_handler,  0, 0 },
  {                   0, &STR_AUTOSTART_NETWORK,   0, 0, _autonet_handler,  0, 0 },
@@ -579,6 +586,9 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
  }  /* end if */
 #endif
+
+ s_DevMenu[ ++lSize ].m_pOptionName = &s_StrRefreshConn;   /* re-probe / reconnect active devices */
+ s_DevMenu[   lSize ].Handler       = _refresh_handler;
 
  lpState -> m_pItems =
  lpState -> m_pFirst =
@@ -1212,6 +1222,23 @@ static void _starthdd_handler ( GUIMenu* apMenu, int aDir ) {
  if ( g_IOPFlags & SMS_IOPF_HDD ) s_fHDD = 1;
 
 }  /* end _starthdd_handler */
+
+static void _refresh_handler ( GUIMenu* apMenu, int aDir ) {
+
+/* Re-probe / reconnect the devices that are already up, without a reboot:
+ * re-scan the BDM mass slots ( USB / MX4SIO ) so a hot-swapped or reconnected
+ * drive is detected, and re-log-on to SMB if it is active. Then rebuild the
+ * device submenu so any change is reflected. */
+#ifdef BDM
+ SMS_IOPRefreshMass ();
+#endif
+
+ if ( g_IOPFlags & SMS_IOPF_SMB ) _smb_logon ();
+
+ GUI_MenuPopState ( apMenu );
+ _device_handler  ( apMenu, 0 );
+
+}  /* end _refresh_handler */
 
 static char s_IP [ 4 ][ 4 ] __attribute__(   (  section( ".data" )  )   );
 static char s_MSK[ 4 ][ 4 ] __attribute__(   (  section( ".data" )  )   );

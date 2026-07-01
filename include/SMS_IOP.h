@@ -47,6 +47,7 @@ int  SMS_IOPStartNet         ( int                                    );
 int  SMS_IOPStartUSB         ( int                                    );
 int  SMS_IOPStartMX4SIO      ( int                                    );
 int  SMS_IOPStartHDD         ( int                                    );
+void SMS_IOPRefreshMass      ( void                                   );
 void SMS_IOPSetXLT           ( void                                   );
 int  SMS_IOCtl               ( const char*, int, void*                );
 void SMS_IOPowerOff          ( void                                   );
