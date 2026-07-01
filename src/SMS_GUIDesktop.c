@@ -37,7 +37,8 @@
 
 extern unsigned char jellyfish_jpg[];
 extern unsigned int  size_jellyfish_jpg;
-extern unsigned char splash_rgba[];   /* 512x512 RGBA boot splash ( bin2c of images/splash.rgba ) */
+extern unsigned char splash_jpg[];    /* boot splash ( bin2c of images/splash.jpg ) */
+extern unsigned int  size_splash_jpg;
 
 #define LOGO_W 17
 #define LOGO_H  5
@@ -333,59 +334,95 @@ static int _DrawJellyfish ( void ) {
 
 }  /* end _DrawJellyfish */
 
-/* Boot splash: blit the pre-composited 512x512 opaque RGBA image ( jellyfish +
- * "SMS" sphere logo + authors strip ) full-screen. Same upload/blit path as the
- * jellyfish background -- the image is already RGBA so there is no decode and no
- * runtime alpha blending. Texture is transient at the top of VRAM, reused. */
-#define SPLASH_W 512
-#define SPLASH_H 512
-
+/* Boot splash: decode the pre-composited opaque splash JPEG ( jellyfish + "SMS"
+ * sphere logo + authors strip ) and blit it full-screen. Same decode+upload+blit
+ * path as the jellyfish background ( no IPU, no runtime alpha blend ). Shown once
+ * at boot, so it is decoded to a scratch buffer, drawn, and freed. Texture is
+ * transient at the top of VRAM, reused afterwards. */
 static void _DrawSplash ( void ) {
 
- int          lY, lBand;
- u64*         lpDMA;
- GSLoadImage  lLI;
- GSLoadImage* lpLI = UNCACHED_SEG( &lLI );
+ SMS_JPEGContext* lpCtx;
+ unsigned char*   lpTex;
+ unsigned char*   lpSrc;
+ unsigned char*   lpDst;
+ int              lW, lH, i, lN, lY, lBand;
+ u64*             lpDMA;
+ GSLoadImage      lLI;
+ GSLoadImage*     lpLI = UNCACHED_SEG( &lLI );
 
- SyncDCache (  splash_rgba, splash_rgba + SPLASH_W * SPLASH_H * 4  );
+ lpCtx = SMS_JPEGInit ( NULL, NULL );
 
- g_GSCtx.m_TBW = ( SPLASH_W + 63 ) >> 6;
+ if ( !lpCtx ) return;
 
- g_GSCtx.m_VRAMTexPtr = 0x4000 - (
-  (   ( g_GSCtx.m_TBW << 6 ) * (  ( SPLASH_H + 31 ) & ~31  ) * 4   ) >> 8
- );
- PowerOf2 ( SPLASH_W, SPLASH_H, ( int* )&g_GSCtx.m_TW, ( int* )&g_GSCtx.m_TH );
+ if (  SMS_JPEGLoad ( lpCtx, splash_jpg, size_splash_jpg )  ) {
 
- lBand = 32;
+  lW = lpCtx -> m_pRC -> m_NewWidth;
+  lH = lpCtx -> m_pRC -> m_NewHeight;
 
- GS_InitLoadImage (
-  &lLI, g_GSCtx.m_VRAMTexPtr, g_GSCtx.m_TBW, GSPixelFormat_PSMCT32, 0, 0, SPLASH_W, lBand
- );
- SyncDCache ( &lLI, &lLI + 1 );
+  lpTex = ( unsigned char* )memalign (  64, lW * lH * 4  );
 
- for ( lY = 0; lY < SPLASH_H; lY += lBand ) {
+  if ( lpTex ) {
 
-  int lRows = ( lY + lBand <= SPLASH_H ) ? lBand : ( SPLASH_H - lY );
+/* expand packed 24-bit RGB -> 32-bit RGBA ( opaque, GS alpha 0x80 ) */
+   lpSrc = lpCtx -> m_pBitmap;
+   lpDst = lpTex;
+   lN    = lW * lH;
 
-  if ( lRows != lBand ) {
+   for ( i = 0; i < lN; ++i ) {
+    lpDst[ 0 ] = lpSrc[ 0 ];
+    lpDst[ 1 ] = lpSrc[ 1 ];
+    lpDst[ 2 ] = lpSrc[ 2 ];
+    lpDst[ 3 ] = 0x80;
+    lpSrc += 3;
+    lpDst += 4;
+   }  /* end for */
+
+   SyncDCache ( lpTex, lpTex + lN * 4 );
+
+   g_GSCtx.m_TBW = ( lW + 63 ) >> 6;
+   g_GSCtx.m_VRAMTexPtr = 0x4000 - (
+    (   ( g_GSCtx.m_TBW << 6 ) * (  ( lH + 31 ) & ~31  ) * 4   ) >> 8
+   );
+   PowerOf2 ( lW, lH, ( int* )&g_GSCtx.m_TW, ( int* )&g_GSCtx.m_TH );
+
+   lBand = 32;
+
    GS_InitLoadImage (
-    &lLI, g_GSCtx.m_VRAMTexPtr, g_GSCtx.m_TBW, GSPixelFormat_PSMCT32, 0, 0, SPLASH_W, lRows
+    &lLI, g_GSCtx.m_VRAMTexPtr, g_GSCtx.m_TBW, GSPixelFormat_PSMCT32, 0, 0, lW, lBand
    );
    SyncDCache ( &lLI, &lLI + 1 );
+
+   for ( lY = 0; lY < lH; lY += lBand ) {
+
+    int lRows = ( lY + lBand <= lH ) ? lBand : ( lH - lY );
+
+    if ( lRows != lBand ) {
+     GS_InitLoadImage (
+      &lLI, g_GSCtx.m_VRAMTexPtr, g_GSCtx.m_TBW, GSPixelFormat_PSMCT32, 0, 0, lW, lRows
+     );
+     SyncDCache ( &lLI, &lLI + 1 );
+    }  /* end if */
+
+    lpLI -> m_TrxPosReg.m_Value = GS_SET_TRXPOS( 0, 0, 0, lY, 0 );
+    GS_LoadImage (  &lLI, lpTex + lW * lY * 4  );
+    DMA_Wait ( DMAC_GIF );
+
+   }  /* end for */
+
+   lpDMA = GSContext_NewPacket (  0, GS_TSP_PACKET_SIZE(), GSPaintMethod_Init  );
+   GSContext_RenderTexSprite (
+    ( GSTexSpritePacket* )( lpDMA - 2 ),
+    0, 0, g_GSCtx.m_Width, g_GSCtx.m_Height, 0, 0, lW, lH
+   );
+   GSContext_Flush ( 0, GSFlushMethod_KeepLists );
+
+   free ( lpTex );
+
   }  /* end if */
 
-  lpLI -> m_TrxPosReg.m_Value = GS_SET_TRXPOS( 0, 0, 0, lY, 0 );
-  GS_LoadImage (  &lLI, ( void* )( splash_rgba + SPLASH_W * lY * 4 )  );
-  DMA_Wait ( DMAC_GIF );
+ }  /* end if */
 
- }  /* end for */
-
- lpDMA = GSContext_NewPacket (  0, GS_TSP_PACKET_SIZE(), GSPaintMethod_Init  );
- GSContext_RenderTexSprite (
-  ( GSTexSpritePacket* )( lpDMA - 2 ),
-  0, 0, g_GSCtx.m_Width, g_GSCtx.m_Height, 0, 0, SPLASH_W, SPLASH_H
- );
- GSContext_Flush ( 0, GSFlushMethod_KeepLists );
+ SMS_JPEGDestroy ( lpCtx );
 
 }  /* end _DrawSplash */
 
