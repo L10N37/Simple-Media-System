@@ -37,6 +37,7 @@
 
 extern unsigned char jellyfish_jpg[];
 extern unsigned int  size_jellyfish_jpg;
+extern unsigned char splash_rgba[];   /* 512x512 RGBA boot splash ( bin2c of images/splash.rgba ) */
 
 #define LOGO_W 17
 #define LOGO_H  5
@@ -332,6 +333,62 @@ static int _DrawJellyfish ( void ) {
 
 }  /* end _DrawJellyfish */
 
+/* Boot splash: blit the pre-composited 512x512 opaque RGBA image ( jellyfish +
+ * "SMS" sphere logo + authors strip ) full-screen. Same upload/blit path as the
+ * jellyfish background -- the image is already RGBA so there is no decode and no
+ * runtime alpha blending. Texture is transient at the top of VRAM, reused. */
+#define SPLASH_W 512
+#define SPLASH_H 512
+
+static void _DrawSplash ( void ) {
+
+ int          lY, lBand;
+ u64*         lpDMA;
+ GSLoadImage  lLI;
+ GSLoadImage* lpLI = UNCACHED_SEG( &lLI );
+
+ SyncDCache (  splash_rgba, splash_rgba + SPLASH_W * SPLASH_H * 4  );
+
+ g_GSCtx.m_TBW = ( SPLASH_W + 63 ) >> 6;
+
+ g_GSCtx.m_VRAMTexPtr = 0x4000 - (
+  (   ( g_GSCtx.m_TBW << 6 ) * (  ( SPLASH_H + 31 ) & ~31  ) * 4   ) >> 8
+ );
+ PowerOf2 ( SPLASH_W, SPLASH_H, ( int* )&g_GSCtx.m_TW, ( int* )&g_GSCtx.m_TH );
+
+ lBand = 32;
+
+ GS_InitLoadImage (
+  &lLI, g_GSCtx.m_VRAMTexPtr, g_GSCtx.m_TBW, GSPixelFormat_PSMCT32, 0, 0, SPLASH_W, lBand
+ );
+ SyncDCache ( &lLI, &lLI + 1 );
+
+ for ( lY = 0; lY < SPLASH_H; lY += lBand ) {
+
+  int lRows = ( lY + lBand <= SPLASH_H ) ? lBand : ( SPLASH_H - lY );
+
+  if ( lRows != lBand ) {
+   GS_InitLoadImage (
+    &lLI, g_GSCtx.m_VRAMTexPtr, g_GSCtx.m_TBW, GSPixelFormat_PSMCT32, 0, 0, SPLASH_W, lRows
+   );
+   SyncDCache ( &lLI, &lLI + 1 );
+  }  /* end if */
+
+  lpLI -> m_TrxPosReg.m_Value = GS_SET_TRXPOS( 0, 0, 0, lY, 0 );
+  GS_LoadImage (  &lLI, ( void* )( splash_rgba + SPLASH_W * lY * 4 )  );
+  DMA_Wait ( DMAC_GIF );
+
+ }  /* end for */
+
+ lpDMA = GSContext_NewPacket (  0, GS_TSP_PACKET_SIZE(), GSPaintMethod_Init  );
+ GSContext_RenderTexSprite (
+  ( GSTexSpritePacket* )( lpDMA - 2 ),
+  0, 0, g_GSCtx.m_Width, g_GSCtx.m_Height, 0, 0, SPLASH_W, SPLASH_H
+ );
+ GSContext_Flush ( 0, GSFlushMethod_KeepLists );
+
+}  /* end _DrawSplash */
+
 static void Desktop_Render ( GUIObject* apObj, int aCtx ) {
 
  if ( !apObj -> m_pGSPacket ) {
@@ -351,6 +408,13 @@ static void Desktop_Render ( GUIObject* apObj, int aCtx ) {
 
    GUI_LoadIcons ();
 
+/* Boot splash: an opaque full-screen image ( jellyfish + "SMS" sphere logo +
+ * authors strip ). Show it, hold ~1.2s, then paint the desktop over it.
+ * _DrawSplash issues its own GS packets, so re-arm lpDMA for the gradient. */
+   _DrawSplash ();
+   SMS_TimerWait ( 1200 );
+   lpDMA = GSContext_NewPacket ( 0, GS_VGR_PACKET_SIZE(), GSPaintMethod_InitClear );
+
 /* Base layer: keep the procedural gradient as a fallback. It is */
 /* fully covered by the opaque jellyfish image when that decodes. */
    GSContext_RenderVGRect (
@@ -363,37 +427,8 @@ static void Desktop_Render ( GUIObject* apObj, int aCtx ) {
 /* Replace the gradient background with the embedded jellyfish image. */
    _DrawJellyfish ();
 
-   for (  i = 0; i < sizeof ( s_LogoXY ) / sizeof ( s_LogoXY[ 0 ] ) / 3; ++i  ) {
-
-    GSContext_NewPacket ( 0, 0, GSPaintMethod_Init );
-
-    GUI_DrawIcon (
-     GUICON_BALL,
-     lX + 32 * s_LogoXY[ i ].m_X, lY + 32 * s_LogoXY[ i ].m_Y,
-     GUIcon_Misc, &lBP[  0 ]
-    );
-    GUI_DrawIcon (
-     GUICON_BALL,
-     lX + 32 * s_LogoXY[ i + 17 ].m_X, lY + 32 * s_LogoXY[ i + 17 ].m_Y,
-     GUIcon_Misc, &lBP[ 32 ]
-    );
-    GUI_DrawIcon (
-     GUICON_BALL,
-     lX + 32 * s_LogoXY[ i + 34 ].m_X, lY + 32 * s_LogoXY[ i + 34 ].m_Y,
-     GUIcon_Misc, &lBP[ 64 ]
-    );
-
-    GSContext_CallList2 ( 0, &lBP[  0 ] );
-    GSContext_CallList2 ( 0, &lBP[ 32 ] );
-    GSContext_CallList2 ( 0, &lBP[ 64 ] );
-
-    SyncDCache ( &lBP[ 0 ], &lBP[ 96 ] );
-
-    GSContext_Flush ( 0, GSFlushMethod_KeepLists );
-
-    if ( !s_Init ) SMS_TimerWait ( 30 );
-
-   }  /* end for */
+   ( void )lBP;  /* animated "SMS" ball-logo watermark removed -- SMS branding
+                  * now appears on the boot splash ( _DrawSplash ) above. */
 
   } else {
 
