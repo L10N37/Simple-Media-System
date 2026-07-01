@@ -28,7 +28,7 @@ MISC    = ["s_IconError","s_IconDisplay","s_IconHelp","s_IconNetwork",
            "s_IconBrowser","s_IconPlayer","s_IconOn","s_IconOff","s_IconSave",
            "s_IconExit","s_IconFinish","g_IconBall"]
 DEV     = ["s_IconUSB","s_IconCDROM","s_IconHDD","s_IconCDDA","s_IconHost",
-           "s_IconDVD","s_IconSMB","s_IconCDDA"]   # slot 7 dups CDDA (spare)
+           "s_IconDVD","s_IconSMB","s_IconMX4SIO"]  # slot 7 = MX4SIO (was CDDA dup)
 
 def bake(name, expect_wh):
     p = os.path.join(ICON_DIR, name + ".png")
