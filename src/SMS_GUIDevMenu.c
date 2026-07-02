@@ -45,16 +45,23 @@ typedef struct _DevMenuItem {
 
 #ifdef BDM
 extern unsigned int g_Mx4sioMask;
+extern unsigned int g_AtaMask;
+extern unsigned int g_IlinkMask;
 #endif
 
-/* MX4SIO units are mass: devices (m_DevID == 0) but get a distinct browser icon.
- * Compute the icon index ONLY at draw time -- m_DevID itself MUST stay the real
- * device id (0), because it is copied to g_CMedia and indexes the 7-entry
- * device-name / file-dir tables; a fake id of 7 there reads out of bounds and
- * crashes (NULL strcpy in SMS_FileDirInit). */
+/* MX4SIO / ATA / iLink units are all mass: devices (m_DevID == 0) but each gets a
+ * distinct browser icon. Compute the icon index ONLY at draw time -- m_DevID itself
+ * MUST stay the real device id (0), because it is copied to g_CMedia and indexes the
+ * 7-entry device-name / file-dir tables; a fake id there reads out of bounds and
+ * crashes (NULL strcpy in SMS_FileDirInit). Icon slots: 7=MX4SIO, 8=ATA, 9=iLink. */
 static int _dev_icon_index ( _DevMenuItem* apItem ) {
 #ifdef BDM
- if (  apItem -> m_DevID == 0 && ( g_Mx4sioMask & ( 1 << apItem -> m_UnitID ) )  ) return 7;
+ if ( apItem -> m_DevID == 0 ) {
+  unsigned int lBit = 1 << apItem -> m_UnitID;
+  if ( g_Mx4sioMask & lBit ) return 7;
+  if ( g_AtaMask    & lBit ) return 8;
+  if ( g_IlinkMask  & lBit ) return 9;
+ }  /* end if */
 #endif
  return apItem -> m_DevID;
 }

@@ -28,18 +28,12 @@ MISC    = ["s_IconError","s_IconDisplay","s_IconHelp","s_IconNetwork",
            "s_IconBrowser","s_IconPlayer","s_IconOn","s_IconOff","s_IconSave",
            "s_IconExit","s_IconFinish","g_IconBall"]
 DEV     = ["s_IconUSB","s_IconCDROM","s_IconHDD","s_IconCDDA","s_IconHost",
-           "s_IconDVD","s_IconSMB","s_IconMX4SIO"]  # slot 7 = MX4SIO (was CDDA dup)
-
-# Pending device icons: art delivered by the graphics team but the device backend
-# is NOT implemented in SMS yet, so they are intentionally NOT baked (a slot with
-# no _dev_icon_index() mapping would be dead data). PNGs live in the icon dir:
-#   s_IconATA   - internal HDD via BDM (exFAT/FAT, cf. OPL ata_bd), distinct from PFS hdd0:
-#   s_IconMMCE  - Memory Card Emulator (SD2PSX / MemCard PRO)
-#   s_IconILINK - i.LINK / IEEE1394 storage
-# To wire one up when its backend lands: append the name to DEV above, bump the
-# array sizes + dev loop bound in SMS_GUIcons.c (g_RGBA_Dev / s_BrowserDeviceIcons /
-# s_SizeBrowserDevIcons / GUI_LoadIcons), and add a _dev_icon_index() case in
-# SMS_GUIDevMenu.c that returns the new slot for that device.
+           "s_IconDVD","s_IconSMB","s_IconMX4SIO","s_IconATA","s_IconILINK","s_IconMMCE"]
+# device icon slots: 0..6 base, 7=MX4SIO, 8=ATA, 9=iLink, 10=MMCE. Must match
+# _dev_icon_index() in SMS_GUIDevMenu.c and the g_RGBA_Dev[11] / s_BrowserDeviceIcons[11]
+# arrays + GUI_LoadIcons dev loop (i < 11) in SMS_GUIcons.c. ATA + iLink are BDM mass:
+# devices (icon chosen via g_AtaMask / g_IlinkMask on a m_DevID==0 unit); MMCE is the
+# separate mmce0: device (its own m_DevID -> slot 10).
 
 def bake(name, expect_wh):
     p = os.path.join(ICON_DIR, name + ".png")

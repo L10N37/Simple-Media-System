@@ -69,12 +69,16 @@ static void _autonet_handler  ( GUIMenu*, int );
 static void _autousb_handler  ( GUIMenu*, int );
 #ifdef BDM
 static void _automx4sio_handler ( GUIMenu*, int );
+static void _autoata_handler    ( GUIMenu*, int );
+static void _autoilink_handler  ( GUIMenu*, int );
 #endif
 static void _autohdd_handler  ( GUIMenu*, int );
 static void _startnet_handler ( GUIMenu*, int );
 static void _startusb_handler ( GUIMenu*, int );
 #ifdef BDM
 static void _startmx4sio_handler ( GUIMenu*, int );
+static void _startata_handler    ( GUIMenu*, int );
+static void _startilink_handler  ( GUIMenu*, int );
 #endif
 static void _starthdd_handler ( GUIMenu*, int );
 static void _refresh_handler  ( GUIMenu*, int );
@@ -204,12 +208,24 @@ static char s_pStartMX4SIO[] __attribute__(   (  section( ".data" ), aligned( 1 
 static SMString s_StrAutoMX4SIO  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoMX4SIO  ) - 1, s_pAutoMX4SIO  };
 static SMString s_StrStartMX4SIO __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartMX4SIO ) - 1, s_pStartMX4SIO };
 
-static GUIMenuItem s_DevMenu[ 14 ] __attribute__(   (  section( ".data" )  )   ) = {
+static char s_pAutoATA   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart ATA (int. HDD)";
+static char s_pStartATA  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start ATA (int. HDD)";
+static SMString s_StrAutoATA   __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoATA   ) - 1, s_pAutoATA   };
+static SMString s_StrStartATA  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartATA  ) - 1, s_pStartATA  };
+
+static char s_pAutoILINK [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart i.LINK";
+static char s_pStartILINK[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start i.LINK support";
+static SMString s_StrAutoILINK  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoILINK  ) - 1, s_pAutoILINK  };
+static SMString s_StrStartILINK __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartILINK ) - 1, s_pStartILINK };
+
+static GUIMenuItem s_DevMenu[ 18 ] __attribute__(   (  section( ".data" )  )   ) = {
  {                   0, &STR_NETWORK_SETTINGS,    0, 0, _network_handler,    0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_CONTROLLER_SLOT2,    0, 0, _cntslot_handler,    0, 0 },
  {                   0, &STR_AUTOSTART_NETWORK,   0, 0, _autonet_handler,    0, 0 },
  {                   0, &STR_AUTOSTART_USB,       0, 0, _autousb_handler,    0, 0 },
  {                   0, &s_StrAutoMX4SIO,         0, 0, _automx4sio_handler, 0, 0 },
+ {                   0, &s_StrAutoATA,            0, 0, _autoata_handler,    0, 0 },
+ {                   0, &s_StrAutoILINK,          0, 0, _autoilink_handler,  0, 0 },
  {                   0, &STR_AUTOSTART_HDD,       0, 0, _autohdd_handler,    0, 0 },
  {                   0, &STR_DISABLE_CDVD,        0, 0, _cdvd_handler,       0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_CDVD_SPEED,          0, 0, _cdvd_spd_handler,   0, 0 },
@@ -532,7 +548,7 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
  GUIMenuState* lpState = GUI_MenuPushState ( apMenu );
 #ifdef BDM
- unsigned int  lSize   = 8;
+ unsigned int  lSize   = 10;
 #else
  unsigned int  lSize   = 7;
 #endif
@@ -546,11 +562,13 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
  s_DevMenu[ 2 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_NET ? GUICON_ON   : GUICON_OFF;
  s_DevMenu[ 3 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_USB ? GUICON_ON   : GUICON_OFF;
 #ifdef BDM
- s_DevMenu[ 4 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_MX4SIO ? GUICON_ON : GUICON_OFF;
- s_DevMenu[ 5 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD ? GUICON_ON   : GUICON_OFF;
- s_DevMenu[ 6 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_CDVD     ? GUICON_ON   : GUICON_OFF;
- s_DevMenu[ 7 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed ];
- s_DevMenu[ 8 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );
+ s_DevMenu[  4 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_MX4SIO ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[  5 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_ATA    ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[  6 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_ILINK  ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[  7 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD    ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[  8 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_CDVD        ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[  9 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed ];
+ s_DevMenu[ 10 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );
 #else
  s_DevMenu[ 4 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD ? GUICON_ON   : GUICON_OFF;
  s_DevMenu[ 5 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_CDVD     ? GUICON_ON   : GUICON_OFF;
@@ -584,6 +602,20 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
   s_DevMenu[ ++lSize ].m_pOptionName = &s_StrStartMX4SIO;
   s_DevMenu[   lSize ].Handler       = _startmx4sio_handler;
+
+ }  /* end if */
+
+ if (  !( g_IOPFlags & SMS_IOPF_ATA ) && ( g_IOPFlags & SMS_IOPF_DEV9_IS )  ) {
+
+  s_DevMenu[ ++lSize ].m_pOptionName = &s_StrStartATA;
+  s_DevMenu[   lSize ].Handler       = _startata_handler;
+
+ }  /* end if */
+
+ if (  !( g_IOPFlags & SMS_IOPF_ILINK )  ) {
+
+  s_DevMenu[ ++lSize ].m_pOptionName = &s_StrStartILINK;
+  s_DevMenu[   lSize ].Handler       = _startilink_handler;
 
  }  /* end if */
 #endif
@@ -1164,12 +1196,24 @@ static void _automx4sio_handler ( GUIMenu* apMenu, int aDir ) {
  _switch_flag ( apMenu, 4, &g_Config.m_NetworkFlags, SMS_DF_AUTO_MX4SIO );
 
 }  /* end _automx4sio_handler */
+
+static void _autoata_handler ( GUIMenu* apMenu, int aDir ) {
+
+ _switch_flag ( apMenu, 5, &g_Config.m_NetworkFlags, SMS_DF_AUTO_ATA );
+
+}  /* end _autoata_handler */
+
+static void _autoilink_handler ( GUIMenu* apMenu, int aDir ) {
+
+ _switch_flag ( apMenu, 6, &g_Config.m_NetworkFlags, SMS_DF_AUTO_ILINK );
+
+}  /* end _autoilink_handler */
 #endif
 
 static void _autohdd_handler ( GUIMenu* apMenu, int aDir ) {
 
 #ifdef BDM
- _switch_flag ( apMenu, 5, &g_Config.m_NetworkFlags, SMS_DF_AUTO_HDD );
+ _switch_flag ( apMenu, 7, &g_Config.m_NetworkFlags, SMS_DF_AUTO_HDD );
 #else
  _switch_flag ( apMenu, 4, &g_Config.m_NetworkFlags, SMS_DF_AUTO_HDD );
 #endif
@@ -1214,6 +1258,18 @@ static void _startmx4sio_handler ( GUIMenu* apMenu, int aDir ) {
  _start_device ( apMenu, SMS_IOPStartMX4SIO );
 
 }  /* end _startmx4sio_handler */
+
+static void _startata_handler ( GUIMenu* apMenu, int aDir ) {
+
+ _start_device ( apMenu, SMS_IOPStartATA );
+
+}  /* end _startata_handler */
+
+static void _startilink_handler ( GUIMenu* apMenu, int aDir ) {
+
+ _start_device ( apMenu, SMS_IOPStartILINK );
+
+}  /* end _startilink_handler */
 #endif
 
 static void _starthdd_handler ( GUIMenu* apMenu, int aDir ) {

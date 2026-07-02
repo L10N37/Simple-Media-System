@@ -28,7 +28,7 @@
  * player ball / desktop). */
 extern const unsigned char* const g_RGBA_Browser[  9 ];
 extern const unsigned char* const g_RGBA_Misc   [ 12 ];
-extern const unsigned char* const g_RGBA_Dev    [  8 ];
+extern const unsigned char* const g_RGBA_Dev    [ 11 ];
 
 unsigned char g_IconBall[ 316 ] __attribute__(   (  aligned( 16 ), section( ".data" )  )   ) = {
 	0x00, 0x00, 0x01, 0xb2, 0x00, 0x20, 0x00, 0x20, 0x00, 0x00, 0x01, 0x01, 0x1b, 0xf8, 0x18, 0x15, 
@@ -1366,7 +1366,7 @@ static int s_SizeBrowserDevIcons[ 8 ] __attribute__(   (  section( ".data" )  ) 
 
 static void*  s_BrowserFileIcons  [ 18 ];
 static void*  s_MiscIcons         [ 12 ];
-static void*  s_BrowserDeviceIcons[  8 ];
+static void*  s_BrowserDeviceIcons[ 11 ];
 static char*  s_pIconData;
 
 static void _icon_darken ( void* apBuf, int aNumPix ) {
@@ -1387,7 +1387,7 @@ void GUI_LoadIcons ( void ) {
  if ( !s_pIconData ) {
 
   int   i, j;
-  char* lpPtr = s_pIconData = ( char* )SMS_SyncMalloc ( 18 * 4096 + 12 * 4096 + 9216 * 8 );
+  char* lpPtr = s_pIconData = ( char* )SMS_SyncMalloc ( 18 * 4096 + 12 * 4096 + 9216 * 11 );
 
   /* Icons are pre-baked to RGBA ( SMS_IconsRGBA.c, from theme/icons/*.png ).
    * Copy each into the icon buffer; browser file icons also get a darkened
@@ -1414,7 +1414,7 @@ void GUI_LoadIcons ( void ) {
 
   }  /* end for */
 
-  for ( i = 0; i < 8; ++i ) {
+  for ( i = 0; i < 11; ++i ) {
 
    memcpy ( lpPtr, g_RGBA_Dev[ i ], 9216 );
    s_BrowserDeviceIcons[ i ] = lpPtr;

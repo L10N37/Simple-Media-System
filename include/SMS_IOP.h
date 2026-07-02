@@ -25,6 +25,9 @@
 #define SMS_IOPF_DEV9_IS  0x00000800
 #define SMS_IOPF_UMS      0x00001000
 #define SMS_IOPF_MX4SIO   0x00002000
+#define SMS_IOPF_ATA      0x00004000
+#define SMS_IOPF_ILINK    0x00008000
+#define SMS_IOPF_MMCE     0x00010000
 
 #define SMS_SIF_CMD_SMB_CONNECT    0
 #define SMS_SIF_CMD_USB_CONNECT    1
@@ -35,6 +38,8 @@
 
 extern unsigned int g_IOPFlags;
 extern unsigned int g_Mx4sioMask;
+extern unsigned int g_AtaMask;
+extern unsigned int g_IlinkMask;
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,6 +51,8 @@ void SMS_IOPSetSifCmdHandler (  void ( *apFunc ) ( void* ), int aCmd  );
 int  SMS_IOPStartNet         ( int                                    );
 int  SMS_IOPStartUSB         ( int                                    );
 int  SMS_IOPStartMX4SIO      ( int                                    );
+int  SMS_IOPStartATA         ( int                                    );
+int  SMS_IOPStartILINK       ( int                                    );
 int  SMS_IOPStartHDD         ( int                                    );
 void SMS_IOPRefreshMass      ( void                                   );
 void SMS_IOPSetXLT           ( void                                   );

@@ -48,6 +48,8 @@ unsigned int g_IOPFlags;
 
 #ifdef BDM
 unsigned int g_Mx4sioMask;
+unsigned int g_AtaMask;
+unsigned int g_IlinkMask;
 #endif
 
 #ifdef BDM
@@ -60,6 +62,9 @@ extern unsigned char bdmfs_fatfs_irx[];
 extern unsigned char usbd_irx       [];
 extern unsigned char usbmass_bd_irx [];
 extern unsigned char mx4sio_bd_irx  [];
+extern unsigned char ata_bd_irx     [];
+extern unsigned char iLinkman_irx   [];
+extern unsigned char IEEE1394_bd_irx[];
 
 extern unsigned char sio2man_irx [];
 extern unsigned char iomanx_irx  [];
@@ -73,6 +78,9 @@ extern unsigned int size_bdmfs_fatfs_irx;
 extern unsigned int size_usbd_irx;
 extern unsigned int size_usbmass_bd_irx;
 extern unsigned int size_mx4sio_bd_irx;
+extern unsigned int size_ata_bd_irx;
+extern unsigned int size_iLinkman_irx;
+extern unsigned int size_IEEE1394_bd_irx;
 
 extern unsigned int size_sio2man_irx;
 extern unsigned int size_iomanx_irx;
@@ -89,6 +97,10 @@ extern unsigned int g_MassFlags;
  * is already in the strip appends a second copy. s_MassAdded lets refresh emit a
  * connect event only for units that are NOT already added. */
 static unsigned int s_MassAdded;
+/* Which subsystem owns the internal ATA bus: 0 = free, 1 = SMS PFS HDD ( ps2atad ),
+ * 2 = ATA-as-BDM ( ata_bd, which bundles its own atad ). Both register the same atad
+ * IOP library, so only the first to start may own the bus -- the other backs off. */
+static int s_AtaBusOwner;
 #else
 static char s_pSIO2MAN[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "rom0:SIO2MAN";
 static char s_pPADMAN [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "rom0:PADMAN";
@@ -494,6 +506,98 @@ int SMS_IOPStartMX4SIO ( int afStatus ) { return 0; }
 #endif
 
 #ifdef BDM
+/* Snapshot which mass units ( 0..3 ) are currently present. Used to diff before
+ * vs after loading a block driver so we can attribute the newly-appeared units to
+ * that driver's device type. */
+static unsigned int _bdm_scan ( void ) {
+ int i; unsigned int lMask = 0;
+ for ( i = 0; i < 4; ++i ) if (  checkConnectedMassDev ( i )  ) lMask |= ( 1 << i );
+ return lMask;
+}
+
+/* After a BDM block driver loads, register the units that appeared: emit each new
+ * unit's one-shot connect event ( once, guarded by s_MassAdded so the device strip
+ * never duplicates ) and tag its type in *apTypeMask so _dev_icon_index picks the
+ * right icon. aBefore = the mass-unit bitmap captured BEFORE the driver loaded. */
+static void _bdm_register_new ( unsigned int aBefore, unsigned int* apTypeMask ) {
+ static const unsigned int lBit[ 4 ] = { 0x00000002, 0x00000800, 0x00002000, 0x00008000 };
+ int i;
+ for ( i = 0; i < 4; ++i ) {
+  if (  checkConnectedMassDev ( i )  ) {
+   if (  !( s_MassAdded & ( 1 << i ) )  ) {
+    g_MassFlags |= lBit[ i ];
+    s_MassAdded |= ( 1 << i );
+   }  /* end if */
+   if (  !( aBefore & ( 1 << i ) )  ) *apTypeMask |= ( 1 << i );
+  }  /* end if */
+ }  /* end for */
+}
+
+int SMS_IOPStartILINK ( int afStatus ) {
+
+ unsigned int lBefore = _bdm_scan ();
+ int          i, ret;
+
+ /* i.LINK is self-contained -- it drives its own IEEE1394 hardware, needs no dev9
+  * or usbd. Load the bus manager first, then the SBP-2 block driver ( which binds
+  * to bdm and registers massN: ). */
+ SifExecModuleBuffer ( &iLinkman_irx,    size_iLinkman_irx,    0, NULL, &i );
+ SifExecModuleBuffer ( &IEEE1394_bd_irx, size_IEEE1394_bd_irx, 0, NULL, &i );
+
+ /* SBP-2 discovery + login after the bus reset can take up to ~5s ( spec ), so
+  * wait noticeably longer than the SD-based drivers before probing. */
+ for ( i = 0; i < 12; ++i ) {
+  ret = 0x01000000;
+  while ( ret-- ) asm ( "nop\nnop\nnop\nnop" );
+ }  /* end for */
+
+ g_IOPFlags |= SMS_IOPF_ILINK;
+
+ _bdm_register_new ( lBefore, &g_IlinkMask );
+
+ return g_IOPFlags & SMS_IOPF_ILINK;
+
+}  /* end SMS_IOPStartILINK */
+
+int SMS_IOPStartATA ( int afStatus ) {
+
+ unsigned int lBefore;
+ int          i, ret;
+
+ /* ata_bd bundles its own atad and drives the internal ATA bus directly, so it is
+  * mutually exclusive with SMS's PFS HDD ( ps2atad ) -- whichever starts first owns
+  * the bus. Requires DEV9 up. */
+ if ( s_AtaBusOwner == 1 ) return 0;                        /* PFS HDD owns the bus */
+ if (  !( g_IOPFlags & SMS_IOPF_DEV9_IS )  ) return 0;      /* no DEV9 hardware      */
+ if (  !( g_IOPFlags & SMS_IOPF_DEV9    )  ) {              /* loaded but shut down  */
+  SMS_IOCtl ( g_pDEV9X, DEV9CTLINIT, NULL );
+  g_IOPFlags |= SMS_IOPF_DEV9;
+ }  /* end if */
+
+ lBefore = _bdm_scan ();
+
+ SifExecModuleBuffer ( &ata_bd_irx, size_ata_bd_irx, 0, NULL, &i );
+ s_AtaBusOwner = 2;
+
+ /* give the drive time to spin up + atad to detect it */
+ for ( i = 0; i < 6; ++i ) {
+  ret = 0x01000000;
+  while ( ret-- ) asm ( "nop\nnop\nnop\nnop" );
+ }  /* end for */
+
+ g_IOPFlags |= SMS_IOPF_ATA;
+
+ _bdm_register_new ( lBefore, &g_AtaMask );
+
+ return g_IOPFlags & SMS_IOPF_ATA;
+
+}  /* end SMS_IOPStartATA */
+#else
+int SMS_IOPStartILINK ( int afStatus ) { return 0; }
+int SMS_IOPStartATA   ( int afStatus ) { return 0; }
+#endif
+
+#ifdef BDM
 void SMS_IOPRefreshMass ( void ) {
 
  static const unsigned int lBit[ 4 ] = { 0x00000002, 0x00000800, 0x00002000, 0x00008000 };
@@ -533,6 +637,10 @@ int SMS_IOPStartHDD ( int afStatus ) {
 
  int i;
 
+#ifdef BDM
+ if ( s_AtaBusOwner == 2 ) return 0;   /* ATA-as-BDM ( ata_bd ) already owns the ATA bus */
+#endif
+
  if (  !( g_IOPFlags & SMS_IOPF_DEV9_IS )  ) return 0;
  if (  !( g_IOPFlags & SMS_IOPF_DEV9    )  ) {
   SMS_IOCtl ( g_pDEV9X, DEV9CTLINIT, NULL );
@@ -540,6 +648,9 @@ int SMS_IOPStartHDD ( int afStatus ) {
  }  /* end if */
 
  for ( i = 3; i < 6; ++i ) _load_module ( i, afStatus );
+#ifdef BDM
+ s_AtaBusOwner = 1;   /* PFS HDD now owns the ATA bus ( ps2atad loaded ) */
+#endif
 
  i = SMS_IOCtl ( g_pHDD, PS2HDD_IOCTL_STATUS, NULL );
 
@@ -643,7 +754,7 @@ void SMS_IOPInit ( void ) {
 
  if ( g_IOPFlags & SMS_IOPF_DEV9_IS ) {
 #if NO_DEBUG
-  if (   !(  g_Config.m_NetworkFlags & ( SMS_DF_AUTO_HDD | SMS_DF_AUTO_NET )  )   )
+  if (   !(  g_Config.m_NetworkFlags & ( SMS_DF_AUTO_HDD | SMS_DF_AUTO_NET | SMS_DF_AUTO_ATA )  )   )
    SMS_IOCtl ( g_pDEV9X, DEV9CTLSHUTDOWN, NULL );
   else g_IOPFlags |= SMS_IOPF_DEV9;
 #else
@@ -658,6 +769,8 @@ void SMS_IOPInit ( void ) {
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_USB ) SMS_IOPStartUSB ( 1 );
 #ifdef BDM
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_MX4SIO ) SMS_IOPStartMX4SIO ( 1 );
+ if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_ATA    ) SMS_IOPStartATA    ( 1 );
+ if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_ILINK  ) SMS_IOPStartILINK  ( 1 );
 #endif
 
  GUI_Status ( STR_INITIALIZING_SMS.m_pStr );
