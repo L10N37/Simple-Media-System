@@ -570,31 +570,30 @@ int SMS_IOPStartILINK ( int afStatus ) {
 int SMS_IOPStartATA ( int afStatus ) {
 
  unsigned int lBefore;
- int          i, ret, lAtad;
+ int          i, ret;
+ static char  lP1[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "ATA: preparing bus (DEV9)...";
+ static char  lP2[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "ATA: loading driver (ata_bd)...";
+ static char  lP3[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "ATA: scanning drive (mounting exFAT)...";
 
- /* ATA-as-BDM: the stock ps2atad drives the internal ATA bus and ata_bd is the BDM
-  * ( massN: ) adapter on top. ata_bd bundles its OWN copy of atad, but that copy
-  * probes the bus unconditionally and HANGS on a console with no internal HDD. So
-  * bring up the stock ps2atad FIRST: its _start returns < 0 when no drive is present
-  * ( OPL relies on exactly this ), letting us bail gracefully; when a drive IS
-  * present the atad library is registered and ata_bd rides on it rather than doing
-  * its own hang-prone probe. Mutually exclusive with the PFS HDD path ( same atad /
-  * same physical drive ) -- whichever starts first owns the bus. Requires DEV9. */
+ /* Internal HDD as a BDM ( massN: / exFAT ) device via ata_bd, which bundles atad
+  * and probes the ATA bus itself. Mutually exclusive with SMS's PFS HDD ( same atad
+  * / same physical drive ) -- whichever starts first owns the bus. Requires DEV9.
+  * Progress is shown at each stage: if it stalls, the LAST on-screen message pins
+  * the exact stage ( ata_bd can hang on some drive layouts, e.g. an APAJail'd HDD ). */
  if ( s_AtaBusOwner == 1 ) return 0;                        /* PFS HDD owns the bus */
  if (  !( g_IOPFlags & SMS_IOPF_DEV9_IS )  ) return 0;      /* no DEV9 hardware      */
- if (  !( g_IOPFlags & SMS_IOPF_DEV9    )  ) {              /* loaded but shut down  */
+
+ GUI_Status ( lP1 );
+ if (  !( g_IOPFlags & SMS_IOPF_DEV9 )  ) {                 /* loaded but shut down  */
   SMS_IOCtl ( g_pDEV9X, DEV9CTLINIT, NULL );
   g_IOPFlags |= SMS_IOPF_DEV9;
  }  /* end if */
 
- lAtad = -1;
- SifExecModuleBuffer ( &g_DataBuffer[ SMS_PS2ATAD_OFFSET ], SMS_PS2ATAD_SIZE, 0, NULL, &lAtad );
- if ( lAtad < 0 ) return 0;   /* no internal HDD / ATA interface -> bail, do NOT probe */
-
- s_AtaBusOwner = 2;
  lBefore = _bdm_scan ();
 
+ GUI_Status ( lP2 );
  SifExecDecompModuleBuffer ( &ata_bd_irx, size_ata_bd_irx, 0, NULL, &i );
+ s_AtaBusOwner = 2;
 
  /* give the drive time to spin up + atad to detect it */
  for ( i = 0; i < 6; ++i ) {
@@ -602,6 +601,7 @@ int SMS_IOPStartATA ( int afStatus ) {
   while ( ret-- ) asm ( "nop\nnop\nnop\nnop" );
  }  /* end for */
 
+ GUI_Status ( lP3 );
  g_IOPFlags |= SMS_IOPF_ATA;
 
  _bdm_register_new ( lBefore, &g_AtaMask );
