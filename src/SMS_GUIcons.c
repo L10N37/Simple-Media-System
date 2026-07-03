@@ -26,9 +26,12 @@
  * SMS_IconsRGBA.c (RGBA, the exact byte format the IPU used to emit). PNG is the
  * source of truth now; the IPU is no longer used to load icons (it stays for the
  * player ball / desktop). */
-extern const unsigned char* const g_RGBA_Browser[  9 ];
-extern const unsigned char* const g_RGBA_Misc   [ 12 ];
-extern const unsigned char* const g_RGBA_Dev    [ 11 ];
+/* All icon RGBA is now one XZ-compressed blob ( ~183KB -> ~26KB ); GUI_LoadIcons
+ * decompresses it once with SMS's embedded XZ decoder and slices it by offset. */
+extern const unsigned char g_RGBA_Blob[];
+extern const unsigned int  g_RGBA_BlobSize;
+extern const unsigned int  g_RGBA_RawSize;
+extern int lzma2_uncompress ( unsigned char*, unsigned int, unsigned char*, unsigned int );
 
 unsigned char g_IconBall[ 316 ] __attribute__(   (  aligned( 16 ), section( ".data" )  )   ) = {
 	0x00, 0x00, 0x01, 0xb2, 0x00, 0x20, 0x00, 0x20, 0x00, 0x00, 0x01, 0x01, 0x1b, 0xf8, 0x18, 0x15, 
@@ -1386,20 +1389,35 @@ void GUI_LoadIcons ( void ) {
 
  if ( !s_pIconData ) {
 
-  int   i, j;
-  char* lpPtr = s_pIconData = ( char* )SMS_SyncMalloc ( 18 * 4096 + 12 * 4096 + 9216 * 11 );
+  int            i, j;
+  char*          lpPtr;
+  unsigned char* lpBlob;
+  unsigned char* lpBr;
+  unsigned char* lpMi;
+  unsigned char* lpDv;
 
-  /* Icons are pre-baked to RGBA ( SMS_IconsRGBA.c, from theme/icons/*.png ).
-   * Copy each into the icon buffer; browser file icons also get a darkened
-   * "not selected" twin. Layout / pointer arrays are unchanged, so the GS draw
-   * path is untouched. */
+  /* Icons ship as one XZ-compressed RGBA blob ( SMS_IconsRGBA.c, from
+   * theme/icons/*.png ). Decompress it once into a scratch buffer with SMS's
+   * embedded XZ decoder, then slice by fixed offset -- same slot order the bake
+   * used: 9 browser 32x32 (4096B), 12 misc 32x32, 11 dev 48x48 (9216B). Browser
+   * file icons still get a darkened "not selected" twin; the GS draw path is
+   * unchanged. */
+  lpBlob = ( unsigned char* )memalign ( 64, g_RGBA_RawSize );
+  lzma2_uncompress ( ( unsigned char* )g_RGBA_Blob, g_RGBA_BlobSize, lpBlob, g_RGBA_RawSize );
+
+  lpBr = lpBlob;
+  lpMi = lpBr +  9 * 4096;
+  lpDv = lpMi + 12 * 4096;
+
+  lpPtr = s_pIconData = ( char* )SMS_SyncMalloc ( 18 * 4096 + 12 * 4096 + 9216 * 11 );
+
   for ( i = 0, j = 0; i < 9; ++i, j += 2 ) {
 
-   memcpy ( lpPtr, g_RGBA_Browser[ i ], 4096 );
+   memcpy ( lpPtr, lpBr + i * 4096, 4096 );
    s_BrowserFileIcons[ j + 0 ] = lpPtr;
    lpPtr += 4096;
 
-   memcpy ( lpPtr, g_RGBA_Browser[ i ], 4096 );
+   memcpy ( lpPtr, lpBr + i * 4096, 4096 );
    _icon_darken ( lpPtr, 32 * 32 );
    s_BrowserFileIcons[ j + 1 ] = lpPtr;
    lpPtr += 4096;
@@ -1408,7 +1426,7 @@ void GUI_LoadIcons ( void ) {
 
   for ( i = 0; i < 12; ++i ) {
 
-   memcpy ( lpPtr, g_RGBA_Misc[ i ], 4096 );
+   memcpy ( lpPtr, lpMi + i * 4096, 4096 );
    s_MiscIcons[ i ] = lpPtr;
    lpPtr += 4096;
 
@@ -1416,11 +1434,13 @@ void GUI_LoadIcons ( void ) {
 
   for ( i = 0; i < 11; ++i ) {
 
-   memcpy ( lpPtr, g_RGBA_Dev[ i ], 9216 );
+   memcpy ( lpPtr, lpDv + i * 9216, 9216 );
    s_BrowserDeviceIcons[ i ] = lpPtr;
    lpPtr += 9216;
 
   }  /* end for */
+
+  free ( lpBlob );
 
  }  /* end if */
 
