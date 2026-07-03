@@ -275,18 +275,18 @@ void SMS_IOPReset ( int afExit ) {
  SifExecModuleBuffer ( &g_DataBuffer[ SMS_SMSUTILS_OFFSET ], SMS_SMSUTILS_SIZE, 0, NULL, &i );
 
 #ifdef BDM
- SifExecModuleBuffer ( &iomanx_irx, size_iomanx_irx, 0, NULL, &i );
- SifExecModuleBuffer ( &filexio_irx, size_filexio_irx, 0, NULL, &i );
+ SifExecDecompModuleBuffer ( &iomanx_irx, size_iomanx_irx, 0, NULL, &i );
+ SifExecDecompModuleBuffer ( &filexio_irx, size_filexio_irx, 0, NULL, &i );
  fileXioInit();
 
- SifExecModuleBuffer ( &bdm_irx, size_bdm_irx, 0, NULL, &i );
- SifExecModuleBuffer ( &bdmfs_fatfs_irx, size_bdmfs_fatfs_irx, 0, NULL, &i );
+ SifExecDecompModuleBuffer ( &bdm_irx, size_bdm_irx, 0, NULL, &i );
+ SifExecDecompModuleBuffer ( &bdmfs_fatfs_irx, size_bdmfs_fatfs_irx, 0, NULL, &i );
 
- if ( !afExit ) SifExecModuleBuffer ( &sio2man_irx, size_sio2man_irx, 0, NULL, &i );
+ if ( !afExit ) SifExecDecompModuleBuffer ( &sio2man_irx, size_sio2man_irx, 0, NULL, &i );
 
- SifExecModuleBuffer ( &mcman_irx, size_mcman_irx, 0, NULL, &i );
- SifExecModuleBuffer ( &mcserv_irx, size_mcserv_irx, 0, NULL, &i );
- SifExecModuleBuffer ( &padman_irx, size_padman_irx, 0, NULL, &i );
+ SifExecDecompModuleBuffer ( &mcman_irx, size_mcman_irx, 0, NULL, &i );
+ SifExecDecompModuleBuffer ( &mcserv_irx, size_mcserv_irx, 0, NULL, &i );
+ SifExecDecompModuleBuffer ( &padman_irx, size_padman_irx, 0, NULL, &i );
 #else
  static const char* lpModules[ 4 ] = { s_pSIO2MAN, s_pPADMAN, s_pMCMAN, s_pMCSERV };
 
@@ -370,7 +370,7 @@ int SMS_IOPStartNet ( int afStatus ) {
      * blob + its size are only compiled/embedded in BDM builds ( see Makefile ),
      * so guard the reference -- SMS_IOPStartNet itself is built in all configs. */
 #ifdef BDM
-    SifExecModuleBuffer ( &smbman_irx, size_smbman_irx, 0, NULL, &i );
+    SifExecDecompModuleBuffer ( &smbman_irx, size_smbman_irx, 0, NULL, &i );
 
     if ( i >= 0 ) g_IOPFlags |= SMS_IOPF_SMB;
 #else
@@ -417,10 +417,10 @@ int SMS_IOPStartUSB ( int afStatus ) {
 #ifdef BDM
  int ret;
 
- SifExecModuleBuffer ( &usbd_irx, size_usbd_irx, 0, NULL, &i );
+ SifExecDecompModuleBuffer ( &usbd_irx, size_usbd_irx, 0, NULL, &i );
  g_IOPFlags |= SMS_IOPF_USB;
 
- SifExecModuleBuffer ( &usbmass_bd_irx, size_usbmass_bd_irx, 0, NULL, &i );
+ SifExecDecompModuleBuffer ( &usbmass_bd_irx, size_usbmass_bd_irx, 0, NULL, &i );
  g_IOPFlags |= SMS_IOPF_UMS;
 
  // give the modules a few seconds to load
@@ -481,7 +481,7 @@ int SMS_IOPStartMX4SIO ( int afStatus ) {
 
  for ( i = 0; i < 4; ++i ) if (  checkConnectedMassDev ( i )  ) before |= ( 1 << i );
 
- SifExecModuleBuffer ( &mx4sio_bd_irx, size_mx4sio_bd_irx, 0, NULL, &i );
+ SifExecDecompModuleBuffer ( &mx4sio_bd_irx, size_mx4sio_bd_irx, 0, NULL, &i );
 
  // give the module a few seconds to load
  for ( i = 0; i < 5; ++i ) {
@@ -549,8 +549,8 @@ int SMS_IOPStartILINK ( int afStatus ) {
  /* i.LINK is self-contained -- it drives its own IEEE1394 hardware, needs no dev9
   * or usbd. Load the bus manager first, then the SBP-2 block driver ( which binds
   * to bdm and registers massN: ). */
- SifExecModuleBuffer ( &iLinkman_irx,    size_iLinkman_irx,    0, NULL, &i );
- SifExecModuleBuffer ( &IEEE1394_bd_irx, size_IEEE1394_bd_irx, 0, NULL, &i );
+ SifExecDecompModuleBuffer ( &iLinkman_irx,    size_iLinkman_irx,    0, NULL, &i );
+ SifExecDecompModuleBuffer ( &IEEE1394_bd_irx, size_IEEE1394_bd_irx, 0, NULL, &i );
 
  /* SBP-2 discovery + login after the bus reset can take up to ~5s ( spec ), so
   * wait noticeably longer than the SD-based drivers before probing. */
@@ -584,7 +584,7 @@ int SMS_IOPStartATA ( int afStatus ) {
 
  lBefore = _bdm_scan ();
 
- SifExecModuleBuffer ( &ata_bd_irx, size_ata_bd_irx, 0, NULL, &i );
+ SifExecDecompModuleBuffer ( &ata_bd_irx, size_ata_bd_irx, 0, NULL, &i );
  s_AtaBusOwner = 2;
 
  /* give the drive time to spin up + atad to detect it */
@@ -610,8 +610,8 @@ int SMS_IOPStartMMCE ( int afStatus ) {
   * mmceman + mmcedrv as browsable mmce0: / mmce1: devices -- NOT BDM mass:, so it
   * gets its own device id ( 7 ) and detection path. Load both, then probe each slot
   * and raise a connect event for any newly-present card. */
- SifExecModuleBuffer ( &mmceman_irx, size_mmceman_irx, 0, NULL, &i );
- SifExecModuleBuffer ( &mmcedrv_irx, size_mmcedrv_irx, 0, NULL, &i );
+ SifExecDecompModuleBuffer ( &mmceman_irx, size_mmceman_irx, 0, NULL, &i );
+ SifExecDecompModuleBuffer ( &mmcedrv_irx, size_mmcedrv_irx, 0, NULL, &i );
 
  for ( i = 0; i < 5; ++i ) {
   ret = 0x01000000;

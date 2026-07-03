@@ -63,10 +63,12 @@ $(EE_OBJ_DIR):
 $(EE_BIN_DIR):
 	@$(MKDIR) -p $(EE_BIN_DIR)
 
-vpath %.irx $(IRX_DIR)
+vpath %.irx.xz $(IRX_DIR)
 vpath %.jpg images/
 
-$(EE_OBJ_DIR)%_irx.c: %.irx
+# IRX modules are embedded XZ-compressed (irx/*.irx.xz, made by tools/compress_irx.py)
+# and loaded via SifExecDecompModuleBuffer. bin2c still names the array <name>_irx.
+$(EE_OBJ_DIR)%_irx.c: %.irx.xz
 	bin2c $< $@ $(*F)_irx
 	@sed 's/aligned(16)/aligned(16), section(\"data\")/' -i $@
 
