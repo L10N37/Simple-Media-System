@@ -50,6 +50,7 @@ unsigned int g_IOPFlags;
 unsigned int g_Mx4sioMask;
 unsigned int g_AtaMask;
 unsigned int g_IlinkMask;
+unsigned int g_MmceFlags;   /* pending MMCE connect events: bit0 = mmce0:, bit1 = mmce1: */
 #endif
 
 #ifdef BDM
@@ -65,6 +66,8 @@ extern unsigned char mx4sio_bd_irx  [];
 extern unsigned char ata_bd_irx     [];
 extern unsigned char iLinkman_irx   [];
 extern unsigned char IEEE1394_bd_irx[];
+extern unsigned char mmceman_irx    [];
+extern unsigned char mmcedrv_irx    [];
 
 extern unsigned char sio2man_irx [];
 extern unsigned char iomanx_irx  [];
@@ -81,6 +84,8 @@ extern unsigned int size_mx4sio_bd_irx;
 extern unsigned int size_ata_bd_irx;
 extern unsigned int size_iLinkman_irx;
 extern unsigned int size_IEEE1394_bd_irx;
+extern unsigned int size_mmceman_irx;
+extern unsigned int size_mmcedrv_irx;
 
 extern unsigned int size_sio2man_irx;
 extern unsigned int size_iomanx_irx;
@@ -101,6 +106,9 @@ static unsigned int s_MassAdded;
  * 2 = ATA-as-BDM ( ata_bd, which bundles its own atad ). Both register the same atad
  * IOP library, so only the first to start may own the bus -- the other backs off. */
 static int s_AtaBusOwner;
+/* MMCE units ( bit0=mmce0:, bit1=mmce1: ) already announced to the device strip,
+ * so a re-probe doesn't append a duplicate ( same idea as s_MassAdded ). */
+static unsigned int s_MmceAdded;
 #else
 static char s_pSIO2MAN[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "rom0:SIO2MAN";
 static char s_pPADMAN [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "rom0:PADMAN";
@@ -592,9 +600,50 @@ int SMS_IOPStartATA ( int afStatus ) {
  return g_IOPFlags & SMS_IOPF_ATA;
 
 }  /* end SMS_IOPStartATA */
+
+int SMS_IOPStartMMCE ( int afStatus ) {
+
+ static char lMmce[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "mmceX:";
+ int         i, ret, lFD;
+
+ /* MMCE ( SD2PSX / MemCard PRO ) exposes its microSD over the memory-card port via
+  * mmceman + mmcedrv as browsable mmce0: / mmce1: devices -- NOT BDM mass:, so it
+  * gets its own device id ( 7 ) and detection path. Load both, then probe each slot
+  * and raise a connect event for any newly-present card. */
+ SifExecModuleBuffer ( &mmceman_irx, size_mmceman_irx, 0, NULL, &i );
+ SifExecModuleBuffer ( &mmcedrv_irx, size_mmcedrv_irx, 0, NULL, &i );
+
+ for ( i = 0; i < 5; ++i ) {
+  ret = 0x01000000;
+  while ( ret-- ) asm ( "nop\nnop\nnop\nnop" );
+ }  /* end for */
+
+ g_IOPFlags |= SMS_IOPF_MMCE;
+
+ for ( i = 0; i < 2; ++i ) {
+
+  lMmce[ 4 ] = i + '0';
+  lFD = fioDopen ( lMmce );
+
+  if ( lFD >= 0 ) {
+
+   fioDclose ( lFD );
+   if (  !( s_MmceAdded & ( 1 << i ) )  ) {
+    g_MmceFlags |= ( 1 << i );
+    s_MmceAdded |= ( 1 << i );
+   }  /* end if */
+
+  }  /* end if */
+
+ }  /* end for */
+
+ return g_IOPFlags & SMS_IOPF_MMCE;
+
+}  /* end SMS_IOPStartMMCE */
 #else
 int SMS_IOPStartILINK ( int afStatus ) { return 0; }
 int SMS_IOPStartATA   ( int afStatus ) { return 0; }
+int SMS_IOPStartMMCE  ( int afStatus ) { return 0; }
 #endif
 
 #ifdef BDM
@@ -771,6 +820,7 @@ void SMS_IOPInit ( void ) {
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_MX4SIO ) SMS_IOPStartMX4SIO ( 1 );
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_ATA    ) SMS_IOPStartATA    ( 1 );
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_ILINK  ) SMS_IOPStartILINK  ( 1 );
+ if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_MMCE   ) SMS_IOPStartMMCE   ( 1 );
 #endif
 
  GUI_Status ( STR_INITIALIZING_SMS.m_pStr );

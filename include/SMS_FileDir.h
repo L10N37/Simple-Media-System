@@ -26,7 +26,7 @@ extern char g_pSMB  [] __attribute__(   (  aligned( 4 ), section( ".data" )  )  
 extern char g_pSMBS [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   );
 extern char g_HDDWD [] __attribute__(   (  aligned( 1 ), section( ".bss"  )  )   );
 
-extern char* g_pDevName[ 7 ];
+extern char* g_pDevName[ 8 ];
 
 extern SMS_List*           g_pFileList;
 extern int                 g_CMedia;

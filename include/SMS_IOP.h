@@ -40,6 +40,7 @@ extern unsigned int g_IOPFlags;
 extern unsigned int g_Mx4sioMask;
 extern unsigned int g_AtaMask;
 extern unsigned int g_IlinkMask;
+extern unsigned int g_MmceFlags;
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,6 +54,7 @@ int  SMS_IOPStartUSB         ( int                                    );
 int  SMS_IOPStartMX4SIO      ( int                                    );
 int  SMS_IOPStartATA         ( int                                    );
 int  SMS_IOPStartILINK       ( int                                    );
+int  SMS_IOPStartMMCE        ( int                                    );
 int  SMS_IOPStartHDD         ( int                                    );
 void SMS_IOPRefreshMass      ( void                                   );
 void SMS_IOPSetXLT           ( void                                   );

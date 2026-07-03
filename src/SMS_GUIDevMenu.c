@@ -62,6 +62,7 @@ static int _dev_icon_index ( _DevMenuItem* apItem ) {
   if ( g_AtaMask    & lBit ) return 8;
   if ( g_IlinkMask  & lBit ) return 9;
  }  /* end if */
+ if ( apItem -> m_DevID == 7 ) return 10;   /* MMCE ( mmce0:/mmce1: ) */
 #endif
  return apItem -> m_DevID;
 }
@@ -211,6 +212,12 @@ static int GUIDevMenu_HandleMount ( GUIDevMenu* apMenu, unsigned int aMount, u64
  SMS_List* lpList = apMenu -> m_pDevList;
  char      lDevName[ 16 ];
 
+#ifdef BDM
+ /* MMCE ( GUI_MSG_MMCE = 0x90000 ) decodes to raw id 8 because its natural slot
+  * (0x80000) is taken by GUI_MSG_LOGIN; map it back to the real device id 7. */
+ if ( lDevID == 8 ) lDevID = 7;
+#endif
+
  if (  aMount & ( GUI_MSG_MOUNT_BIT >> 16 )  ) {
 
   _DevMenuItem* lpItem;
@@ -264,7 +271,7 @@ static int GUIDevMenu_HandleMount ( GUIDevMenu* apMenu, unsigned int aMount, u64
 
   }  /* end if */
 
-  if ( !lDevID ) {
+  if ( lDevID == 0 || lDevID == 7 ) {   /* mass ( massN: ) or MMCE ( mmceN: ) -- both carry a unit digit */
    unsigned char lUnitID = ( aMsg >> 56 ) & 15;
 #ifdef BDM
    lDevName[ 4 ]      = lUnitID + '0';

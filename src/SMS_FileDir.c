@@ -42,6 +42,7 @@ char g_pDVD   [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "
 char g_pCDDAFS[] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "cddafs:/";
 char g_pSMB   [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "smb";
 char g_pSMBS  [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "smb:";
+char g_pMMCE  [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "mmce";
 
 static char s_pAVI [] __attribute__(   (  aligned( 4 ), section( ".data" ), aligned( 1 )  )   ) = ".avi";
 static char s_pDIVX[] __attribute__(   (  aligned( 4 ), section( ".data" ), aligned( 1 )  )   ) = ".divx";
@@ -66,8 +67,8 @@ static char s_pHST [] __attribute__(   (  aligned( 4 ), section( ".data" ), alig
 
 char g_HDDWD[ 1024 ] __attribute__(   (  aligned( 1 ), section( ".bss"  )  )   );
 
-char* g_pDevName[ 7 ] = {
- g_pUSB, g_pCDROM, g_pHDD0, g_pCDDA, g_pHOST, g_pDVD, g_pSMB
+char* g_pDevName[ 8 ] = {
+ g_pUSB, g_pCDROM, g_pHDD0, g_pCDDA, g_pHOST, g_pDVD, g_pSMB, g_pMMCE
 };
 
 SMS_List*    g_pFileList;
@@ -231,6 +232,7 @@ void SMS_FileDirInit ( char* apPath ) {
 
 #ifdef BDM
  if (  g_CMedia == 0 && ( g_IOPFlags & SMS_IOPF_UMS )  ) g_pUSB[ 4 ] = g_CUnit + '0';
+ if (  g_CMedia == 7                                  ) g_pMMCE[ 4 ] = g_CUnit + '0';   /* mmceN: */
 #else
  if (  g_CMedia == 0 && ( g_IOPFlags & SMS_IOPF_UMS )  ) g_pUSB[ 3 ] = g_CUnit + '0';
 #endif

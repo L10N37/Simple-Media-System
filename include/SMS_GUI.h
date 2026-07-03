@@ -27,6 +27,11 @@
 #define GUI_MSG_DVD    0x0000000000060000L
 #define GUI_MSG_SMB    0x0000000000070000L
 #define GUI_MSG_LOGIN  0x0000000000080000L
+/* MMCE ( device id 7 ). Its natural mount value (7+1)<<16 == 0x80000 collides with
+ * GUI_MSG_LOGIN, so it uses the next free mount slot (0x90000, decodes to raw id 8)
+ * and GUIDevMenu_HandleMount remaps that back to device id 7. Still inside
+ * GUI_MSG_MOUNT_MASK (0x1F0000). */
+#define GUI_MSG_MMCE   0x0000000000090000L
 
 #define GUI_MSG_MEDIA_SELECTED 0x8000000000000000L
 #define GUI_MSG_MEDIA_REMOVED  0x7000000000000000L

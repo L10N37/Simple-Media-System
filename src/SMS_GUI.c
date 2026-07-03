@@ -93,6 +93,7 @@ static unsigned char s_Stack  [ 4096 ] __attribute__(   (  aligned( 16 ), sectio
 
 #ifdef BDM
 unsigned int g_MassFlags;
+extern unsigned int g_MmceFlags;   /* SMS_IOP.c -- pending MMCE connect events */
 #endif
 
 static void ( *QueryPad ) ( void );
@@ -455,6 +456,22 @@ static int _gui_thread ( void* apParam ) {
     s_DevFlags &= ~DEFV_SMB;
 
     goto raiseEvent;
+
+#ifdef BDM
+   } else if ( g_MmceFlags & 1 ) {
+
+    s_Event     |= ( GUI_MSG_MOUNT_BIT | GUI_MSG_MMCE | ( 0LL << 56 ) );
+    g_MmceFlags &= ~1;
+
+    goto raiseEvent;
+
+   } else if ( g_MmceFlags & 2 ) {
+
+    s_Event     |= ( GUI_MSG_MOUNT_BIT | GUI_MSG_MMCE | ( 1LL << 56 ) );
+    g_MmceFlags &= ~2;
+
+    goto raiseEvent;
+#endif
 
    }  /* end if */
 
