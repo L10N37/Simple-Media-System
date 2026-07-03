@@ -570,11 +570,16 @@ int SMS_IOPStartILINK ( int afStatus ) {
 int SMS_IOPStartATA ( int afStatus ) {
 
  unsigned int lBefore;
- int          i, ret;
+ int          i, ret, lAtad;
 
- /* ata_bd bundles its own atad and drives the internal ATA bus directly, so it is
-  * mutually exclusive with SMS's PFS HDD ( ps2atad ) -- whichever starts first owns
-  * the bus. Requires DEV9 up. */
+ /* ATA-as-BDM: the stock ps2atad drives the internal ATA bus and ata_bd is the BDM
+  * ( massN: ) adapter on top. ata_bd bundles its OWN copy of atad, but that copy
+  * probes the bus unconditionally and HANGS on a console with no internal HDD. So
+  * bring up the stock ps2atad FIRST: its _start returns < 0 when no drive is present
+  * ( OPL relies on exactly this ), letting us bail gracefully; when a drive IS
+  * present the atad library is registered and ata_bd rides on it rather than doing
+  * its own hang-prone probe. Mutually exclusive with the PFS HDD path ( same atad /
+  * same physical drive ) -- whichever starts first owns the bus. Requires DEV9. */
  if ( s_AtaBusOwner == 1 ) return 0;                        /* PFS HDD owns the bus */
  if (  !( g_IOPFlags & SMS_IOPF_DEV9_IS )  ) return 0;      /* no DEV9 hardware      */
  if (  !( g_IOPFlags & SMS_IOPF_DEV9    )  ) {              /* loaded but shut down  */
@@ -582,10 +587,14 @@ int SMS_IOPStartATA ( int afStatus ) {
   g_IOPFlags |= SMS_IOPF_DEV9;
  }  /* end if */
 
+ lAtad = -1;
+ SifExecModuleBuffer ( &g_DataBuffer[ SMS_PS2ATAD_OFFSET ], SMS_PS2ATAD_SIZE, 0, NULL, &lAtad );
+ if ( lAtad < 0 ) return 0;   /* no internal HDD / ATA interface -> bail, do NOT probe */
+
+ s_AtaBusOwner = 2;
  lBefore = _bdm_scan ();
 
  SifExecDecompModuleBuffer ( &ata_bd_irx, size_ata_bd_irx, 0, NULL, &i );
- s_AtaBusOwner = 2;
 
  /* give the drive time to spin up + atad to detect it */
  for ( i = 0; i < 6; ++i ) {
