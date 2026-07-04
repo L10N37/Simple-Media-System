@@ -67,7 +67,6 @@ extern unsigned char ata_bd_irx     [];
 extern unsigned char iLinkman_irx   [];
 extern unsigned char IEEE1394_bd_irx[];
 extern unsigned char mmceman_irx    [];
-extern unsigned char mmcedrv_irx    [];
 
 extern unsigned char sio2man_irx [];
 extern unsigned char iomanx_irx  [];
@@ -85,7 +84,6 @@ extern unsigned int size_ata_bd_irx;
 extern unsigned int size_iLinkman_irx;
 extern unsigned int size_IEEE1394_bd_irx;
 extern unsigned int size_mmceman_irx;
-extern unsigned int size_mmcedrv_irx;
 
 extern unsigned int size_sio2man_irx;
 extern unsigned int size_iomanx_irx;
@@ -615,12 +613,16 @@ int SMS_IOPStartMMCE ( int afStatus ) {
  static char lMmce[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "mmceX:";
  int         i, ret, lFD;
 
- /* MMCE ( SD2PSX / MemCard PRO ) exposes its microSD over the memory-card port via
-  * mmceman + mmcedrv as browsable mmce0: / mmce1: devices -- NOT BDM mass:, so it
-  * gets its own device id ( 7 ) and detection path. Load both, then probe each slot
-  * and raise a connect event for any newly-present card. */
+ /* MMCE ( SD2PSX / MemCard PRO ) exposes its microSD over the memory-card / SIO2
+  * port via mmceman as browsable mmce0: / mmce1: devices -- NOT BDM mass:, so it
+  * gets its own device id ( 7 ) and detection path. That SIO2 port is the SAME one
+  * MX4SIO drives, so the two cannot coexist ( NHDDL refuses to load mmceman while
+  * MX4SIO is active ); MX4SIO is the primary target, so defer to it. Only mmceman is
+  * needed ( NHDDL loads it alone -- mmcedrv is not required ). Probe each slot and
+  * raise a connect event for any newly-present card. */
+ if ( g_IOPFlags & SMS_IOPF_MX4SIO ) return 0;   /* shares the SIO2 port with MX4SIO */
+
  SifExecDecompModuleBuffer ( &mmceman_irx, size_mmceman_irx, 0, NULL, &i );
- SifExecDecompModuleBuffer ( &mmcedrv_irx, size_mmcedrv_irx, 0, NULL, &i );
 
  for ( i = 0; i < 5; ++i ) {
   ret = 0x01000000;
