@@ -28,12 +28,15 @@ MISC    = ["s_IconError","s_IconDisplay","s_IconHelp","s_IconNetwork",
            "s_IconBrowser","s_IconPlayer","s_IconOn","s_IconOff","s_IconSave",
            "s_IconExit","s_IconFinish","g_IconBall"]
 DEV     = ["s_IconUSB","s_IconCDROM","s_IconHDD","s_IconCDDA","s_IconHost",
-           "s_IconDVD","s_IconSMB","s_IconMX4SIO","s_IconATA","s_IconILINK","s_IconMMCE"]
-# device icon slots: 0..6 base, 7=MX4SIO, 8=ATA, 9=iLink, 10=MMCE. Must match
-# _dev_icon_index() in SMS_GUIDevMenu.c and the g_RGBA_Dev[11] / s_BrowserDeviceIcons[11]
-# arrays + GUI_LoadIcons dev loop (i < 11) in SMS_GUIcons.c. ATA + iLink are BDM mass:
-# devices (icon chosen via g_AtaMask / g_IlinkMask on a m_DevID==0 unit); MMCE is the
-# separate mmce0: device (its own m_DevID -> slot 10).
+           "s_IconDVD","s_IconSMB","s_IconMX4SIO","s_IconATA","s_IconILINK","s_IconMMCE",
+           "s_IconDVDVID","s_IconCDVDERROR"]
+# device icon slots: 0..6 base, 7=MX4SIO, 8=ATA, 9=iLink, 10=MMCE, 11=DVDVID (DVD-Video),
+# 12=CDVDERROR (disc error / failed CDDA). Must match _dev_icon_index() in SMS_GUIDevMenu.c
+# and the s_BrowserDeviceIcons[13] array + GUI_LoadIcons dev loop (i < 13) in SMS_GUIcons.c.
+# ATA + iLink are BDM mass: devices (icon chosen via g_AtaMask / g_IlinkMask on a
+# m_DevID==0 unit); MMCE is the separate mmce0: device (its own m_DevID -> slot 10).
+# Disc sub-type icons (1/3/5 -> CDROM/CDDA/DVD/DVDVID/CDVDERROR) are chosen in _dev_icon_index
+# from g_pCDDACtx (audio vs data CD) and g_CurDiscDVDV (DVD-Video vs data DVD).
 
 def bake(name, expect_wh):
     p = os.path.join(ICON_DIR, name + ".png")

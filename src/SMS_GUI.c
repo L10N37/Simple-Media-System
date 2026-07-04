@@ -91,6 +91,7 @@ static unsigned char s_PadBuf0[  256 ] __attribute__(   (  aligned( 64 ), sectio
        unsigned char g_PadBuf1[  256 ] __attribute__(   (  aligned( 64 ), section( ".data"  )  )   );
 static unsigned char s_Stack  [ 4096 ] __attribute__(   (  aligned( 16 ), section( ".data"  )  )   );
 
+int g_CurDiscDVDV;   /* 1 = current optical disc is DVD-Video -> DVDVID icon ( read in SMS_GUIDevMenu ) */
 #ifdef BDM
 unsigned int g_MassFlags;
 extern unsigned int g_MmceFlags;   /* SMS_IOP.c -- pending MMCE connect events */
@@ -494,6 +495,7 @@ static int _gui_thread ( void* apParam ) {
      s_DevFlags |=  DEVF_CD;
 
      CDVD_SetDVDV ( 0 );
+     g_CurDiscDVDV = 0;
 
      goto raiseEvent;
 
@@ -504,6 +506,7 @@ static int _gui_thread ( void* apParam ) {
      s_DevFlags |=  DEVF_DVD;
 
      CDVD_SetDVDV ( lDiskType == DiskType_DVDV );
+     g_CurDiscDVDV = ( lDiskType == DiskType_DVDV );
 
      goto raiseEvent;
 

@@ -1369,7 +1369,7 @@ static int s_SizeBrowserDevIcons[ 8 ] __attribute__(   (  section( ".data" )  ) 
 
 static void*  s_BrowserFileIcons  [ 18 ];
 static void*  s_MiscIcons         [ 12 ];
-static void*  s_BrowserDeviceIcons[ 11 ];
+static void*  s_BrowserDeviceIcons[ 13 ];
 static char*  s_pIconData;
 
 static void _icon_darken ( void* apBuf, int aNumPix ) {
@@ -1399,7 +1399,7 @@ void GUI_LoadIcons ( void ) {
   /* Icons ship as one XZ-compressed RGBA blob ( SMS_IconsRGBA.c, from
    * theme/icons/*.png ). Decompress it once into a scratch buffer with SMS's
    * embedded XZ decoder, then slice by fixed offset -- same slot order the bake
-   * used: 9 browser 32x32 (4096B), 12 misc 32x32, 11 dev 48x48 (9216B). Browser
+   * used: 9 browser 32x32 (4096B), 12 misc 32x32, 13 dev 48x48 (9216B). Browser
    * file icons still get a darkened "not selected" twin; the GS draw path is
    * unchanged. */
   lpBlob = ( unsigned char* )memalign ( 64, g_RGBA_RawSize );
@@ -1409,7 +1409,7 @@ void GUI_LoadIcons ( void ) {
   lpMi = lpBr +  9 * 4096;
   lpDv = lpMi + 12 * 4096;
 
-  lpPtr = s_pIconData = ( char* )SMS_SyncMalloc ( 18 * 4096 + 12 * 4096 + 9216 * 11 );
+  lpPtr = s_pIconData = ( char* )SMS_SyncMalloc ( 18 * 4096 + 12 * 4096 + 9216 * 13 );
 
   for ( i = 0, j = 0; i < 9; ++i, j += 2 ) {
 
@@ -1432,7 +1432,7 @@ void GUI_LoadIcons ( void ) {
 
   }  /* end for */
 
-  for ( i = 0; i < 11; ++i ) {
+  for ( i = 0; i < 13; ++i ) {
 
    memcpy ( lpPtr, lpDv + i * 9216, 9216 );
    s_BrowserDeviceIcons[ i ] = lpPtr;

@@ -48,6 +48,7 @@ extern unsigned int g_Mx4sioMask;
 extern unsigned int g_AtaMask;
 extern unsigned int g_IlinkMask;
 #endif
+extern int g_CurDiscDVDV;   /* cached at disc mount: 1 = DVD-Video ( -> DVDVID ), 0 = data DVD */
 
 /* MX4SIO / ATA / iLink units are all mass: devices (m_DevID == 0) but each gets a
  * distinct browser icon. Compute the icon index ONLY at draw time -- m_DevID itself
@@ -64,6 +65,14 @@ static int _dev_icon_index ( _DevMenuItem* apItem ) {
  }  /* end if */
  if ( apItem -> m_DevID == 7 ) return 10;   /* MMCE ( mmce0:/mmce1: ) */
 #endif
+ /* Disc sub-type icons -- the device id alone can't tell audio-vs-data CD or
+  * video-vs-data DVD. A WORKING audio CD is mounted as id 1 ( CDROM ) with a live
+  * g_pCDDACtx ( HandleMount remaps 3 -> 1 on CDDA_InitContext success ); a data CD is
+  * id 1 with no ctx. DVD-Video vs data DVD is cached in g_CurDiscDVDV at mount. A
+  * mount left at id 3 means CDDA_InitContext FAILED -> the CD/DVD error icon. */
+ if ( apItem -> m_DevID == 1 ) return g_pCDDACtx    ? 3  : 1;   /* audio CD -> CDDA, data CD -> CDROM  */
+ if ( apItem -> m_DevID == 3 ) return 12;                       /* CDDA init failed -> CDVDERROR       */
+ if ( apItem -> m_DevID == 5 ) return g_CurDiscDVDV ? 11 : 5;   /* DVD-Video -> DVDVID, data DVD -> DVD */
  return apItem -> m_DevID;
 }
 
