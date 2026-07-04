@@ -397,7 +397,7 @@ static int checkConnectedMassDev ( int afUnit ) {
     int fd;
     char path[32];
 
-    snprintf(path, sizeof(path), "%s%d:", g_pUSB, afUnit);
+    snprintf(path, sizeof(path), "mass%d:", afUnit);   /* literal base: immune to g_pUSB being mutated to massN by the browser */
     fd = fioDopen(path);
     if (fd >= 0) {
         fioDclose(fd);

@@ -231,8 +231,8 @@ void SMS_FileDirInit ( char* apPath ) {
  SMS_ListNode* lpNode;
 
 #ifdef BDM
- if (  g_CMedia == 0 && ( g_IOPFlags & SMS_IOPF_UMS )  ) g_pUSB[ 4 ] = g_CUnit + '0';
- if (  g_CMedia == 7                                  ) g_pMMCE[ 4 ] = g_CUnit + '0';   /* mmceN: */
+ if (  g_CMedia == 0  ) g_pUSB[ 4 ] = g_CUnit + '0';   /* massN: for EVERY BDM mass unit (USB/MX4SIO/ATA/iLink), not just UMS */
+ if (  g_CMedia == 7  ) g_pMMCE[ 4 ] = g_CUnit + '0';   /* mmceN: */
 #else
  if (  g_CMedia == 0 && ( g_IOPFlags & SMS_IOPF_UMS )  ) g_pUSB[ 3 ] = g_CUnit + '0';
 #endif
