@@ -41,14 +41,13 @@ static void GUIMenu_Render ( GUIObject* apObj, int aCtx ) {
   u64*           lpPkt = GSContext_NewList (   (  GS_RRT_PACKET_SIZE() << 1  ) + 6 + lTDWC   );
   u64*           lpDMA = lpPkt + (  GS_RRT_PACKET_SIZE() << 1  );
 
-  GS_RenderRoundRect (   /* panel frame: bg colour a little (~25%) darker, was hardcoded green 0x80008000 */
+  GS_RenderRoundRect (   /* panel frame: light grey, slightly less rounded ( was hardcoded green 0x80008000 ) */
    ( GSRoundRectPacket* )(  lpPkt +  GS_RRT_PACKET_SIZE() - 2  ),
-   lpMenu -> m_X, lpMenu -> m_Y, lpMenu -> m_Width, lpMenu -> m_Height, -12,
-   (  ( lpMenu -> m_Color & 0x00FFFFFFUL ) - ( ( lpMenu -> m_Color >> 2 ) & 0x003F3F3FUL )  ) | 0x80000000UL
+   lpMenu -> m_X, lpMenu -> m_Y, lpMenu -> m_Width, lpMenu -> m_Height, -8, 0x80C0C0C0UL
   );
   GS_RenderRoundRect (
    ( GSRoundRectPacket* )( lpPkt - 2 ), lpMenu -> m_X, lpMenu -> m_Y,
-   lpMenu -> m_Width, lpMenu -> m_Height, 12, lpMenu -> m_Color
+   lpMenu -> m_Width, lpMenu -> m_Height, 8, lpMenu -> m_Color
   );
 
   lpDMA[ 0 ] = GIF_TAG( 1, 1, 0, 0, GIFTAG_FLG_REGLIST, 4 );
@@ -111,11 +110,11 @@ static void GUIMenu_Render ( GUIObject* apObj, int aCtx ) {
 
    lpDMA = GSContext_NewPacket (  aCtx, GS_RRT_PACKET_SIZE(), GSPaintMethod_Continue  );
    GS_RenderRoundRect (
-    ( GSRoundRectPacket* )( lpDMA - 2 ), lX, lY, lpMenu -> m_Width - 8, 32, 12, ( lColor & 0x00FFFFFF ) | 0x10000000
+    ( GSRoundRectPacket* )( lpDMA - 2 ), lX, lY, lpMenu -> m_Width - 8, 32, 8, ( lColor & 0x00FFFFFF ) | 0x10000000
    );
    lpDMA = GSContext_NewPacket (  aCtx, GS_RRT_PACKET_SIZE(), GSPaintMethod_Continue  );
    GS_RenderRoundRect (
-    ( GSRoundRectPacket* )( lpDMA - 2 ), lX, lY, lpMenu -> m_Width - 8, 32, -12, lColor
+    ( GSRoundRectPacket* )( lpDMA - 2 ), lX, lY, lpMenu -> m_Width - 8, 32, -8, lColor
    );
 
   }  /* end if */
