@@ -47,7 +47,7 @@ int main ( int argc, char** argv ) {
   g_pExec1    [ 2 ] = lSlot;
   g_MCSlot          = lSlot - '0';
 
- }  /* end if */
+ } else if ( argc > 0 ) SMS_ConfigSetCWD ( argv[ 0 ] );   /* non-mc boot -> settings in CWD ( next to the ELF ) */
 
  SMS_IOPReset ( 0 );
  SMS_EEInit   ();

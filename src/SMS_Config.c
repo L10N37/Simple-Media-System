@@ -61,7 +61,8 @@ static char s_pSMS   [] __attribute__(   (  section( ".data" ), aligned( 1 )  ) 
 static char s_pSMSCfg[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "/SMS/SMS.cfg";
 static char s_pIcoSys[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "mc0:SMS/icon.sys";
 static char s_pSMSIcn[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "mc0:/SMS/SMS.icn";
-static char s_pMC0SMC[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "mc0:/SMS/SMS.cfg";
+static char s_pMC0SMC[ 128 ] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "mc0:/SMS/SMS.cfg";
+static int  s_CfgOnFS __attribute__(   (  section( ".data" )  )   );   /* 1 = config is a plain filesystem file ( non-mc boot -> CWD ), not a memory-card save */
 static char s_pPS2D  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "PS2D";
 static char s_pSMSICN[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "SMS.icn";
 
@@ -91,6 +92,23 @@ void SMS_SetMCSlot ( char aSlot ) {
  g_SMSSMB [ 2 ] = aSlot;
 
 }  /* end SMS_SetMCSlot */
+
+void SMS_ConfigSetCWD ( const char* apELFPath ) {
+/* Launched from a non-memory-card device ( USB / HDD / MX4SIO / etc., where mc0:
+ * may be dead ): keep settings next to the ELF -- <boot dir>SMS.cfg -- instead of
+ * on the memory card. The mc-save icon path is skipped for this case ( s_CfgOnFS ). */
+ int i, lLast = -1;
+
+ for ( i = 0; apELFPath[ i ] && i < ( int )sizeof ( s_pMC0SMC ) - 9; ++i )
+  if ( apELFPath[ i ] == '/' || apELFPath[ i ] == ':' || apELFPath[ i ] == '\\' ) lLast = i;
+
+ if ( lLast < 0 ) return;   /* no path separator -> leave the mc0: default */
+
+ for ( i = 0; i <= lLast; ++i ) s_pMC0SMC[ i ] = apELFPath[ i ];
+ strcpy ( &s_pMC0SMC[ lLast + 1 ], "SMS.cfg" );
+ s_CfgOnFS = 1;
+
+}  /* end SMS_ConfigSetCWD */
 
 static void _load_font ( unsigned int anIndex ) {
 
@@ -352,10 +370,10 @@ int SMS_LoadConfig ( void  ) {
  SMS_ListPushBack (  g_Config.m_pMBFList  = SMS_ListInit (), g_EmptyStr  );
 
 #ifdef BDM
- lRes = _mc_get_info ();
+ lRes = s_CfgOnFS ? 0 : _mc_get_info ();
 #else
- MC_GetInfo ( g_MCSlot, 0, &lRes, &lRes, &lRes );
- MC_Sync ( &lRes );
+ if ( s_CfgOnFS ) lRes = 0;
+ else { MC_GetInfo ( g_MCSlot, 0, &lRes, &lRes, &lRes ); MC_Sync ( &lRes ); }
 #endif
 
  if ( lRes > -2 ) {
@@ -412,6 +430,19 @@ int SMS_SaveConfig ( void ) {
 
  int retVal = 0;
  int lRes;
+
+ if ( s_CfgOnFS ) {   /* non-mc boot: write settings next to the ELF, no memory-card save/icon */
+
+  int lFD = fioOpen ( s_pMC0SMC, O_WRONLY | O_CREAT );
+
+  if ( lFD >= 0 ) {
+   if (  fioWrite (  lFD, &g_Config, sizeof ( g_Config )  ) == sizeof ( g_Config )  ) retVal = 1;
+   fioClose ( lFD );
+  }  /* end if */
+
+  return retVal;
+
+ }  /* end if */
 
 #ifdef BDM
  lRes = _mc_get_info ();
