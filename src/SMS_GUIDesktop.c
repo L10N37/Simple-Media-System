@@ -105,7 +105,7 @@ static void _Version_Render ( GUIObject* apObj, int aCtx ) {
   lFmt[ 19 ] = 'd';
   lFmt[ 20 ] = ')';
   lFmt[ 21 ] = '\x00';
-  sprintf ( lBuff, lFmt, 2.9F, 4 );
+  sprintf ( lBuff, lFmt, 3.0F, 0 );
 
   lLen = strlen ( lBuff );
   lW   = GSFont_WidthEx ( lBuff, lLen, -6 );
