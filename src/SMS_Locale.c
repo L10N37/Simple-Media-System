@@ -114,7 +114,7 @@ static char s_pAdjustUp       [] __attribute__(   (  aligned( 1 ), section( ".da
 static char s_pAdjustDown     [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   ) = "Adjust image down";
 static char s_pAutoNet        [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   ) = "Autostart network";
 static char s_pAutoUSB        [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   ) = "Autostart USB";
-static char s_pAutoHDD        [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   ) = "Autostart HDD";
+static char s_pAutoHDD        [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   ) = "Autostart HDD APA";
 static char s_pStartNet       [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   ) = "Start network support";
 static char s_pStartHDD       [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   ) = "Start HDD support";
 static char s_pStartUSB       [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   ) = "Start USB support";

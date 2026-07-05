@@ -210,8 +210,8 @@ static char s_pStartMX4SIO[] __attribute__(   (  section( ".data" ), aligned( 1 
 static SMString s_StrAutoMX4SIO  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoMX4SIO  ) - 1, s_pAutoMX4SIO  };
 static SMString s_StrStartMX4SIO __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartMX4SIO ) - 1, s_pStartMX4SIO };
 
-static char s_pAutoATA   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart ATA (int. HDD)";
-static char s_pStartATA  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start ATA (int. HDD)";
+static char s_pAutoATA   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart HDD BDM";
+static char s_pStartATA  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start HDD BDM";
 static SMString s_StrAutoATA   __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoATA   ) - 1, s_pAutoATA   };
 static SMString s_StrStartATA  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartATA  ) - 1, s_pStartATA  };
 
@@ -220,7 +220,7 @@ static char s_pStartILINK[] __attribute__(   (  section( ".data" ), aligned( 1 )
 static SMString s_StrAutoILINK  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoILINK  ) - 1, s_pAutoILINK  };
 static SMString s_StrStartILINK __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartILINK ) - 1, s_pStartILINK };
 
-static char s_pAutoMMCE  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart MMCE (SD2PSX)";
+static char s_pAutoMMCE  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart MMCE";
 static char s_pStartMMCE [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start MMCE support";
 static SMString s_StrAutoMMCE  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoMMCE  ) - 1, s_pAutoMMCE  };
 static SMString s_StrStartMMCE __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartMMCE ) - 1, s_pStartMMCE };
@@ -230,11 +230,11 @@ static GUIMenuItem s_DevMenu[ 20 ] __attribute__(   (  section( ".data" )  )   )
  { MENU_ITEM_TYPE_TEXT, &STR_CONTROLLER_SLOT2,    0, 0, _cntslot_handler,    0, 0 },
  {                   0, &STR_AUTOSTART_NETWORK,   0, 0, _autonet_handler,    0, 0 },
  {                   0, &STR_AUTOSTART_USB,       0, 0, _autousb_handler,    0, 0 },
- {                   0, &s_StrAutoMX4SIO,         0, 0, _automx4sio_handler, 0, 0 },
+ {                   0, &STR_AUTOSTART_HDD,       0, 0, _autohdd_handler,    0, 0 },
  {                   0, &s_StrAutoATA,            0, 0, _autoata_handler,    0, 0 },
+ {                   0, &s_StrAutoMX4SIO,         0, 0, _automx4sio_handler, 0, 0 },
  {                   0, &s_StrAutoILINK,          0, 0, _autoilink_handler,  0, 0 },
  {                   0, &s_StrAutoMMCE,           0, 0, _automce_handler,    0, 0 },
- {                   0, &STR_AUTOSTART_HDD,       0, 0, _autohdd_handler,    0, 0 },
  {                   0, &STR_DISABLE_CDVD,        0, 0, _cdvd_handler,       0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_CDVD_SPEED,          0, 0, _cdvd_spd_handler,   0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_DIRECTIONAL_BUTTONS, 0, 0, _dirbtn_handler,     0, 0 }
@@ -570,11 +570,11 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
  s_DevMenu[ 2 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_NET ? GUICON_ON   : GUICON_OFF;
  s_DevMenu[ 3 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_USB ? GUICON_ON   : GUICON_OFF;
 #ifdef BDM
- s_DevMenu[  4 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_MX4SIO ? GUICON_ON : GUICON_OFF;
- s_DevMenu[  5 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_ATA    ? GUICON_ON : GUICON_OFF;
- s_DevMenu[  6 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_ILINK  ? GUICON_ON : GUICON_OFF;
- s_DevMenu[  7 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_MMCE   ? GUICON_ON : GUICON_OFF;
- s_DevMenu[  8 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD    ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[  4 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD    ? GUICON_ON : GUICON_OFF;  /* HDD APA */
+ s_DevMenu[  5 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_ATA    ? GUICON_ON : GUICON_OFF;  /* HDD BDM */
+ s_DevMenu[  6 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_MX4SIO ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[  7 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_ILINK  ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[  8 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_MMCE   ? GUICON_ON : GUICON_OFF;
  s_DevMenu[  9 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_CDVD        ? GUICON_ON : GUICON_OFF;
  s_DevMenu[ 10 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed ];
  s_DevMenu[ 11 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );
