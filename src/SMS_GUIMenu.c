@@ -41,9 +41,10 @@ static void GUIMenu_Render ( GUIObject* apObj, int aCtx ) {
   u64*           lpPkt = GSContext_NewList (   (  GS_RRT_PACKET_SIZE() << 1  ) + 6 + lTDWC   );
   u64*           lpDMA = lpPkt + (  GS_RRT_PACKET_SIZE() << 1  );
 
-  GS_RenderRoundRect (
+  GS_RenderRoundRect (   /* panel frame: bg colour a little (~25%) darker, was hardcoded green 0x80008000 */
    ( GSRoundRectPacket* )(  lpPkt +  GS_RRT_PACKET_SIZE() - 2  ),
-   lpMenu -> m_X, lpMenu -> m_Y, lpMenu -> m_Width, lpMenu -> m_Height, -12, 0x80008000UL
+   lpMenu -> m_X, lpMenu -> m_Y, lpMenu -> m_Width, lpMenu -> m_Height, -12,
+   (  ( lpMenu -> m_Color & 0x00FFFFFFUL ) - ( ( lpMenu -> m_Color >> 2 ) & 0x003F3F3FUL )  ) | 0x80000000UL
   );
   GS_RenderRoundRect (
    ( GSRoundRectPacket* )( lpPkt - 2 ), lpMenu -> m_X, lpMenu -> m_Y,
