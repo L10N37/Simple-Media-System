@@ -1,0 +1,205 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Releases &amp; Changelog · SMS Docs</title>
+<meta name="description" content="Where SMS builds come from, the current version (3.0 Rev.0), what this storage-focused fork adds, and the historical SMS changelog lineage from Eugene Plotnikov's original DivX player.">
+<link rel="stylesheet" href="assets/style.css">
+</head><body data-base="">
+<header class="topbar">
+  <button class="menu-btn" aria-label="Menu">☰</button>
+  <a class="brand" href="index.html">
+    <span class="psbtns"><i class="tri">&#9651;</i><i class="cir">&#9711;</i><i class="cro">&#10005;</i><i class="squ">&#9633;</i></span>
+    SMS <small>DOCS</small></a>
+  <div class="search">
+    <span class="ico">🔎</span>
+    <input id="q" type="search" placeholder="Search devices, formats, settings, subtitles…  ( / )" autocomplete="off">
+    <kbd>/</kbd>
+    <div id="results"></div>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar">
+    <a href="index.html"><span class="em">🏠</span>Home</a>
+    <h4>Start</h4>
+    <a href="getting-started.html"><span class="em">🚀</span>Getting Started</a>
+    <a href="install.html"><span class="em">📥</span>Install &amp; First Boot</a>
+    <h4>Playing media</h4>
+    <a href="video.html"><span class="em">🎬</span>Video Playback</a>
+    <a href="audio.html"><span class="em">🎵</span>Audio &amp; Playlists</a>
+    <a href="pictures.html"><span class="em">🖼️</span>Pictures</a>
+    <a href="subtitles.html"><span class="em">💬</span>Subtitles</a>
+    <h4>Storage &amp; devices</h4>
+    <a href="devices.html"><span class="em">🗂️</span>Devices Overview</a>
+    <a href="usb.html"><span class="em">🔌</span>USB</a>
+    <a href="mx4sio.html"><span class="em">💠</span>MX4SIO (microSD)</a>
+    <a href="hdd.html"><span class="em">💽</span>Internal HDD</a>
+    <a href="ilink.html"><span class="em">🔗</span>i.LINK</a>
+    <a href="mmce.html"><span class="em">🧩</span>MMCE (SD2PSX)</a>
+    <a href="smb.html"><span class="em">🌐</span>SMB Network</a>
+    <a href="cd-dvd.html"><span class="em">💿</span>CD / DVD / CDDA</a>
+    <h4>Setup &amp; theming</h4>
+    <a href="settings.html"><span class="em">🔧</span>Settings Reference</a>
+    <a href="network.html"><span class="em">📡</span>Network Setup</a>
+    <a href="themes.html"><span class="em">🎨</span>Themes &amp; Skins</a>
+    <h4>Reference</h4>
+    <a href="troubleshooting.html"><span class="em">🛠️</span>Troubleshooting</a>
+    <a href="building.html"><span class="em">🧰</span>Building from Source</a>
+    <a href="releases.html" class="active"><span class="em">📦</span>Releases &amp; Changelog</a>
+    <a href="credits.html"><span class="em">🙏</span>Credits &amp; Sources</a>
+  </nav>
+  <main class="content"><h1>Releases &amp; Changelog</h1>
+<p class="lead">Where SMS builds come from, which version you are running, and the long history behind
+the player. The short version: grab the ready-made <code>SMS.elf</code> from the project's releases, or
+<a href="building.html">build it yourself</a> — either way you get the same media player, with this fork's
+storage additions on top of two decades of SMS development.</p>
+
+<div class="callout info"><div class="h">ℹ Just want to run it?</div>
+You do not need to compile anything. A prebuilt <code>SMS.elf</code> is published on the project's repository
+releases — download it, copy it to a device your PS2 can boot from, and launch it with your usual homebrew
+loader. See <a href="install.html">Install &amp; First Boot</a> for the step-by-step, and
+<a href="getting-started.html">Getting Started</a> to play your first file.</div>
+
+<h2 id="getting-a-build">Getting a build</h2>
+<p>SMS ships as a single PlayStation 2 executable, <code>SMS.elf</code>. There is nothing to install into the
+system — it is a self-contained homebrew ELF that you launch like any other. The IOP driver modules it needs
+(for USB, MX4SIO, HDD, network and so on) are embedded inside the ELF itself, so the one file is everything.</p>
+
+<div class="steps">
+  <div class="step"><h3>Download the release ELF</h3>
+    <p>The compiled <code>SMS.elf</code> is published on the project's repository releases page. Grab the latest
+    published build there. Keep the URL generic — go to the repository's Releases and take the most recent
+    <code>SMS.elf</code> asset.</p></div>
+  <div class="step"><h3>Copy it to a bootable device</h3>
+    <p>Put <code>SMS.elf</code> wherever your homebrew setup launches ELFs from — a USB stick, the memory card, the
+    internal HDD, an MX4SIO card, an MMCE device, and so on. SMS itself will then browse whichever storage you turn
+    on from its <a href="settings.html">Settings</a> menu.</p></div>
+  <div class="step"><h3>Launch it</h3>
+    <p>Run it from your loader of choice (wLaunchELF, a boot menu, FMCB/FreeMcBoot, etc.). On first launch nothing
+    auto-starts — you enable the devices you want. See <a href="install.html">Install &amp; First Boot</a>.</p></div>
+</div>
+
+<div class="callout amber"><div class="h">⚠ Prefer to compile from source?</div>
+You can build the exact same ELF yourself with the project's pinned Docker toolchain. That path is documented in
+full on the <a href="building.html">Building from Source</a> page.</div>
+
+<h2 id="this-build">This build</h2>
+<p>This documentation set describes the following version of SMS:</p>
+<table>
+<thead><tr><th>Field</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Version</td><td><b>3.0 (Rev.0)</b></td></tr>
+<tr><td>Executable</td><td><code>SMS.elf</code> (single self-contained PS2 homebrew ELF)</td></tr>
+<tr><td>Lineage</td><td>Storage-focused fork of Simple Media System, originally by Eugene Plotnikov</td></tr>
+<tr><td>Toolchain</td><td>Built with the pinned <code>ps2dev/ps2dev:v1.0</code> toolchain via <code>make</code></td></tr>
+<tr><td>Drivers</td><td>IOP <code>.irx</code> modules embedded in the ELF (including a patched <code>mx4sio_bd</code> driver)</td></tr>
+</tbody>
+</table>
+<p>The version number appears on-screen during SMS's startup/initialization, as it has since the original
+releases. If you are unsure which build you have, watch the boot sequence.</p>
+
+<h2 id="whats-new">What is new in this fork</h2>
+<p class="lead">This fork focuses on <b>storage breadth</b> — reaching more of the devices a PS2 can talk to — and on
+making setup happen entirely on-screen. The headline is that <b>MX4SIO microSD playback works</b>. The full list:</p>
+<ul class="checklist">
+<li><b>MX4SIO microSD playback</b> — video and audio play smoothly from a microSD in an MX4SIO (SIO2) adapter,
+with a hardened driver for reliable playback, its own device icon, and an <b>Autostart MX4SIO</b> toggle. See
+<a href="mx4sio.html">MX4SIO</a>.</li>
+<li><b>Internal HDD — exFAT as well as APA</b> — read media from a modern <b>exFAT</b> drive over ATA (BDM) in
+addition to the classic APA/PFS <code>SMS_Media</code> partition. See <a href="hdd.html">Internal HDD</a>.</li>
+<li><b>i.LINK (IEEE&nbsp;1394) storage</b> — mount a FireWire drive as a media source over the BDM stack. See
+<a href="ilink.html">i.LINK</a>.</li>
+<li><b>MMCE devices</b> — browse media from an <b>SD2PSX</b> or <b>MemCard PRO2</b> in the memory-card slot
+(<code>mmce0:</code> / <code>mmce1:</code>). See <a href="mmce.html">MMCE</a>.</li>
+<li><b>On-screen network &amp; SMB setup</b> — configure your IP and connect to a Windows / Samba share entirely
+from the pad, using a real on-screen keyboard — no pre-made config files to hand-edit. See
+<a href="network.html">Network Setup</a>.</li>
+<li><b>Settings that save to the boot device</b> — configuration persists to the memory card, or, if SMS was booted
+without one, next to the SMS ELF on the device it started from — so a memory-card-less setup keeps its settings.
+See <a href="settings.html">Settings</a>.</li>
+<li><b>Refreshed theme</b> — new desktop artwork and device icons, on top of the existing <code>.smi</code> skin
+engine. See <a href="themes.html">Themes &amp; Skins</a>.</li>
+<li><b>Reliability fixes</b> — settings now load back correctly after a save, memory-card detection is more robust,
+and a clean install starts with nothing auto-running so you turn on only what you need.</li>
+</ul>
+
+<div class="callout info"><div class="h">ℹ Everything else still works</div>
+This fork adds devices and polish; it does not remove SMS's long-standing playback. All the video, audio, picture,
+subtitle and playlist formats SMS has supported for years are unchanged — see <a href="video.html">Video</a>,
+<a href="audio.html">Audio &amp; Playlists</a>, <a href="pictures.html">Pictures</a> and
+<a href="subtitles.html">Subtitles</a>.</div>
+
+<h2 id="historical-changelog">Historical changelog</h2>
+<p>SMS has a long history. It was created by <b>Eugene Plotnikov</b> as, in his own words, "the simplest DivX
+player able to play good-resolution movies at good frame rate on the unmodded PS2 without any extra equipment,"
+and was developed intensively across 2005–2009 before the ps2homebrew community carried it forward. The high-level
+lineage below is drawn from the project's own <code>CHANGELOG.md</code> — refer to that file in the repository for
+the exhaustive, entry-by-entry history.</p>
+
+<table data-sortable>
+<thead><tr><th>Era</th><th>What arrived</th></tr></thead>
+<tbody>
+<tr><td>Mid&ndash;2005 — foundations</td><td>The core DivX/XviD/MPEG-4 player using the PS2's IPU for colour conversion;
+<b>CDDAFS</b> (playing data off a burned audio CD on an unmodded console); early A/V synchronisation and V-Blank sync;
+internal <b>HDD</b> support with the <code>SMS_Media</code> partition; a heavily PS2-optimised FFmpeg-derived core.</td></tr>
+<tr><td>Summer 2005 — the GUI</td><td>The three-area <b>GUI</b> that SMS still uses — device menu, file browser and
+status line — with pause / resume / stop, the file browser, and screen-alignment adjustments; <b>USB</b> mass-storage
+support; AC3 audio; config saved to the memory card.</td></tr>
+<tr><td>Late 2005 — network &amp; discs</td><td><b>Network (host:)</b> playback; ISO CD/DVD and later <b>DVD-Video</b>
+disc reading on unmodded consoles; more codecs; skin/background-image support; a proper SMS menu and internationalised,
+scalable fonts.</td></tr>
+<tr><td>Late 2005 / early 2006 — subtitles &amp; playlists</td><td>External <b>SRT / SUB subtitles</b> with adjustable
+size and colour, plus manual A/V and subtitle sync; multi-audio-track support; the object-oriented desktop rewrite;
+early <b>MP3 / M3U</b> playback and "play all in folder".</td></tr>
+<tr><td>2006 — more formats &amp; input</td><td>Remote-control support; <b>MPEG-1/2 program-stream</b> video; DTS and
+<b>OGG&nbsp;Vorbis</b> audio; on-disc file management (copy/delete on the internal HDD); pan-scan and display tuning;
+HD/DTV video-mode groundwork.</td></tr>
+<tr><td>Late 2006 — SMB</td><td>The <b>SMB/CIFS</b> network client, so SMS could browse Windows / Samba shares over the
+network adapter; faster network transfers; UTF-8 subtitle support.</td></tr>
+<tr><td>2007 — HD video &amp; WMA</td><td><b>720p / 1080i</b> and VESA/DTV video modes; a new floating-point MPEG audio
+decoder; <b>WMA (ASF)</b> and raw PCM audio; multiple SMB servers; assorted decoder and sync refinements.</td></tr>
+<tr><td>2008 — audio breadth &amp; pictures</td><td><b>AAC / M4A</b> and <b>FLAC</b> audio; a baseline <b>JPEG</b> viewer
+with slideshow and rotate; big (4&nbsp;GB) OpenDML AVI support; USB/FAT driver rewrites; an on-screen exception handler.</td></tr>
+<tr><td>2009 — later refinements</td><td>576p video mode and 2:2 pulldown for smoother 24fps playback; audio-driver and
+AC3 downmix improvements; further USB/FAT speed work — the last stretch of the original development line before the
+project's community era.</td></tr>
+<tr><td><b>This fork — 3.0 (Rev.0)</b></td><td><b>Working MX4SIO playback</b>, exFAT/ATA HDD, i.LINK, MMCE, on-screen
+network/SMB setup, save-to-boot-device config, a refreshed theme and the reliability fixes listed
+<a href="#whats-new">above</a>.</td></tr>
+</tbody>
+</table>
+
+<div class="callout info"><div class="h">ℹ Reading the full changelog</div>
+The dates and one-liners above summarise a much larger record. The complete, dated changelog lives in the
+repository as <code>CHANGELOG.md</code>; open it there if you want the exact entry for a given feature or fix.</div>
+
+<details class="deep"><summary>Why does this fork jump to version 3.0?</summary>
+<p>SMS versioning has never been a single tidy line — the original author noted early on that different
+"distributors" would put their own signature on their builds. This documentation set describes the build labelled
+<b>3.0 (Rev.0)</b>: a storage-focused fork that keeps SMS's decades-old playback intact while adding the devices and
+on-screen setup covered throughout this site. The version shows on-screen during startup, so you can always confirm
+what you are running.</p></details>
+
+<details class="deep"><summary>Is this an official SMS release?</summary>
+<p>No. This is a community fork built on the work of many contributors — Eugene Plotnikov's original SMS, the
+ps2homebrew community's modernisation, and KrahJohlito's BDM/MX4SIO integration foundation among them. It is offered
+as-is, not as an official release. See <a href="credits.html">Credits &amp; Sources</a> for the full acknowledgements.</p></details>
+
+<h2 id="next">Where to next</h2>
+<div class="grid">
+<a class="tile" href="install.html"><span class="em">📥</span><b>Install &amp; First Boot</b><span>Get the ELF running</span></a>
+<a class="tile" href="mx4sio.html"><span class="em">💠</span><b>MX4SIO</b><span>The headline feature</span></a>
+<a class="tile" href="building.html"><span class="em">🧰</span><b>Building from Source</b><span>Compile it yourself</span></a>
+<a class="tile" href="credits.html"><span class="em">🙏</span><b>Credits &amp; Sources</b><span>Who built what</span></a>
+</div>
+</main>
+  <aside class="toc"><div class="toc-h">On this page</div><nav id="toc-nav"></nav></aside>
+</div>
+<footer>
+  <p><b>SMS — Simple Media System</b> documentation. SMS was created by <b>Eugene Plotnikov</b> and is maintained by
+  the <a href="https://github.com/ps2homebrew">ps2homebrew</a> community; this site documents an enhanced,
+  storage-focused fork. Built on the work of many contributors — see <a href="credits.html">Credits &amp; Sources</a>.</p>
+  <p class="prov-inline">A community fork, not an official release. PlayStation 2 is a trademark of Sony Interactive
+  Entertainment; this project is unaffiliated. Sister documentation: the
+  <a href="https://nathanneurotic.github.io/POPSLoader/">POPStarter docs</a> and the RiptOPL docs.</p>
+</footer>
+<script src="assets/app.js"></script>
+</body></html>

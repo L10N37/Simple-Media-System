@@ -1,0 +1,210 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Video Playback · SMS Docs</title>
+<meta name="description" content="Everything about playing video in SMS: supported formats (DivX/XviD/MPEG-4, MPEG-1/2, WMV), how to open a file, the player controls, how SMS decodes video with the PS2 IPU, encoding tips and limitations.">
+<link rel="stylesheet" href="assets/style.css">
+</head><body data-base="">
+<header class="topbar">
+  <button class="menu-btn" aria-label="Menu">☰</button>
+  <a class="brand" href="index.html">
+    <span class="psbtns"><i class="tri">&#9651;</i><i class="cir">&#9711;</i><i class="cro">&#10005;</i><i class="squ">&#9633;</i></span>
+    SMS <small>DOCS</small></a>
+  <div class="search">
+    <span class="ico">🔎</span>
+    <input id="q" type="search" placeholder="Search devices, formats, settings, subtitles…  ( / )" autocomplete="off">
+    <kbd>/</kbd>
+    <div id="results"></div>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar">
+    <a href="index.html"><span class="em">🏠</span>Home</a>
+    <h4>Start</h4>
+    <a href="getting-started.html"><span class="em">🚀</span>Getting Started</a>
+    <a href="install.html"><span class="em">📥</span>Install &amp; First Boot</a>
+    <h4>Playing media</h4>
+    <a href="video.html" class="active"><span class="em">🎬</span>Video Playback</a>
+    <a href="audio.html"><span class="em">🎵</span>Audio &amp; Playlists</a>
+    <a href="pictures.html"><span class="em">🖼️</span>Pictures</a>
+    <a href="subtitles.html"><span class="em">💬</span>Subtitles</a>
+    <h4>Storage &amp; devices</h4>
+    <a href="devices.html"><span class="em">🗂️</span>Devices Overview</a>
+    <a href="usb.html"><span class="em">🔌</span>USB</a>
+    <a href="mx4sio.html"><span class="em">💠</span>MX4SIO (microSD)</a>
+    <a href="hdd.html"><span class="em">💽</span>Internal HDD</a>
+    <a href="ilink.html"><span class="em">🔗</span>i.LINK</a>
+    <a href="mmce.html"><span class="em">🧩</span>MMCE (SD2PSX)</a>
+    <a href="smb.html"><span class="em">🌐</span>SMB Network</a>
+    <a href="cd-dvd.html"><span class="em">💿</span>CD / DVD / CDDA</a>
+    <h4>Setup &amp; theming</h4>
+    <a href="settings.html"><span class="em">🔧</span>Settings Reference</a>
+    <a href="network.html"><span class="em">📡</span>Network Setup</a>
+    <a href="themes.html"><span class="em">🎨</span>Themes &amp; Skins</a>
+    <h4>Reference</h4>
+    <a href="troubleshooting.html"><span class="em">🛠️</span>Troubleshooting</a>
+    <a href="building.html"><span class="em">🧰</span>Building from Source</a>
+    <a href="releases.html"><span class="em">📦</span>Releases &amp; Changelog</a>
+    <a href="credits.html"><span class="em">🙏</span>Credits &amp; Sources</a>
+  </nav>
+  <main class="content">
+<h1>Video Playback</h1>
+<p class="lead">SMS turns a bone-stock PlayStation 2 into a video player. Point it at a movie file on any storage
+device — a burned disc, a USB stick, an MX4SIO microSD card, the internal HDD, or a network share — press one
+button, and it plays. This page covers every video format SMS understands, how to open a file, the on-screen
+player controls, how the decoding works under the hood, and how to get the smoothest playback out of the console.</p>
+
+<div class="callout info"><div class="h">ℹ SMS browses raw files — there is no special folder tree</div>
+SMS reads the <b>ordinary filesystem</b> of whatever device you give it and plays media <i>wherever the files sit</i>.
+Put your movies in any folder you like; SMS shows them in the file browser and plays them in place. There is no
+ISO, no rip step, and no mandatory folder layout — just files. Browse to a video, press <kbd>✕</kbd>, and watch.</div>
+
+<h2 id="formats">Supported video formats</h2>
+<p>SMS recognises a video by its container and codec, not merely its extension. The heavy lifting is done by a set
+of FFmpeg-derived decoders that have been hand-optimised for the PS2's Emotion Engine. The table below lists what
+plays and the file extensions SMS looks for.</p>
+
+<table data-sortable>
+<thead><tr><th>Container</th><th>Video it carries</th><th>Extensions</th></tr></thead>
+<tbody>
+<tr><td><b>AVI</b></td><td>DivX / XviD / MPEG-4 (ASP)</td><td><code>.avi</code> <code>.divx</code> <code>.xvid</code></td></tr>
+<tr><td><b>MP4</b></td><td>MPEG-4</td><td><code>.mp4</code></td></tr>
+<tr><td><b>MPEG program stream</b></td><td>MPEG-1 / MPEG-2</td><td><code>.mpg</code> <code>.mpeg</code></td></tr>
+<tr><td><b>WMV / ASF</b></td><td>Windows Media (ASF container)</td><td><code>.wma</code></td></tr>
+</tbody>
+</table>
+
+<div class="callout info"><div class="h">ℹ AVI is the sweet spot</div>
+The classic SMS use case — and where it is most thoroughly tested — is a progressive <b>DivX / XviD / MPEG-4</b>
+movie in an <b>AVI</b> container with an MP3 soundtrack. That combination has been played on stock consoles since
+the very first SMS builds and is the most reliable choice if you are encoding new files yourself.</div>
+
+<p>Audio inside a video (the soundtrack) is decoded by the same engine that plays standalone music files, so a
+movie can carry an MP3, AAC, AC3, or other supported audio track. For the full audio picture — including playlists
+and standalone music — see <a href="audio.html">Audio &amp; Playlists</a>.</p>
+
+<h2 id="playing">Playing a video</h2>
+<p>Opening a movie is a three-key affair: pick the device, walk into the folder, press play.</p>
+
+<div class="steps">
+<div class="step"><h3>Pick the device</h3>
+<p>SMS opens on the <b>device menu</b> — the top row of device icons. Use <b>Left</b> / <b>Right</b> to highlight the
+device your movie lives on (a <code>massN:</code> device for USB / MX4SIO / HDD-exFAT / i.LINK, an
+<code>mmce0:</code> card, the internal <code>hdd0:</code>, a CD/DVD, or a network share). If the device you want
+is not listed, it may not be started yet — see <a href="devices.html">Devices Overview</a> for the Autostart
+toggles and the "Start &lt;device&gt; now" option.</p></div>
+
+<div class="step"><h3>Enter the file list</h3>
+<p>Press <b>Down</b> to drop into the <b>file menu</b> (the middle browser). Move with <b>Up</b> / <b>Down</b>,
+page through long folders with <b>L1</b> / <b>L2</b>, open a folder with <kbd>✕</kbd>, and step back up one level
+with <kbd>△</kbd> (folder → parent → device menu). The status line at the bottom shows the current path on the left
+and a clock on the right.</p></div>
+
+<div class="step"><h3>Press play</h3>
+<p>Highlight the video file and press <kbd>✕</kbd>. SMS reads the file straight from the device and starts
+playback. When the movie ends — or when you stop it — you land back in the browser exactly where you were.</p></div>
+</div>
+
+<div class="callout info"><div class="h">ℹ Playing from MX4SIO</div>
+This fork's headline feature is smooth video playback from an <b>MX4SIO</b> microSD adapter, which earlier SMS
+builds could not do reliably. It works exactly like any other device: pick the MX4SIO device, browse to your
+movie, press <kbd>✕</kbd>. See the <a href="mx4sio.html">MX4SIO</a> page for setup.</div>
+
+<h2 id="controls">Player controls</h2>
+<p>While a video is playing, the pad drives the player directly:</p>
+
+<table data-sortable>
+<thead><tr><th>Button</th><th>Action</th></tr></thead>
+<tbody>
+<tr><td><b>Select</b></td><td>Pause</td></tr>
+<tr><td><b>Start</b></td><td>Resume from pause</td></tr>
+<tr><td><kbd>△</kbd> Triangle</td><td>Stop playback and return to the file browser</td></tr>
+</tbody>
+</table>
+
+<p>If the movie has an external subtitle file alongside it, SMS displays it over the picture — see
+<a href="subtitles.html">Subtitles</a> for how subtitle files are matched and styled.</p>
+
+<h2 id="decoding">How SMS decodes video</h2>
+<p>SMS earns its "good video on a stock PS2" reputation by splitting the work between the Emotion Engine and a
+dedicated piece of PS2 hardware — the <b>IPU</b> (Image Processing Unit).</p>
+
+<ul class="checklist">
+<li><b>Decoders derived from FFmpeg.</b> SMS's video and audio decoders started life as parts of the FFmpeg project
+and were then heavily reworked for the PS2 — moving to a packed image format so the decoder produces macroblocks in
+the IPU's native layout, and making aggressive use of the scratchpad and DMA. The original author measured roughly
+a 300% speed-up in video decoding versus stock FFmpeg from these changes.</li>
+<li><b>The IPU does the colour conversion.</b> Turning decoded frames into a displayable picture (the colour-space
+conversion, YUV → RGB) is handed to the IPU, which runs it as an interrupt-driven process <i>in parallel</i> with
+the main CPU still decoding the next frames. Because that step is offloaded, the Emotion Engine is free to spend its
+cycles decoding — which is exactly why a plain, unmodified PS2 can play good-resolution movies at a good frame rate
+with no HDD and no extra hardware.</li>
+</ul>
+
+<div class="callout amber"><div class="h">⚠ Performance depends on the file</div>
+The PS2 is a fixed console, so how smoothly a movie plays comes down to how demanding the file is. <b>Higher
+bitrate and higher resolution mean more work per frame.</b> A modest, well-encoded clip plays effortlessly; a very
+high-bitrate or high-resolution encode can push the console past real-time and stutter — especially when it is being
+read from a slower device. When in doubt, keep the encode reasonable (see the tips below).</div>
+
+<h2 id="encoding">Encoding tips</h2>
+<p>If you are making files for SMS rather than playing existing ones, a few choices make the difference between
+flawless playback and a slideshow.</p>
+
+<ul class="checklist">
+<li><b>Keep bitrate and resolution reasonable.</b> Standard-definition, progressive DivX / XviD / MPEG-4 in AVI is
+the proven target. You do not need to push resolution or bitrate high to get a good-looking result on a TV — and
+staying modest keeps decoding comfortably ahead of playback.</li>
+<li><b>Favour AVI + MP3.</b> The most-tested and most forgiving combination is a progressive MPEG-4 (DivX/XviD)
+video track with an MP3 soundtrack in an AVI container.</li>
+<li><b>Defragment on slower devices.</b> On a device with limited read throughput, a heavily fragmented file forces
+the console to seek constantly, which can starve the decoder. Copying the file back onto a freshly-formatted card or
+drive so it lands contiguously gives the smoothest reads, which helps most on the slowest media.</li>
+<li><b>Add subtitles as a separate file.</b> SMS reads external subtitle files rather than baked-in subtitles, so
+keep the subtitle track out of the video and drop the <code>.srt</code> / <code>.sub</code> next to it — details on
+the <a href="subtitles.html">Subtitles</a> page.</li>
+</ul>
+
+<h2 id="limitations">Limitations</h2>
+<p>SMS is a stock-console player, and a few historic limits come with that. Knowing them up front saves a lot of
+"why won't this play" head-scratching.</p>
+
+<ul>
+<li><b>No interlaced video.</b> SMS was designed around <b>progressive</b> footage and does not support interlaced
+movies. If a file is interlaced, re-encode it progressive.</li>
+<li><b>Best results with progressive MPEG-4 (DivX / XviD).</b> AVI-wrapped DivX 5xx / XviD is the format SMS was
+built and tested around; other combinations work but the MPEG-4-in-AVI path is the most solid.</li>
+<li><b>Very high bitrates may stutter on slower devices.</b> The console can only decode so fast, and it can only
+read a file so fast. A demanding encode combined with a slow source can drop frames. Lower the bitrate/resolution,
+or move the file to a faster device, if playback is not smooth.</li>
+</ul>
+
+<details class="deep"><summary>Why can a stock PS2 play "good-resolution movies" at all?</summary>
+<p>Because SMS never asks the Emotion Engine to do the whole job. It offloads colour-space conversion to the PS2's
+IPU as an interrupt-driven, parallel process, and it re-shaped the FFmpeg decoder so its output lands in exactly the
+format the IPU wants — cutting the traffic between CPU and memory and freeing the main processor to keep decoding.
+That parallelism, plus scratchpad-and-DMA optimisation, is what let the original author benchmark peak frame rates
+well above real-time on standard-definition DivX. It is the same architecture this fork still relies on — the fork's
+work went into <i>reaching</i> those files on more devices (like MX4SIO), not into the decoder itself.</p></details>
+
+<h2 id="next">Where to next</h2>
+<div class="grid">
+<a class="tile" href="subtitles.html"><span class="em">💬</span><b>Subtitles</b><span>SRT / SUB over your video</span></a>
+<a class="tile" href="audio.html"><span class="em">🎵</span><b>Audio &amp; Playlists</b><span>Soundtracks, music, M3U</span></a>
+<a class="tile" href="mx4sio.html"><span class="em">💠</span><b>MX4SIO</b><span>Play movies from microSD</span></a>
+<a class="tile" href="usb.html"><span class="em">🔌</span><b>USB</b><span>The easiest source</span></a>
+<a class="tile" href="devices.html"><span class="em">🗂️</span><b>Devices Overview</b><span>Start the device you need</span></a>
+<a class="tile" href="troubleshooting.html"><span class="em">🛠️</span><b>Troubleshooting</b><span>When a file won't play</span></a>
+</div>
+</main>
+  <aside class="toc"><div class="toc-h">On this page</div><nav id="toc-nav"></nav></aside>
+</div>
+<footer>
+  <p><b>SMS — Simple Media System</b> documentation. SMS was created by <b>Eugene Plotnikov</b> and is maintained by
+  the <a href="https://github.com/ps2homebrew">ps2homebrew</a> community; this site documents an enhanced,
+  storage-focused fork. Built on the work of many contributors — see <a href="credits.html">Credits &amp; Sources</a>.</p>
+  <p class="prov-inline">A community fork, not an official release. PlayStation 2 is a trademark of Sony Interactive
+  Entertainment; this project is unaffiliated. Sister documentation: the
+  <a href="https://nathanneurotic.github.io/POPSLoader/">POPStarter docs</a> and the RiptOPL docs.</p>
+</footer>
+<script src="assets/app.js"></script>
+</body></html>

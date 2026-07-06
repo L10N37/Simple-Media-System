@@ -1,0 +1,183 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Credits &amp; Sources · SMS Docs</title>
+<meta name="description" content="The people and projects Simple Media System is built on — Eugene Plotnikov, the ps2homebrew community, KrahJohlito, bbsan2k, FFmpeg, and this storage-focused fork.">
+<link rel="stylesheet" href="assets/style.css">
+</head><body data-base="">
+<header class="topbar">
+  <button class="menu-btn" aria-label="Menu">☰</button>
+  <a class="brand" href="index.html">
+    <span class="psbtns"><i class="tri">&#9651;</i><i class="cir">&#9711;</i><i class="cro">&#10005;</i><i class="squ">&#9633;</i></span>
+    SMS <small>DOCS</small></a>
+  <div class="search">
+    <span class="ico">🔎</span>
+    <input id="q" type="search" placeholder="Search devices, formats, settings, subtitles…  ( / )" autocomplete="off">
+    <kbd>/</kbd>
+    <div id="results"></div>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar">
+    <a href="index.html"><span class="em">🏠</span>Home</a>
+    <h4>Start</h4>
+    <a href="getting-started.html"><span class="em">🚀</span>Getting Started</a>
+    <a href="install.html"><span class="em">📥</span>Install &amp; First Boot</a>
+    <h4>Playing media</h4>
+    <a href="video.html"><span class="em">🎬</span>Video Playback</a>
+    <a href="audio.html"><span class="em">🎵</span>Audio &amp; Playlists</a>
+    <a href="pictures.html"><span class="em">🖼️</span>Pictures</a>
+    <a href="subtitles.html"><span class="em">💬</span>Subtitles</a>
+    <h4>Storage &amp; devices</h4>
+    <a href="devices.html"><span class="em">🗂️</span>Devices Overview</a>
+    <a href="usb.html"><span class="em">🔌</span>USB</a>
+    <a href="mx4sio.html"><span class="em">💠</span>MX4SIO (microSD)</a>
+    <a href="hdd.html"><span class="em">💽</span>Internal HDD</a>
+    <a href="ilink.html"><span class="em">🔗</span>i.LINK</a>
+    <a href="mmce.html"><span class="em">🧩</span>MMCE (SD2PSX)</a>
+    <a href="smb.html"><span class="em">🌐</span>SMB Network</a>
+    <a href="cd-dvd.html"><span class="em">💿</span>CD / DVD / CDDA</a>
+    <h4>Setup &amp; theming</h4>
+    <a href="settings.html"><span class="em">🔧</span>Settings Reference</a>
+    <a href="network.html"><span class="em">📡</span>Network Setup</a>
+    <a href="themes.html"><span class="em">🎨</span>Themes &amp; Skins</a>
+    <h4>Reference</h4>
+    <a href="troubleshooting.html"><span class="em">🛠️</span>Troubleshooting</a>
+    <a href="building.html"><span class="em">🧰</span>Building from Source</a>
+    <a href="releases.html"><span class="em">📦</span>Releases &amp; Changelog</a>
+    <a href="credits.html" class="active"><span class="em">🙏</span>Credits &amp; Sources</a>
+  </nav>
+  <main class="content">
+<h1>Credits &amp; Sources</h1>
+<p class="lead">Simple Media System is a community project with a long history. Every feature in this
+build stands on someone else's code and someone else's ideas — a media engine written two decades ago,
+a homebrew community that kept it alive and modern, and the storage-integration groundwork this fork
+was able to build on. This page names the people and projects it is grateful to, and cites its sources.</p>
+
+<div class="credit-hero"><div class="ch-tag">CREDITS</div>
+<h2>Built on twenty years of shared work</h2>
+<p>SMS began as one developer's quest to play good-looking video on an unmodified PlayStation 2,
+and became a community effort spanning USB, HDD, network, a GUI, a skin engine and a long list of
+formats. This fork adds storage breadth — MX4SIO playback, exFAT, i.LINK, MMCE, on-screen
+network/SMB — on top of all of that. None of it would exist in isolation.</p></div>
+
+<h2 id="foundation">The foundation</h2>
+<p>The heart of SMS is <b>Eugene Plotnikov</b>'s original media player and the years of
+<a href="https://github.com/ps2homebrew">ps2homebrew</a> community work that modernised it. This
+fork's contribution is a focused one — making <b>MX4SIO</b> microSD playback work reliably and adding
+several more storage devices — but it rests entirely on that shared foundation.</p>
+
+<dl class="credits">
+<div class="credit"><dt>Eugene Plotnikov</dt><dd>The original author of Simple Media System (2001–2005). He
+built the PS2-optimised, FFmpeg-derived video/audio player that uses the console's IPU for colour
+conversion, and devised <b>CDDAFS</b> — the technique for storing data on an audio CD so an unmodified
+PS2 accepts a burned disc. Everything SMS is began here.</dd></div>
+
+<div class="credit"><dt>The ps2homebrew community</dt><dd>The maintainers and contributors who adopted and
+modernised SMS over many years — adding USB, internal-HDD, network (SMB) and playlist support, a GUI
+file browser, the <code>.smi</code> skin engine, and support for many more container and codec formats.
+The PS2SDK, the IOP module ecosystem, and the toolchain this fork builds with all come from that same
+open, community-maintained work.</dd></div>
+
+<div class="credit"><dt>KrahJohlito</dt><dd>Provided the <b>BDM + MX4SIO integration foundation</b> this fork
+builds on: loading the block-device (BDM) module stack, the memory-card/pad rework that a shared SIO2
+bus requires, and the device-menu wiring that lets MX4SIO appear as a first-class device. This
+groundwork is what made the playback fix possible to land.</dd></div>
+
+<div class="credit"><dt>El_isra, Ripto &amp; Berion</dt><dd>Additional work and testing around the MX4SIO
+effort. Real-hardware testing and feedback are what turn a build that merely compiles into one that
+actually plays — and this fork's MX4SIO support was shaped by that hands-on QA.</dd></div>
+
+<div class="credit"><dt>bbsan2k</dt><dd>Author of the <b>MMCE (Memory Card Mass Storage)</b> protocol —
+the protocol behind loading files from an <b>SD2PSX</b> or <b>MemCard PRO2</b> through the PS2's
+memory-card slot. This fork's <code>mmce0:</code> / <code>mmce1:</code> device support builds directly
+on that work. See <a href="mmce.html">MMCE</a>.</dd></div>
+
+<div class="credit"><dt>The FFmpeg project</dt><dd>SMS's video and audio decoders trace their heritage to
+<b>FFmpeg</b>. Plotnikov's original player was a heavily PS2-optimised port of parts of FFmpeg, and the
+decoder lineage — for AVI/MP4 MPEG-4, MPEG program streams, MP3, AAC, AC3, FLAC, OGG and more — reaches
+back to that project's contributors.</dd></div>
+
+<div class="credit"><dt>This fork</dt><dd>The storage-focused work documented on this site: the
+<b>MX4SIO microSD playback fix</b> (the headline feature), <b>exFAT internal HDD over ATA</b> alongside
+classic APA, <b>i.LINK</b> storage, <b>MMCE</b> devices, fully on-screen <b>network &amp; SMB setup</b>
+with a real on-screen keyboard, config that saves to the boot device, a refreshed theme and device
+icons, and this documentation.</dd></div>
+</dl>
+
+<h2 id="what-this-fork-adds">What this fork contributes</h2>
+<p>To be precise about which parts are new here versus inherited: this fork's own work is the
+storage-breadth layer and the playback fix that headlines it. At a user level, that means:</p>
+
+<ul class="checklist">
+<li><b>MX4SIO microSD playback</b> — video and audio now play smoothly from a microSD in an MX4SIO
+adapter, with a hardened driver that keeps playback reliable under a media player's load. See
+<a href="mx4sio.html">MX4SIO</a>.</li>
+<li><b>exFAT internal HDD over ATA</b> — modern exFAT drives read alongside the classic APA/PFS
+<code>SMS_Media</code> partition. See <a href="hdd.html">Internal HDD</a>.</li>
+<li><b>i.LINK (IEEE&nbsp;1394) storage</b> — a FireWire drive as a media source. See <a href="ilink.html">i.LINK</a>.</li>
+<li><b>MMCE devices</b> — browsing media from an SD2PSX or MemCard PRO2 in the memory-card slot. See <a href="mmce.html">MMCE</a>.</li>
+<li><b>On-screen network &amp; SMB setup</b> — configure your IP and connect to a share entirely from
+the pad, no hand-edited config files. See <a href="network.html">Network Setup</a>.</li>
+<li><b>Settings that save anywhere</b> — configuration persists to the memory card or to the device SMS
+booted from. See <a href="settings.html">Settings</a>.</li>
+<li><b>A refreshed theme</b> — new desktop artwork and device icons, on the existing skin engine. See
+<a href="themes.html">Themes &amp; Skins</a>.</li>
+</ul>
+
+<h2 id="from-the-original-thanks">From the original SMS thanks</h2>
+<p>The original SMS <code>README</code> records the people and projects Eugene Plotnikov thanked during
+the project's early development. A few relevant to what SMS is today:</p>
+
+<table>
+<thead><tr><th>Credited</th><th>For</th></tr></thead>
+<tbody>
+<tr><td>Marcus R. Brown</td><td>The early exploit work that made PS2 homebrew possible in the first place</td></tr>
+<tr><td>The PS2Reality team</td><td>Inspiration and timer code</td></tr>
+<tr><td>ffmpeg contributors</td><td>The decoder heritage SMS's player is derived from</td></tr>
+<tr><td>Chris "Neovanglist" Gilbert</td><td>GS and DMA code</td></tr>
+<tr><td>gawd</td><td>The <code>audsrv</code> audio server</td></tr>
+</tbody>
+</table>
+
+<p>SMS was created by Eugene Plotnikov (copyright 2001–2005, ps2dev) and is documented by the
+ps2homebrew community. See the original project's
+<a href="https://ps2homebrew.github.io/SMS/">SMS documentation</a> for its full history.</p>
+
+<h2 id="trademarks">A note on trademarks &amp; affiliation</h2>
+<div class="callout info"><div class="h">ℹ A community project, unaffiliated with Sony</div>
+Simple Media System is a free, open-source, community project. <b>PlayStation 2</b> is a trademark of
+Sony Interactive Entertainment; this project and this fork are <b>unaffiliated</b> with Sony and are not
+official Sony software. Device and product names such as <b>SD2PSX</b>, <b>MemCard PRO2</b> and
+<b>MX4SIO</b> belong to their respective owners and are referenced only to describe the hardware SMS
+works with.</div>
+
+<h2 id="sister-sites">Sister documentation</h2>
+<p>This site is one of a small family of PlayStation 2 homebrew documentation projects. If you are here
+for SMS you may also want:</p>
+
+<div class="grid">
+<a class="tile" href="https://nathanneurotic.github.io/POPSLoader/"><span class="em">📚</span><b>POPStarter docs ↗</b><span>PS1 / POPSTARTER reference</span></a>
+<a class="tile" href="https://nathanneurotic.github.io/Open-PS2-Loader/"><span class="em">🎮</span><b>RiptOPL docs ↗</b><span>Open PS2 Loader fork reference</span></a>
+</div>
+
+<details class="deep"><summary>Why is this a fork, and where does the canonical SMS live?</summary>
+<p>The community-maintained SMS project lives with the <a href="https://github.com/ps2homebrew">ps2homebrew</a>
+organisation, and its documentation is at <a href="https://ps2homebrew.github.io/SMS/">ps2homebrew.github.io/SMS</a>.
+This documentation covers a <b>downstream fork</b> focused on storage breadth — it makes MX4SIO microSD
+playback work and adds exFAT/ATA HDD, i.LINK and MMCE devices, moves network and SMB setup fully
+on-screen, and refreshes the look. It is a labour of love built on the work of everyone named above; the
+long-term home of SMS remains the community project.</p>
+</details>
+</main>
+  <aside class="toc"><div class="toc-h">On this page</div><nav id="toc-nav"></nav></aside>
+</div>
+<footer>
+  <p><b>SMS — Simple Media System</b> documentation. SMS was created by <b>Eugene Plotnikov</b> and is maintained by
+  the <a href="https://github.com/ps2homebrew">ps2homebrew</a> community; this site documents an enhanced,
+  storage-focused fork. Built on the work of many contributors — see <a href="credits.html">Credits &amp; Sources</a>.</p>
+  <p class="prov-inline">A community fork, not an official release. PlayStation 2 is a trademark of Sony Interactive
+  Entertainment; this project is unaffiliated. Sister documentation: the
+  <a href="https://nathanneurotic.github.io/POPSLoader/">POPStarter docs</a> and the RiptOPL docs.</p>
+</footer>
+<script src="assets/app.js"></script>
+</body></html>

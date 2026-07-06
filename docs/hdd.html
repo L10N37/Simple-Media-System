@@ -1,0 +1,235 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Internal HDD · SMS Docs</title>
+<meta name="description" content="Use the PS2's internal hard drive with SMS two ways — the classic APA/PFS SMS_Media partition, or a plain exFAT drive read over ATA as a massN: BDM device — and how to choose between them.">
+<link rel="stylesheet" href="assets/style.css">
+</head><body data-base="">
+<header class="topbar">
+  <button class="menu-btn" aria-label="Menu">☰</button>
+  <a class="brand" href="index.html">
+    <span class="psbtns"><i class="tri">&#9651;</i><i class="cir">&#9711;</i><i class="cro">&#10005;</i><i class="squ">&#9633;</i></span>
+    SMS <small>DOCS</small></a>
+  <div class="search">
+    <span class="ico">🔎</span>
+    <input id="q" type="search" placeholder="Search devices, formats, settings, subtitles…  ( / )" autocomplete="off">
+    <kbd>/</kbd>
+    <div id="results"></div>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar">
+    <a href="index.html"><span class="em">🏠</span>Home</a>
+    <h4>Start</h4>
+    <a href="getting-started.html"><span class="em">🚀</span>Getting Started</a>
+    <a href="install.html"><span class="em">📥</span>Install &amp; First Boot</a>
+    <h4>Playing media</h4>
+    <a href="video.html"><span class="em">🎬</span>Video Playback</a>
+    <a href="audio.html"><span class="em">🎵</span>Audio &amp; Playlists</a>
+    <a href="pictures.html"><span class="em">🖼️</span>Pictures</a>
+    <a href="subtitles.html"><span class="em">💬</span>Subtitles</a>
+    <h4>Storage &amp; devices</h4>
+    <a href="devices.html"><span class="em">🗂️</span>Devices Overview</a>
+    <a href="usb.html"><span class="em">🔌</span>USB</a>
+    <a href="mx4sio.html"><span class="em">💠</span>MX4SIO (microSD)</a>
+    <a href="hdd.html" class="active"><span class="em">💽</span>Internal HDD</a>
+    <a href="ilink.html"><span class="em">🔗</span>i.LINK</a>
+    <a href="mmce.html"><span class="em">🧩</span>MMCE (SD2PSX)</a>
+    <a href="smb.html"><span class="em">🌐</span>SMB Network</a>
+    <a href="cd-dvd.html"><span class="em">💿</span>CD / DVD / CDDA</a>
+    <h4>Setup &amp; theming</h4>
+    <a href="settings.html"><span class="em">🔧</span>Settings Reference</a>
+    <a href="network.html"><span class="em">📡</span>Network Setup</a>
+    <a href="themes.html"><span class="em">🎨</span>Themes &amp; Skins</a>
+    <h4>Reference</h4>
+    <a href="troubleshooting.html"><span class="em">🛠️</span>Troubleshooting</a>
+    <a href="building.html"><span class="em">🧰</span>Building from Source</a>
+    <a href="releases.html"><span class="em">📦</span>Releases &amp; Changelog</a>
+    <a href="credits.html"><span class="em">🙏</span>Credits &amp; Sources</a>
+  </nav>
+  <main class="content">
+<h1>Internal HDD</h1>
+<p class="lead">SMS can read media straight off the PlayStation 2's internal hard drive — in <b>two completely
+different ways</b>. There's the classic <b>APA / PFS</b> scheme (the same format HDD-OSD and the OPL-era tools use),
+where SMS browses a dedicated <code>SMS_Media</code> partition; and there's the modern route, a plain <b>exFAT</b>
+drive read through the <b>ATA block driver</b>, which shows up as an ordinary <code>massN:</code> device you can fill
+with files from any PC. Both live on the same physical disk, so you pick one per boot.</p>
+
+<div class="callout amber"><div class="h">⚠ You need the hardware first</div>
+The internal HDD is optional PS2 hardware. A fat PS2 needs the <b>Network Adapter</b> (the expansion-bay module that
+carries the internal IDE connector); the drive itself sits in the HDD bay behind it. Slim consoles have no internal
+HDD bay at all. If your console has no drive fitted, skip this page and use <a href="usb.html">USB</a>,
+<a href="mx4sio.html">MX4SIO</a> or <a href="smb.html">SMB</a> instead.</div>
+
+<h2 id="two-ways">Two ways to use the HDD</h2>
+<p>SMS is a media player, not a game loader — so the HDD is just another place to keep your video, music and pictures.
+The catch is that the internal drive can be formatted in one of two schemes, and SMS reaches each one through a
+different driver stack:</p>
+<div class="grid">
+<a class="tile" href="#apa"><span class="em">💽</span><b>APA / PFS</b><span>The classic <code>SMS_Media</code> partition</span></a>
+<a class="tile" href="#exfat"><span class="em">🗂️</span><b>exFAT via ATA</b><span>A plain drive as <code>massN:</code></span></a>
+</div>
+<p>They are <b>mutually exclusive</b>: both paths want to own the internal ATA bus, so whichever one starts first
+takes it and the other quietly steps aside. You choose which by picking the matching <b>Autostart</b> toggle — see
+<a href="#choosing">Choosing one</a> below.</p>
+
+<table>
+<thead><tr><th>How it appears</th><th>APA / PFS</th><th>exFAT via ATA (BDM)</th></tr></thead>
+<tbody>
+<tr><td>Format on the disk</td><td>Sony's APA partition scheme + PFS filesystem</td><td>Plain exFAT partition</td></tr>
+<tr><td>What SMS browses</td><td>The <code>SMS_Media</code> partition on the drive</td><td>The whole exFAT volume, any folders</td></tr>
+<tr><td>Device name in SMS</td><td>Internal HDD (APA)</td><td><code>massN:</code> (shared BDM mass namespace)</td></tr>
+<tr><td>Made with</td><td>HDD-OSD / OPL-era APA &amp; PFS tools</td><td>Any PC — format exFAT, copy files</td></tr>
+<tr><td>Enable with</td><td><b>Autostart HDD APA</b></td><td><b>Autostart HDD BDM</b></td></tr>
+</tbody>
+</table>
+
+<h2 id="apa">APA / PFS — the <code>SMS_Media</code> partition</h2>
+<p>The <b>APA</b> partition scheme and <b>PFS</b> filesystem are the PS2's own native HDD formats — the same ones used
+by Sony's HDD-OSD (the "PlayStation BB Navigator" era) and by the classic homebrew HDD tools. On this kind of drive,
+SMS looks for a dedicated media partition named <b><code>SMS_Media</code></b>, mounts it, and lets you browse and play
+whatever media files you've placed inside.</p>
+
+<div class="callout info"><div class="h">ℹ Where the name comes from</div>
+SMS's internal-HDD path mounts a PFS partition set aside for media and presents its contents in the file list. Because
+this is the classic PS2 HDD format, an <code>SMS_Media</code> (PFS) partition you prepared with any standard APA/PFS
+tool is exactly what SMS expects to find — there's no separate SMS-only formatting step.</div>
+
+<h3 id="apa-prepare">Preparing an APA drive</h3>
+<p>SMS doesn't format drives or create partitions itself — you do that ahead of time with the usual PS2 HDD tools
+(HDD-OSD, or a homebrew APA/PFS partition manager such as uLaunchELF). The short version:</p>
+<div class="steps">
+<div class="step"><h3>Format the drive as APA</h3>
+<p>Initialise the internal drive with the standard PS2 APA scheme, the same way you would for any HDD-OSD / OPL-era
+setup. This is a one-time step done from a HDD tool, not from SMS.</p></div>
+<div class="step"><h3>Create a PFS media partition</h3>
+<p>Make a PFS partition to hold your media and name it <code>SMS_Media</code>. Copy your video, audio and picture
+files into it (folders inside are fine — SMS browses the raw tree).</p></div>
+<div class="step"><h3>Enable the APA path in SMS</h3>
+<p>Turn on <b>Autostart HDD APA</b> in the settings (or use <b>Start HDD APA now</b> — see
+<a href="#enabling">Enabling &amp; tips</a>). SMS starts the HDD driver stack and mounts the <code>SMS_Media</code>
+partition.</p></div>
+<div class="step"><h3>Browse and play</h3>
+<p>Pick the internal-HDD icon in the device menu, press <kbd>Down</kbd> into the file list, and open any file with
+<kbd>Cross</kbd>. It behaves exactly like every other SMS source — the raw filesystem, no mandatory folder layout.</p></div>
+</div>
+
+<div class="callout amber"><div class="h">⚠ APA drives are ~2 TB and older-drive friendly</div>
+The APA scheme addresses drives up to about <b>2 TB</b>. If you have a larger drive — or you'd simply rather copy files
+from a PC without any PS2-side tools — use the exFAT route below instead.</div>
+
+<h2 id="exfat">exFAT via ATA</h2>
+<p>The modern alternative skips APA entirely. Format the internal drive as plain <b>exFAT</b> on your PC, drop your
+media anywhere on it, and let SMS read the drive through its <b>ATA block driver</b>. Because that driver plugs into
+the same <b>Block Device Manager (BDM)</b> that handles USB, MX4SIO and i.LINK, the internal drive simply appears as
+another <b><code>massN:</code></b> device in SMS — no PS2-specific formatting, no partition juggling.</p>
+
+<div class="callout info"><div class="h">ℹ One shared <code>massN:</code> namespace</div>
+USB, MX4SIO, the exFAT internal HDD and i.LINK all mount into the <b>same</b> <code>massN:</code> pool (<code>N</code> =
+0, 1, 2…). The number is assigned as devices come up, so a drive is <code>mass0:</code> if it mounts first,
+<code>mass1:</code> if a USB stick got there ahead of it, and so on. You browse it by picking its device icon in the
+top row, not by memorising the number.</div>
+
+<h3 id="exfat-prepare">Preparing an exFAT drive</h3>
+<div class="steps">
+<div class="step"><h3>Format exFAT on your PC</h3>
+<p>Connect the drive to a computer (or format it in-bay with a PC-side tool) and format it as <b>exFAT</b>. Leave the
+allocation-unit / cluster size at the default for the drive's capacity rather than choosing a custom value.</p></div>
+<div class="step"><h3>Copy your media</h3>
+<p>Drag your video, audio and picture files onto the drive — into any folders you like. SMS browses the raw
+filesystem, so there is no required folder tree (no OPL-style <code>DVD/</code>/<code>CD/</code> layout).</p></div>
+<div class="step"><h3>Fit the drive and enable the BDM path</h3>
+<p>Install the drive in the console's HDD bay, then turn on <b>Autostart HDD BDM</b> in SMS (or <b>Start HDD BDM
+now</b>). SMS brings up the ATA driver and the exFAT volume mounts as <code>massN:</code>.</p></div>
+<div class="step"><h3>Browse and play</h3>
+<p>Select the internal-HDD icon in the device menu and open files just like any other <code>massN:</code> device.</p></div>
+</div>
+
+<div class="callout amber"><div class="h">⚠ Copy large files one at a time</div>
+The PS2 reads far better from files that aren't fragmented. When you copy a batch to an exFAT drive, add big video
+files <b>individually</b> rather than dumping the whole folder in one go — many PC copy operations interleave a large
+batch, fragmenting every file. Sequential copies keep playback smooth.</div>
+
+<h2 id="choosing">Choosing one — they're mutually exclusive</h2>
+<p>Here's the important constraint: <b>the APA/PFS path and the exFAT/ATA path both own the internal ATA bus</b>, so
+only one can be active at a time. SMS enforces this with a simple "first come, first served" rule — whichever backend
+starts first claims the bus, and the other declines to start for that session.</p>
+
+<div class="callout info"><div class="h">ℹ First to start owns the bus</div>
+If the APA HDD path comes up first, the exFAT/ATA path won't start (and vice versa). This isn't an error — it's SMS
+keeping two drivers that both drive the same internal disk from stepping on each other. To switch schemes, disable the
+one you don't want (or don't autostart it) and reboot so the other can claim the bus cleanly.</div>
+
+<p>Practically, that means you decide up front which scheme your drive is formatted for and enable the matching
+autostart:</p>
+<table>
+<thead><tr><th>Your drive is…</th><th>Turn on</th><th>Leave off</th></tr></thead>
+<tbody>
+<tr><td>APA-formatted with an <code>SMS_Media</code> partition</td><td><b>Autostart HDD APA</b></td><td>Autostart HDD BDM</td></tr>
+<tr><td>exFAT-formatted (a plain drive)</td><td><b>Autostart HDD BDM</b></td><td>Autostart HDD APA</td></tr>
+</tbody>
+</table>
+<p><b>Autostart HDD BDM</b> is the ATA/exFAT path — "BDM" because the exFAT drive is read through the same Block
+Device Manager as your other mass devices. <b>Autostart HDD APA</b> is the classic native-partition path.</p>
+
+<div class="callout amber"><div class="h">⚠ Don't enable both</div>
+Turning on both autostarts doesn't get you both drives — it just means whichever one happens to initialise first wins
+the bus, and the result depends on start order. Pick the one that matches how your drive is formatted and leave the
+other off.</div>
+
+<details class="deep"><summary>Can the HDD run alongside USB, MX4SIO, MMCE and SMB?</summary>
+<p>Yes — the internal-HDD bus contention is only <i>between the two HDD schemes</i>. Whichever HDD path you choose can
+run happily at the same time as USB, i.LINK and SMB. Note two other exclusions elsewhere in SMS: <b>MX4SIO and
+MMCE</b> share the memory-card (SIO2) bus, so only one of those two runs at once; and the exFAT/ATA HDD is a
+<code>massN:</code> device like USB and MX4SIO, so they simply each take their own slot in that shared namespace.</p>
+</details>
+
+<h2 id="enabling">Enabling &amp; tips</h2>
+<p>On a clean install nothing auto-starts — you turn on exactly what you need. The relevant controls live in the
+settings menu:</p>
+<ul class="checklist">
+<li><b>Autostart HDD APA</b> — brings up the classic APA/PFS path at boot and mounts the <code>SMS_Media</code> partition.</li>
+<li><b>Autostart HDD BDM</b> — brings up the exFAT drive over ATA at boot as a <code>massN:</code> device.</li>
+<li><b>Start HDD … now</b> — when a device isn't already running, SMS also offers an on-demand start item, so you can
+bring the HDD up without a reboot. Handy for testing which scheme your drive actually mounts.</li>
+</ul>
+
+<div class="callout info"><div class="h">ℹ If a start stalls, watch the status line</div>
+Starting the internal HDD spins the drive up and probes it, which takes a moment. SMS shows the current stage on the
+status line as it goes; if a start ever hangs on an unusual drive layout, the last message on screen tells you exactly
+which stage it reached. Because the HDD isn't set to auto-start on a clean install, a failed manual start won't stop
+SMS from booting next time — just reboot and try the other scheme, or fall back to USB/MX4SIO.</div>
+
+<h3 id="tips">Practical tips</h3>
+<ul class="checklist">
+<li><b>Match the toggle to the format.</b> An exFAT drive will not mount under Autostart HDD APA, and an APA
+<code>SMS_Media</code> partition won't appear under Autostart HDD BDM. If a drive doesn't show up, you almost certainly
+enabled the wrong path for how it's formatted.</li>
+<li><b>Big drive? Use exFAT.</b> APA tops out around 2 TB; exFAT lets you use larger drives and skip PS2-side tooling
+entirely — just format on a PC and copy files.</li>
+<li><b>Big library already on APA? Keep it.</b> If your drive is already APA-formatted with your media in an
+<code>SMS_Media</code> partition, the APA path reads it directly with no conversion.</li>
+<li><b>The drive is optional hardware.</b> Everything above assumes a Network Adapter and an internal drive are
+fitted. Without them, SMS is perfectly happy on <a href="usb.html">USB</a>, <a href="mx4sio.html">MX4SIO</a>,
+<a href="mmce.html">MMCE</a> or a <a href="smb.html">network share</a>.</li>
+</ul>
+
+<h2 id="related">Related pages</h2>
+<div class="grid">
+<a class="tile" href="devices.html"><span class="em">🗂️</span><b>Devices Overview</b><span>How every source fits together</span></a>
+<a class="tile" href="usb.html"><span class="em">🔌</span><b>USB</b><span>The other big <code>massN:</code> device</span></a>
+<a class="tile" href="ilink.html"><span class="em">🔗</span><b>i.LINK</b><span>FireWire storage, also BDM mass</span></a>
+<a class="tile" href="settings.html"><span class="em">🔧</span><b>Settings Reference</b><span>Every autostart toggle</span></a>
+</div>
+</main>
+  <aside class="toc"><div class="toc-h">On this page</div><nav id="toc-nav"></nav></aside>
+</div>
+<footer>
+  <p><b>SMS — Simple Media System</b> documentation. SMS was created by <b>Eugene Plotnikov</b> and is maintained by
+  the <a href="https://github.com/ps2homebrew">ps2homebrew</a> community; this site documents an enhanced,
+  storage-focused fork. Built on the work of many contributors — see <a href="credits.html">Credits &amp; Sources</a>.</p>
+  <p class="prov-inline">A community fork, not an official release. PlayStation 2 is a trademark of Sony Interactive
+  Entertainment; this project is unaffiliated. Sister documentation: the
+  <a href="https://nathanneurotic.github.io/POPSLoader/">POPStarter docs</a> and the RiptOPL docs.</p>
+</footer>
+<script src="assets/app.js"></script>
+</body></html>

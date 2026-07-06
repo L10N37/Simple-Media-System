@@ -1,0 +1,243 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Troubleshooting · SMS Docs</title>
+<meta name="description" content="Fixes for the common SMS problems: video that stutters or won't play, a device that won't appear, SMB shares that won't connect, settings that don't save, and corrupted HD display modes.">
+<link rel="stylesheet" href="assets/style.css">
+</head><body data-base="">
+<header class="topbar">
+  <button class="menu-btn" aria-label="Menu">☰</button>
+  <a class="brand" href="index.html">
+    <span class="psbtns"><i class="tri">&#9651;</i><i class="cir">&#9711;</i><i class="cro">&#10005;</i><i class="squ">&#9633;</i></span>
+    SMS <small>DOCS</small></a>
+  <div class="search">
+    <span class="ico">🔎</span>
+    <input id="q" type="search" placeholder="Search devices, formats, settings, subtitles…  ( / )" autocomplete="off">
+    <kbd>/</kbd>
+    <div id="results"></div>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar">
+    <a href="index.html"><span class="em">🏠</span>Home</a>
+    <h4>Start</h4>
+    <a href="getting-started.html"><span class="em">🚀</span>Getting Started</a>
+    <a href="install.html"><span class="em">📥</span>Install &amp; First Boot</a>
+    <h4>Playing media</h4>
+    <a href="video.html"><span class="em">🎬</span>Video Playback</a>
+    <a href="audio.html"><span class="em">🎵</span>Audio &amp; Playlists</a>
+    <a href="pictures.html"><span class="em">🖼️</span>Pictures</a>
+    <a href="subtitles.html"><span class="em">💬</span>Subtitles</a>
+    <h4>Storage &amp; devices</h4>
+    <a href="devices.html"><span class="em">🗂️</span>Devices Overview</a>
+    <a href="usb.html"><span class="em">🔌</span>USB</a>
+    <a href="mx4sio.html"><span class="em">💠</span>MX4SIO (microSD)</a>
+    <a href="hdd.html"><span class="em">💽</span>Internal HDD</a>
+    <a href="ilink.html"><span class="em">🔗</span>i.LINK</a>
+    <a href="mmce.html"><span class="em">🧩</span>MMCE (SD2PSX)</a>
+    <a href="smb.html"><span class="em">🌐</span>SMB Network</a>
+    <a href="cd-dvd.html"><span class="em">💿</span>CD / DVD / CDDA</a>
+    <h4>Setup &amp; theming</h4>
+    <a href="settings.html"><span class="em">🔧</span>Settings Reference</a>
+    <a href="network.html"><span class="em">📡</span>Network Setup</a>
+    <a href="themes.html"><span class="em">🎨</span>Themes &amp; Skins</a>
+    <h4>Reference</h4>
+    <a href="troubleshooting.html" class="active"><span class="em">🛠️</span>Troubleshooting</a>
+    <a href="building.html"><span class="em">🧰</span>Building from Source</a>
+    <a href="releases.html"><span class="em">📦</span>Releases &amp; Changelog</a>
+    <a href="credits.html"><span class="em">🙏</span>Credits &amp; Sources</a>
+  </nav>
+  <main class="content">
+<h1>Troubleshooting</h1>
+<p class="lead">A problem-and-solution reference for the things that most commonly trip people up: video
+that stutters or won't start, a storage device that refuses to appear, an SMB share that won't connect,
+settings that don't stick, and a garbled screen in HD video modes. Each entry is a self-contained fix —
+open the one that matches your symptom.</p>
+
+<div class="callout info"><div class="h">ℹ Start with the obvious</div>
+Before diving in, sanity-check the basics: the file is actually on the device you're browsing; the device is
+formatted correctly (see below); the device's <b>Autostart</b> is on (or you started it from the menu); and the
+media is a format SMS actually supports. Most "it won't work" reports come down to one of these four.</div>
+
+<h2 id="video-wont-play">A video stutters, drops frames, or won't play</h2>
+<p>SMS decodes video in software on the Emotion Engine and uses the PS2's <b>IPU</b> for colour conversion. That is
+a fixed budget — a file that is too demanding for the console will stutter no matter how fast your storage is. Work
+through these in order.</p>
+
+<div class="steps">
+  <div class="step"><h3>Confirm the format is supported</h3>
+  <p>SMS plays a specific set of containers and codecs. If a file uses anything outside this list, it will fail to
+  open or play as garbage. Supported video is <b>AVI</b> (DivX / XviD / MPEG-4), <b>MP4 / MOV</b> (MPEG-4),
+  <b>MPEG program streams</b> (MPEG-1/2, <code>.mpg</code>/<code>.mpeg</code>) and <b>WMV / ASF</b>. Modern codecs
+  such as H.264/AVC, H.265/HEVC, VP9 and AV1 are <b>not</b> supported — re-encode those to MPEG-4/XviD first. See
+  <a href="video.html">Video Playback</a> for the full format table.</p></div>
+
+  <div class="step"><h3>Lower the bitrate and resolution</h3>
+  <p>Stutter almost always means the bitrate or frame size is beyond what the console can decode in real time.
+  Re-encode to a lower bitrate and a standard-definition frame size. A slower storage device (an SD card in an
+  MX4SIO adapter, or a network share) has less headroom than USB or the internal HDD, so keep the bitrate modest on
+  those. If the same file plays from USB but stutters over the network or from MX4SIO, the encode is close to the
+  edge — drop the bitrate.</p></div>
+
+  <div class="step"><h3>Rule out a damaged or fragmented file</h3>
+  <p>A partial download, a bad burn, or a heavily fragmented file can cause hitching or a mid-file stop. Re-copy the
+  file to the device (ideally to a freshly formatted or defragmented card/drive), or re-download it, and try again.
+  A file that plays cleanly on a PC but stalls on the PS2 is the classic sign of a marginal encode or a bad copy.</p></div>
+
+  <div class="step"><h3>Check for interlaced source</h3>
+  <p>SMS historically targets progressive MPEG-4/DivX/XviD content. Interlaced video is not its strength — if a clip
+  shows combing artefacts or won't play, de-interlace it and re-encode to progressive before copying it across.</p></div>
+</div>
+
+<div class="callout amber"><div class="h">⚠ Audio-only files that won't play</div>
+The same "is it a supported format" rule applies to audio. SMS handles <b>MP3, AAC, AC3, FLAC, OGG&nbsp;Vorbis</b>
+and <b>WMA</b>. A file with an unusual codec inside a familiar-looking container (for example a lossless track the
+decoder doesn't recognise) can fail to open — re-encode to plain MP3 to confirm the file, then work back from there.</div>
+
+<h2 id="device-missing">A storage device doesn't appear</h2>
+<p>If a device you plugged in isn't showing in the top-row device menu, it's almost always one of three things:
+it isn't started, it isn't formatted the way SMS expects, or it's blocked by a mutual exclusion.</p>
+
+<div class="steps">
+  <div class="step"><h3>Start the device (or turn on its Autostart)</h3>
+  <p>On a clean install <b>nothing auto-starts</b> — this is by design (see below). Open the settings menu and either
+  flip on that device's <b>Autostart</b> toggle (Autostart USB, Autostart MX4SIO, Autostart HDD APA, Autostart HDD
+  BDM for ATA/exFAT, Autostart i.LINK, Autostart MMCE, Autostart Network), or use the <b>Start &lt;device&gt; now</b>
+  item that appears when a device isn't running yet. Starting it on demand does not need a reboot.</p></div>
+
+  <div class="step"><h3>Check the filesystem format</h3>
+  <p>BDM mass devices (USB, MX4SIO, ATA/exFAT) expect a <b>FAT32</b> or <b>exFAT</b> filesystem. A drive formatted
+  NTFS, HFS+ or ext4 will not mount. Re-format the card or drive as FAT32 (or exFAT for large volumes) and copy your
+  media back. The internal-HDD APA/PFS path is different — that uses a PlayStation&nbsp;2 <code>SMS_Media</code>
+  partition rather than a PC filesystem; see <a href="hdd.html">Internal HDD</a>.</p></div>
+
+  <div class="step"><h3>Rule out a mutual exclusion</h3>
+  <p>Two pairs of devices share a bus and cannot both be active at once:</p>
+  <ul class="checklist">
+    <li><b>MX4SIO and MMCE</b> both use the SIO2 / memory-card-slot bus. If one is running, the other won't appear —
+    turn off the one you don't need.</li>
+    <li><b>The internal HDD APA/PFS path and the ATA/exFAT (BDM) path</b> both own the internal ATA bus. Whichever
+    starts first owns it; pick one.</li>
+  </ul></div>
+</div>
+
+<div class="callout info"><div class="h">ℹ How devices are named</div>
+BDM mass devices (USB, MX4SIO, ATA/exFAT, i.LINK) all share the <code>massN:</code> namespace, with <code>N</code>
+counting up from 0. MMCE devices are <code>mmce0:</code> / <code>mmce1:</code>. The internal APA/PFS HDD is
+<code>hdd0:</code>. If a device is present but numbered differently than you expect, that's usually just the mount
+order — check the path shown on the status line at the bottom of the screen.</div>
+
+<h2 id="smb-wont-connect">An SMB share won't connect</h2>
+<p>SMS speaks the older <b>SMB1 / CIFS</b> network-share protocol. By far the most common reason a share won't
+connect is that the server no longer accepts SMB1.</p>
+
+<div class="callout red"><div class="h">✖ Top cause: SMB1 is disabled on the server</div>
+Modern Windows and Samba ship with <b>SMB1 turned off by default</b> for security. SMS needs it enabled to connect.
+This is a server-side setting, not something SMS can work around from the PS2.</div>
+
+<details class="deep"><summary>How do I re-enable SMB1 on the server?</summary>
+<p><b>On Windows:</b> open <i>Turn Windows features on or off</i> and enable <b>SMB 1.0/CIFS File Sharing Support</b>
+(specifically the client/server sub-features), then reboot. Be aware SMB1 is legacy and considered insecure — only
+enable it on a trusted local network, and consider a dedicated share for the PS2.</p>
+<p><b>On a Samba (Linux/NAS) server:</b> allow the older protocol in the server config (for example by setting the
+minimum protocol to <code>NT1</code>) and restart the service. Consult your NAS or Samba documentation for the exact
+option, as it varies by version.</p></details>
+
+<div class="steps">
+  <div class="step"><h3>Verify the address, share name and credentials</h3>
+  <p>Once SMB1 is on, re-check the server's IP address, the exact share name, and the username/password — all entered
+  on-screen with the built-in keyboard (see <a href="network.html">Network Setup</a>). A typo in any of these looks
+  identical to "server refused". Case can matter for share names and usernames.</p></div>
+
+  <div class="step"><h3>Check the PS2's own network settings</h3>
+  <p>Make sure the PS2 has a valid IP on the same subnet as the server (via DHCP or a static address you set in the
+  network menu), and that the network device is started. If the console can't reach the network at all, no share
+  will connect.</p></div>
+
+  <div class="step"><h3>Check firewalls and the server's file sharing</h3>
+  <p>A firewall on the server (or router) can block the PS2's connection even with everything else correct. Confirm
+  file sharing is enabled on the server and that its firewall allows connections from the PS2's IP on your local
+  network.</p></div>
+</div>
+
+<div class="callout amber"><div class="h">⚠ SMB is a known limitation of this fork</div>
+The SMB client in SMS is the legacy SMB1 stack, and modernising it to SMB2 is separate work beyond this build. If
+you can't or won't enable SMB1 on your server, use a directly-attached device instead — USB, MX4SIO, MMCE or the
+internal HDD all avoid the network entirely.</div>
+
+<h2 id="settings-dont-save">Settings don't persist across reboots</h2>
+<p>If your Autostart toggles, network details or playback preferences reset every time you power on, the config isn't
+being saved — or isn't being found on the next boot.</p>
+
+<div class="steps">
+  <div class="step"><h3>Insert a memory card (or understand where config goes)</h3>
+  <p>By default SMS saves its configuration to the memory card at <code>mc0:/SMS/SMS.cfg</code>. No memory card in
+  slot&nbsp;1 means nowhere to write — so settings can't persist. Insert a memory card and save again.</p></div>
+
+  <div class="step"><h3>This fork can save to the boot device instead</h3>
+  <p>If SMS was booted from another device (USB, HDD…) and there's no memory card, this fork saves the config
+  <b>next to the SMS ELF on that boot device</b> instead. So a memory-card-less setup can still keep its settings —
+  as long as the boot device is writable and present at each boot.</p></div>
+
+  <div class="step"><h3>Save after changing settings</h3>
+  <p>Make your changes, then save through the settings menu so they're written out. If a setting only ever holds for
+  the current session, it wasn't committed to storage.</p></div>
+</div>
+
+<div class="callout info"><div class="h">ℹ Resetting to a clean state</div>
+Deleting the config file returns SMS to <b>clean defaults</b> — which means <b>nothing auto-starts</b> and every
+Autostart toggle is off. If SMS is misbehaving after a lot of tweaking, clearing the config is a reliable way to get
+back to a known-good baseline; you then turn back on only the devices you use.</div>
+
+<h2 id="nothing-autostarts">Nothing starts up on the first boot</h2>
+<div class="callout info"><div class="h">ℹ This is by design</div>
+On a clean install, <b>no device auto-starts</b>. SMS boots to the desktop with the device menu waiting, and you
+enable what you need. This is deliberate — it avoids forcing a device (such as an internal HDD) that you may not
+have, and it keeps the first boot fast and predictable.</div>
+<p>To bring a device online, either turn on its <b>Autostart</b> toggle in settings (so it comes up automatically on
+future boots) or use the matching <b>Start &lt;device&gt; now</b> item to start it immediately without rebooting.
+Once you save your settings, your chosen devices will auto-start from then on. This is expected behaviour, not a
+fault.</p>
+
+<h2 id="hd-corruption">The screen looks corrupted in HD video modes</h2>
+<div class="callout amber"><div class="h">⚠ Known issue in HD output modes</div>
+In high-definition output modes the desktop background can appear garbled or corrupted. The reliable workaround is
+to run SMS in a standard-definition mode — <b>use 480i</b> — where the display is correct.</div>
+<p>HD modes use a much larger framebuffer than standard definition, which leaves little room for the full-screen
+desktop artwork; the result can be a corrupted or garbled background on the desktop. This is a known, open issue in
+the current theme at HD resolutions. Standard-definition output (480i) is not affected and is the recommended mode
+until this is resolved. If you do use an HD mode and the desktop looks wrong, switch the video/output mode back to
+480i.</p>
+
+<div class="callout info"><div class="h">ℹ Still stuck?</div>
+If none of the above matches your symptom, note exactly what you did, which device and file were involved, and what
+you saw on screen (a photo of the TV helps). That detail is what makes a problem fixable — vague "it doesn't work"
+reports are the hardest to act on.</div>
+
+<h2 id="quick-reference">Quick reference</h2>
+<table data-sortable>
+<thead><tr><th>Symptom</th><th>Most likely cause</th><th>Fix</th></tr></thead>
+<tbody>
+<tr><td>Video stutters / drops frames</td><td>Bitrate or resolution too high for the console (worse on slow devices)</td><td>Re-encode lower; use a faster device</td></tr>
+<tr><td>Video won't open at all</td><td>Unsupported codec, or damaged / fragmented file</td><td>Re-encode to MPEG-4/XviD; re-copy the file</td></tr>
+<tr><td>Device not in the menu</td><td>Not started, wrong format, or mutual exclusion</td><td>Autostart / Start-now; format FAT32/exFAT; free the shared bus</td></tr>
+<tr><td>MX4SIO and MMCE clash</td><td>Both use the SIO2 slot bus</td><td>Run only one at a time</td></tr>
+<tr><td>HDD APA and ATA/exFAT clash</td><td>Both own the internal ATA bus</td><td>Pick one; first to start owns the bus</td></tr>
+<tr><td>SMB share won't connect</td><td>SMB1 disabled on the server</td><td>Re-enable SMB1; then check IP / credentials / firewall</td></tr>
+<tr><td>Settings reset each boot</td><td>No memory card, or config not saved</td><td>Insert a card (or save to the boot device); save after changes</td></tr>
+<tr><td>Nothing auto-starts</td><td>Clean-install default</td><td>Enable Autostart for the devices you use</td></tr>
+<tr><td>Corrupted screen in HD</td><td>Known theme issue at HD resolutions</td><td>Use 480i output</td></tr>
+</tbody>
+</table>
+</main>
+  <aside class="toc"><div class="toc-h">On this page</div><nav id="toc-nav"></nav></aside>
+</div>
+<footer>
+  <p><b>SMS — Simple Media System</b> documentation. SMS was created by <b>Eugene Plotnikov</b> and is maintained by
+  the <a href="https://github.com/ps2homebrew">ps2homebrew</a> community; this site documents an enhanced,
+  storage-focused fork. Built on the work of many contributors — see <a href="credits.html">Credits &amp; Sources</a>.</p>
+  <p class="prov-inline">A community fork, not an official release. PlayStation 2 is a trademark of Sony Interactive
+  Entertainment; this project is unaffiliated. Sister documentation: the
+  <a href="https://nathanneurotic.github.io/POPSLoader/">POPStarter docs</a> and the RiptOPL docs.</p>
+</footer>
+<script src="assets/app.js"></script>
+</body></html>

@@ -1,0 +1,202 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Themes &amp; Skins · SMS Docs</title>
+<meta name="description" content="Customise how SMS looks — the .smi desktop skin engine, this fork's refreshed desktop artwork and device icons, where SMS looks for skins, and how skins are made.">
+<link rel="stylesheet" href="assets/style.css">
+</head><body data-base="">
+<header class="topbar">
+  <button class="menu-btn" aria-label="Menu">☰</button>
+  <a class="brand" href="index.html">
+    <span class="psbtns"><i class="tri">&#9651;</i><i class="cir">&#9711;</i><i class="cro">&#10005;</i><i class="squ">&#9633;</i></span>
+    SMS <small>DOCS</small></a>
+  <div class="search">
+    <span class="ico">🔎</span>
+    <input id="q" type="search" placeholder="Search devices, formats, settings, subtitles…  ( / )" autocomplete="off">
+    <kbd>/</kbd>
+    <div id="results"></div>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar">
+    <a href="index.html"><span class="em">🏠</span>Home</a>
+    <h4>Start</h4>
+    <a href="getting-started.html"><span class="em">🚀</span>Getting Started</a>
+    <a href="install.html"><span class="em">📥</span>Install &amp; First Boot</a>
+    <h4>Playing media</h4>
+    <a href="video.html"><span class="em">🎬</span>Video Playback</a>
+    <a href="audio.html"><span class="em">🎵</span>Audio &amp; Playlists</a>
+    <a href="pictures.html"><span class="em">🖼️</span>Pictures</a>
+    <a href="subtitles.html"><span class="em">💬</span>Subtitles</a>
+    <h4>Storage &amp; devices</h4>
+    <a href="devices.html"><span class="em">🗂️</span>Devices Overview</a>
+    <a href="usb.html"><span class="em">🔌</span>USB</a>
+    <a href="mx4sio.html"><span class="em">💠</span>MX4SIO (microSD)</a>
+    <a href="hdd.html"><span class="em">💽</span>Internal HDD</a>
+    <a href="ilink.html"><span class="em">🔗</span>i.LINK</a>
+    <a href="mmce.html"><span class="em">🧩</span>MMCE (SD2PSX)</a>
+    <a href="smb.html"><span class="em">🌐</span>SMB Network</a>
+    <a href="cd-dvd.html"><span class="em">💿</span>CD / DVD / CDDA</a>
+    <h4>Setup &amp; theming</h4>
+    <a href="settings.html"><span class="em">🔧</span>Settings Reference</a>
+    <a href="network.html"><span class="em">📡</span>Network Setup</a>
+    <a href="themes.html" class="active"><span class="em">🎨</span>Themes &amp; Skins</a>
+    <h4>Reference</h4>
+    <a href="troubleshooting.html"><span class="em">🛠️</span>Troubleshooting</a>
+    <a href="building.html"><span class="em">🧰</span>Building from Source</a>
+    <a href="releases.html"><span class="em">📦</span>Releases &amp; Changelog</a>
+    <a href="credits.html"><span class="em">🙏</span>Credits &amp; Sources</a>
+  </nav>
+  <main class="content">
+<h1>Themes &amp; Skins</h1>
+<p class="lead">SMS ships with a finished look out of the box — a full-screen desktop background, a set of device
+and file icons, and a boot splash — but the desktop background is skinnable. This page explains the
+<b>desktop skin</b> (a <code>.smi</code> background image), where SMS looks for it, and what this fork's
+refreshed artwork adds.</p>
+
+<div class="callout info"><div class="h">ℹ You don't need a skin to use SMS</div>
+Skinning is entirely optional. On a fresh install SMS shows its built-in desktop and icons, and everything works.
+A skin only replaces the <b>appearance</b> — it never changes which devices or formats SMS supports. If you never
+touch the skin settings, you simply keep the default look.</div>
+
+<h2 id="skin-engine">The skin engine</h2>
+<p>SMS has always had a lightweight skin engine. The one thing it lets you replace is the <b>desktop background</b>,
+by pointing SMS at a <code>.smi</code> skin file:</p>
+
+<table>
+<thead><tr><th>File</th><th>Extension</th><th>What it changes</th></tr></thead>
+<tbody>
+<tr><td>Desktop skin</td><td><code>.smi</code></td><td>The full-screen background behind the device menu, file browser and status line — the "wallpaper".</td></tr>
+</tbody>
+</table>
+
+<p>A <code>.smi</code> is an <b>IPU-encoded image</b> — a compact picture format the PlayStation 2's IPU hardware
+decodes directly, the same colour pipeline SMS uses to draw video. When a desktop skin is set and loads successfully,
+its picture is stretched to fill the screen and <b>replaces the default background</b>; if no skin is set (or a skin
+file fails to load), SMS falls back to its built-in desktop.</p>
+
+<div class="callout info"><div class="h">ℹ A note on <code>.mbf</code> files</div>
+Alongside the skin setting you may see a separate <code>.mbf</code> option. Despite living near the skin settings,
+<code>.mbf</code> is <b>not</b> a background image — it is an optional custom <b>font</b> used to draw text, most useful
+for subtitle scripts that need characters the built-in font doesn't cover. It changes how <i>text</i> looks, not the
+wallpaper. Subtitle rendering is covered on the <a href="subtitles.html">Subtitles</a> page.</div>
+
+<div class="callout info"><div class="h">ℹ Where skins are chosen</div>
+The desktop skin name is an ordinary SMS setting. You pick it from the on-screen menus
+alongside the other player options, and — like every other setting — it is written to your saved configuration so
+it persists across reboots. See <a href="settings.html">Settings Reference</a> for how the settings menu is laid out
+and how configuration is saved.</div>
+
+<h2 id="this-fork">This fork's look</h2>
+<p>This build ships with a <b>refreshed desktop</b> and a <b>full set of device icons</b> on top of the classic
+skin engine. Nothing about the engine changed — the new artwork is simply the default look you see before you apply
+any custom skin. Compared with older SMS builds you get:</p>
+
+<ul class="checklist">
+<li>A redrawn full-screen <b>desktop background</b> and a matching <b>boot splash</b> shown while SMS starts up.</li>
+<li>A complete, consistent set of <b>device icons</b> — including a dedicated <b>MX4SIO</b> microSD icon (older builds
+reused another device's icon for it), plus icons for the internal HDD, MMCE, i.LINK and SMB.</li>
+<li>Redrawn <b>file and status icons</b> used throughout the browser and menus.</li>
+</ul>
+
+<p>These are baked into the program itself, so they are the same on every device you boot from. Applying a custom
+<code>.smi</code> skin overrides the desktop background on top of them; the icons stay as the built-in set.</p>
+
+<h2 id="applying">Applying a skin</h2>
+<p>SMS looks for skin files in a <code>Skins</code> folder, and the location depends on how SMS was started:</p>
+
+<div class="steps">
+<div class="step"><h3>Booted with a memory card</h3>
+<p>SMS looks on the memory card, under <code>mc0:/SMS/Skins/</code>. A desktop skin named <code>MyTheme</code> is loaded
+from <code>mc0:/SMS/Skins/MyTheme.smi</code>.</p></div>
+<div class="step"><h3>Booted from another device (this fork)</h3>
+<p>If SMS was launched from USB, HDD or another device and reads its settings there, it also looks for skins in a
+<code>Skins</code> folder <b>next to the SMS program</b> on that boot device — so a memory-card-less setup can still carry
+its own skins. This matches the way this fork saves configuration to the boot device. See
+<a href="settings.html">Settings Reference</a>.</p></div>
+<div class="step"><h3>Select the skin, then save</h3>
+<p>Put the <code>.smi</code> file in the appropriate <code>Skins</code> folder, choose it
+from the on-screen menu, and save your settings so it is remembered. On the next redraw the desktop background changes
+to your skin.</p></div>
+</div>
+
+<div class="callout amber"><div class="h">⚠ If a skin doesn't appear</div>
+Make sure the file has the exact <code>.smi</code> extension and sits directly in the <code>Skins</code> folder SMS is
+looking in (memory card <i>or</i> boot device, per above), and that the name you selected matches the file name. If a
+skin file can't be read or isn't a valid IPU image, SMS quietly falls back to its built-in desktop rather than showing
+an error — so a missing background usually means a wrong path, name or file format.</div>
+
+<h2 id="making-a-skin">Making a skin</h2>
+<p>Because <code>.smi</code> is an IPU-encoded image and not a plain PNG or JPEG, you don't just rename a picture — the
+image has to be <b>converted into the IPU format</b> with a converter tool first. The workflow, conceptually, is:</p>
+
+<div class="steps">
+<div class="step"><h3>Start from a full-screen image</h3>
+<p>Design your wallpaper at a normal screen resolution. SMS stretches the skin to fill the display, so a 4:3 image sized
+for standard-definition output gives the most predictable result.</p></div>
+<div class="step"><h3>Convert it to <code>.smi</code></h3>
+<p>Run the image through an IPU converter to produce the <code>.smi</code> file. This is the step that turns an
+ordinary picture into something SMS's IPU decoder can load.</p></div>
+<div class="step"><h3>Drop it in <code>Skins</code> and select it</h3>
+<p>Copy the finished <code>.smi</code> into the <code>Skins</code> folder as in <a href="#applying">Applying a skin</a>,
+pick it on-screen, and save.</p></div>
+</div>
+
+<details class="deep"><summary>Why isn't a skin just a PNG or JPEG?</summary>
+<p>The desktop skin loads through the PS2's IPU hardware, which decodes a specific image format rather than PNG/JPEG.
+Converting your picture to <code>.smi</code> up front means SMS can load and display the background quickly using the
+same hardware path it uses for video, without doing a general-purpose image decode every time it draws the desktop.
+The device and file icons in this fork are handled by a separate artwork pipeline and are built into the program, so
+they aren't part of the <code>.smi</code> skin.</p></details>
+
+<h2 id="device-icons">Device icons</h2>
+<p>Every storage source in SMS has its own icon in the top device menu, so you can tell at a glance which device is
+selected. This fork ships a distinct icon for each:</p>
+
+<table data-sortable>
+<thead><tr><th>Device</th><th>Icon shows</th></tr></thead>
+<tbody>
+<tr><td>USB</td><td>USB mass-storage drive</td></tr>
+<tr><td>MX4SIO (microSD)</td><td>A dedicated microSD icon — new in this fork; older builds reused another device's icon</td></tr>
+<tr><td>Internal HDD</td><td>Hard-disk drive</td></tr>
+<tr><td>i.LINK</td><td>i.LINK / IEEE&nbsp;1394 storage</td></tr>
+<tr><td>MMCE (SD2PSX / MemCard PRO2)</td><td>Memory-card-slot storage device</td></tr>
+<tr><td>SMB network share</td><td>Network share</td></tr>
+<tr><td>CD / DVD</td><td>Optical disc — data CD or DVD</td></tr>
+<tr><td>Audio CD (CDDA)</td><td>Audio disc</td></tr>
+</tbody>
+</table>
+
+<p>The disc icon reflects the kind of disc in the drive — a data CD, a DVD and an audio CD are shown differently — so
+the device menu stays informative even when the same optical drive holds different media. See
+<a href="devices.html">Devices Overview</a> for how the device menu itself works.</p>
+
+<h2 id="hd-known-issue">Known issue: HD video modes and the background</h2>
+<div class="callout amber"><div class="h">⚠ High-definition output can currently corrupt the desktop background</div>
+On progressive / high-definition video output modes (for example 480p, 720p and 1080i), the full-screen desktop
+background can currently show <b>graphical corruption</b>. This is a known issue with the large HD framebuffer and is
+being worked on. Standard-definition <b>480i</b> output is unaffected — if you see a corrupted background at an HD
+mode, switch the display mode back to 480i as a workaround while a fix is in progress.</div>
+
+<p>This only affects how the background <i>looks</i> at HD modes — playback, browsing and all device access continue to
+work normally. If you don't run SMS at 720p/1080i you will never see it.</p>
+
+<h2 id="see-also">See also</h2>
+<div class="grid">
+<a class="tile" href="settings.html"><span class="em">🔧</span><b>Settings Reference</b><span>Where skin names live &amp; how config saves</span></a>
+<a class="tile" href="devices.html"><span class="em">🗂️</span><b>Devices Overview</b><span>The device menu &amp; icons in context</span></a>
+<a class="tile" href="troubleshooting.html"><span class="em">🛠️</span><b>Troubleshooting</b><span>When something looks wrong</span></a>
+<a class="tile" href="credits.html"><span class="em">🙏</span><b>Credits &amp; Sources</b><span>Artwork &amp; contributors</span></a>
+</div>
+</main>
+  <aside class="toc"><div class="toc-h">On this page</div><nav id="toc-nav"></nav></aside>
+</div>
+<footer>
+  <p><b>SMS — Simple Media System</b> documentation. SMS was created by <b>Eugene Plotnikov</b> and is maintained by
+  the <a href="https://github.com/ps2homebrew">ps2homebrew</a> community; this site documents an enhanced,
+  storage-focused fork. Built on the work of many contributors — see <a href="credits.html">Credits &amp; Sources</a>.</p>
+  <p class="prov-inline">A community fork, not an official release. PlayStation 2 is a trademark of Sony Interactive
+  Entertainment; this project is unaffiliated. Sister documentation: the
+  <a href="https://nathanneurotic.github.io/POPSLoader/">POPStarter docs</a> and the RiptOPL docs.</p>
+</footer>
+<script src="assets/app.js"></script>
+</body></html>

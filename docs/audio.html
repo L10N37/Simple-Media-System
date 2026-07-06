@@ -1,0 +1,203 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Audio &amp; Playlists · SMS Docs</title>
+<meta name="description" content="Play music on SMS — MP3, AAC (M4A), AC3, FLAC, OGG Vorbis and WMA — plus M3U playlists, the audio player screen, and pause / resume / stop controls.">
+<link rel="stylesheet" href="assets/style.css">
+</head><body data-base="">
+<header class="topbar">
+  <button class="menu-btn" aria-label="Menu">☰</button>
+  <a class="brand" href="index.html">
+    <span class="psbtns"><i class="tri">&#9651;</i><i class="cir">&#9711;</i><i class="cro">&#10005;</i><i class="squ">&#9633;</i></span>
+    SMS <small>DOCS</small></a>
+  <div class="search">
+    <span class="ico">🔎</span>
+    <input id="q" type="search" placeholder="Search devices, formats, settings, subtitles…  ( / )" autocomplete="off">
+    <kbd>/</kbd>
+    <div id="results"></div>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar">
+    <a href="index.html"><span class="em">🏠</span>Home</a>
+    <h4>Start</h4>
+    <a href="getting-started.html"><span class="em">🚀</span>Getting Started</a>
+    <a href="install.html"><span class="em">📥</span>Install &amp; First Boot</a>
+    <h4>Playing media</h4>
+    <a href="video.html"><span class="em">🎬</span>Video Playback</a>
+    <a href="audio.html" class="active"><span class="em">🎵</span>Audio &amp; Playlists</a>
+    <a href="pictures.html"><span class="em">🖼️</span>Pictures</a>
+    <a href="subtitles.html"><span class="em">💬</span>Subtitles</a>
+    <h4>Storage &amp; devices</h4>
+    <a href="devices.html"><span class="em">🗂️</span>Devices Overview</a>
+    <a href="usb.html"><span class="em">🔌</span>USB</a>
+    <a href="mx4sio.html"><span class="em">💠</span>MX4SIO (microSD)</a>
+    <a href="hdd.html"><span class="em">💽</span>Internal HDD</a>
+    <a href="ilink.html"><span class="em">🔗</span>i.LINK</a>
+    <a href="mmce.html"><span class="em">🧩</span>MMCE (SD2PSX)</a>
+    <a href="smb.html"><span class="em">🌐</span>SMB Network</a>
+    <a href="cd-dvd.html"><span class="em">💿</span>CD / DVD / CDDA</a>
+    <h4>Setup &amp; theming</h4>
+    <a href="settings.html"><span class="em">🔧</span>Settings Reference</a>
+    <a href="network.html"><span class="em">📡</span>Network Setup</a>
+    <a href="themes.html"><span class="em">🎨</span>Themes &amp; Skins</a>
+    <h4>Reference</h4>
+    <a href="troubleshooting.html"><span class="em">🛠️</span>Troubleshooting</a>
+    <a href="building.html"><span class="em">🧰</span>Building from Source</a>
+    <a href="releases.html"><span class="em">📦</span>Releases &amp; Changelog</a>
+    <a href="credits.html"><span class="em">🙏</span>Credits &amp; Sources</a>
+  </nav>
+  <main class="content">
+<h1>Audio &amp; Playlists</h1>
+<p class="lead">SMS is a media player first and foremost, so it plays music just as happily as video. Point the
+browser at an <b>MP3</b>, <b>FLAC</b>, <b>OGG</b>, <b>AAC</b>, <b>AC3</b> or <b>WMA</b> file on any connected device,
+press <kbd>✕</kbd>, and it plays. This page covers the supported audio formats, the audio player screen, and how to
+queue up a whole set of tracks with an <b>M3U playlist</b>.</p>
+
+<div class="callout info"><div class="h">ℹ Music sits anywhere — no special folder</div>
+SMS browses the <b>raw filesystem</b> of whatever device you pick. There is no mandatory folder layout for music:
+drop your tracks wherever you like — a <code>Music</code> folder, an album folder, or loose in the root — and open
+them straight from the file list. Everything below works the same on USB, MX4SIO microSD, the internal HDD, i.LINK,
+MMCE and SMB network shares.</div>
+
+<h2 id="formats">Supported audio formats</h2>
+<p>SMS recognises audio files by their extension and hands them to the matching decoder. These are the audio
+formats and file extensions this build plays:</p>
+
+<table data-sortable>
+<thead><tr><th>Format</th><th>Extensions</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>MP3 (MPEG Audio Layer&nbsp;III)</td><td><code>.mp3</code> <code>.mpa</code> <code>.mp2</code></td><td>The classic. A long-tuned decoder handles LAME-encoded files.</td></tr>
+<tr><td>AAC</td><td><code>.aac</code> <code>.m4a</code></td><td>Advanced Audio Coding. <code>.m4a</code> is AAC in an MP4/MOV container.</td></tr>
+<tr><td>AC3 (Dolby&nbsp;Digital)</td><td><code>.ac3</code></td><td>The same audio format SMS decodes for DVD-style video soundtracks.</td></tr>
+<tr><td>FLAC</td><td><code>.flac</code></td><td>Free Lossless Audio Codec — bit-perfect, larger files.</td></tr>
+<tr><td>OGG Vorbis</td><td><code>.ogg</code></td><td>Open, patent-free lossy audio.</td></tr>
+<tr><td>WMA</td><td><code>.wma</code></td><td>Windows Media Audio, carried in an ASF container.</td></tr>
+</tbody>
+</table>
+
+<div class="callout amber"><div class="h">⚠ Match the extension to the contents</div>
+SMS chooses the decoder from the file's extension. A file that has been renamed to the wrong extension (say, an AAC
+stream saved as <code>.mp3</code>) may fail to play. Keep the extension honest — <code>.flac</code> for FLAC,
+<code>.ogg</code> for Vorbis, and so on — and if a track refuses to open, double-check that its real format matches
+its name.</div>
+
+<h2 id="playing">Playing audio</h2>
+<p>Playing a song is exactly like opening any other file — browse to it and press Cross.</p>
+
+<div class="steps">
+<div class="step"><h3>Pick the device</h3>
+<p>In the <b>device menu</b> (the top row of device icons), press Left/Right to highlight the device your music is
+on, then press Down to drop into the file list.</p></div>
+<div class="step"><h3>Find the track</h3>
+<p>In the <b>file list</b>, move with Up/Down; use <kbd>L1</kbd>/<kbd>L2</kbd> to page-scroll long folders and
+Triangle to step up a level. The <b>status line</b> at the bottom shows your current path on the left.</p></div>
+<div class="step"><h3>Press Cross to play</h3>
+<p>Highlight the audio file and press <kbd>✕</kbd>. SMS opens the audio player and starts playback.</p></div>
+</div>
+
+<p><img src="images/usage-sms-mp3browsing.png" alt="Browsing to an MP3 file in the SMS file list" style="max-width:100%;border-radius:8px">
+</p>
+
+<h3 id="player-screen">The audio player screen</h3>
+<p>While a track plays, SMS shows its audio player rather than a video picture. From here the pad controls playback
+(see <a href="#controls">Controls</a> below). When one track finishes, SMS moves on to the next entry if there is a
+queue — either the rest of an <a href="#playlists">M3U playlist</a> or the other music in the same folder — otherwise
+playback ends and you return to the browser.</p>
+
+<p><img src="images/usage-sms-mp3playing.png" alt="The SMS audio player screen during MP3 playback" style="max-width:100%;border-radius:8px">
+</p>
+
+<details class="deep"><summary>Can SMS play every song in a folder automatically?</summary>
+<p>Yes. SMS has long had a "play all the music in this folder" behaviour, so once one track finishes it can roll on
+to the next file in the same directory rather than stopping after a single song. Related player options —
+<b>randomize</b> (shuffle) and <b>repeat</b> — are available too; <b>repeat</b> applies to both folder playback and
+M3U playlists. The exact menu wording lives in the <a href="settings.html">Settings reference</a>; the takeaway is
+that continuous, shuffled and looped music playback are all supported.</p></details>
+
+<h2 id="playlists">Playlists (M3U)</h2>
+<p>An <b>M3U</b> file (<code>.m3u</code>) is a plain-text list of tracks to play, in order. Instead of opening songs
+one at a time, you open the <code>.m3u</code> and SMS queues every track it lists and plays them back to back. SMS
+treats <code>.m3u</code> as a first-class media file: it appears in the browser like any other, and pressing
+<kbd>✕</kbd> on it starts the whole list.</p>
+
+<p><img src="images/usage-sms-mp3playlist01.png" alt="Opening an M3U playlist in SMS" style="max-width:100%;border-radius:8px">
+</p>
+
+<h3 id="m3u-format">What goes in an .m3u file</h3>
+<p>An M3U is just one file path per line. SMS understands both the bare form (one path per line) and the extended
+<code>#EXTM3U</code> / <code>#EXTINF</code> form that carries a duration and a display title for each entry. A minimal
+example:</p>
+<pre>#EXTM3U
+#EXTINF:213,Opening Track
+Music/track01.mp3
+#EXTINF:187,Second Track
+Music/track02.flac
+Music/track03.ogg</pre>
+<p>A few practical notes on how SMS reads them:</p>
+<ul class="checklist">
+<li><b>Relative paths work</b> — a path is taken relative to the folder the playlist lives in, so keeping the
+<code>.m3u</code> alongside its tracks is the simplest layout.</li>
+<li><b>Slashes are flexible</b> — Windows-style back-slashes in a path are accepted and treated as forward slashes.</li>
+<li><b>Mixed formats are fine</b> — a single playlist can mix MP3, FLAC, OGG and the other supported audio formats;
+SMS picks the right decoder for each entry as it reaches it.</li>
+<li><b>Titles are optional</b> — with <code>#EXTINF</code> lines SMS uses the supplied title; without them it falls
+back to the track's filename.</li>
+</ul>
+
+<p><img src="images/usage-sms-mp3playlist02.png" alt="An M3U playlist queued and playing in SMS" style="max-width:100%;border-radius:8px">
+</p>
+
+<div class="callout info"><div class="h">ℹ Shuffle a playlist</div>
+When the player's <b>randomize</b> option is on, SMS plays a playlist's tracks in a shuffled order rather than the
+order written in the file. Turn it off to hear the list exactly as it is laid out. See the
+<a href="settings.html">Settings reference</a> for where this lives.</div>
+
+<h2 id="controls">Controls during playback</h2>
+<p>Audio uses the same transport controls as video, so if you already know one you know the other:</p>
+<table>
+<thead><tr><th>Button</th><th>Action</th></tr></thead>
+<tbody>
+<tr><td><kbd>Select</kbd></td><td>Pause</td></tr>
+<tr><td><kbd>Start</kbd></td><td>Resume</td></tr>
+<tr><td><kbd>△</kbd> Triangle</td><td>Stop and return to the file browser</td></tr>
+</tbody>
+</table>
+<p>Stopping a playlist with Triangle drops you back to the browser; there is no need to let the whole queue finish.</p>
+
+<h2 id="soundtracks">Audio inside video</h2>
+<p>The same decoders power the soundtrack of a movie. When you play an AVI, MP4 or MPEG file, SMS decodes its
+embedded audio stream — commonly MP3 or AC3 — right alongside the picture. So "audio format support" and
+"a video's soundtrack" are two sides of the same engine; for the video side of things, see
+<a href="video.html">Video Playback</a>.</p>
+
+<h2 id="tips">Tips</h2>
+<ul class="checklist">
+<li><b>Name files clearly.</b> The browser shows filenames, so descriptive names (<code>01 - Artist - Title.mp3</code>)
+make navigating an album far easier than cryptic ones.</li>
+<li><b>Keep a playlist with its tracks.</b> Because relative paths are resolved against the playlist's own folder,
+storing the <code>.m3u</code> in the same directory as the songs is the most portable arrangement — copy the folder
+to another device and it still works.</li>
+<li><b>Use the right extension.</b> Since SMS selects the decoder by extension, an honest extension is the single most
+reliable way to make sure a track opens on the first try.</li>
+<li><b>Big lossless files love fast storage.</b> FLAC files are large; playing them from a quick device such as USB,
+MX4SIO microSD or the internal HDD is smoother than from a slow source. See <a href="devices.html">Devices Overview</a>.</li>
+</ul>
+
+<div class="callout info"><div class="h">ℹ Where to go next</div>
+For the moving-picture side, read <a href="video.html">Video Playback</a>. To pick where your music lives, start at
+<a href="devices.html">Devices Overview</a> and the per-device pages. Every playback and player option is catalogued
+in the <a href="settings.html">Settings reference</a>.</div>
+
+  </main>
+  <aside class="toc"><div class="toc-h">On this page</div><nav id="toc-nav"></nav></aside>
+</div>
+<footer>
+  <p><b>SMS — Simple Media System</b> documentation. SMS was created by <b>Eugene Plotnikov</b> and is maintained by
+  the <a href="https://github.com/ps2homebrew">ps2homebrew</a> community; this site documents an enhanced,
+  storage-focused fork. Built on the work of many contributors — see <a href="credits.html">Credits &amp; Sources</a>.</p>
+  <p class="prov-inline">A community fork, not an official release. PlayStation 2 is a trademark of Sony Interactive
+  Entertainment; this project is unaffiliated. Sister documentation: the
+  <a href="https://nathanneurotic.github.io/POPSLoader/">POPStarter docs</a> and the RiptOPL docs.</p>
+</footer>
+<script src="assets/app.js"></script>
+</body></html>
