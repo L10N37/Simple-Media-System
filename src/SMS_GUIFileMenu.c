@@ -28,6 +28,7 @@
 #include "SMS_IOP.h"
 #include "SMS_ioctl.h"
 #include "SMS_SMB.h"
+#include "SMS_GUIClock.h"
 
 #include <kernel.h>
 #include <malloc.h>
@@ -291,12 +292,16 @@ static void _redraw ( GUIFileMenu* apMenu, int afAll ) {
  GUIFileMenu_Cleanup (  ( GUIObject* )apMenu  );
 
  if ( !afAll ) {
-
-  GSContext_NewPacket ( 1, 0, GSPaintMethod_Init );
-  GSContext_CallList2 (  1, ( u64*           )&s_BitBltPack  );
-  GUIFileMenu_Render (  ( GUIObject* )apMenu, 1  );
+                                       /* Serialize the file-list redraw with the async  */
+  SMS_GUIClockSuspend ();              /* VBLANK clock thread: both issue GS DMA, and an  */
+                                       /* unsuspended scroll redraw races the clock's     */
+  GSContext_NewPacket ( 1, 0, GSPaintMethod_Init );  /* GIF stream, corrupting the bottom */
+  GSContext_CallList2 (  1, ( u64*           )&s_BitBltPack  );  /* bar. Resume re-blits   */
+  GUIFileMenu_Render (  ( GUIObject* )apMenu, 1  );  /* the clock cleanly afterwards.      */
   GS_VSync2 ( g_GSCtx.m_DrawDelay );
   GSContext_Flush ( 1, GSFlushMethod_KeepLists );
+
+  SMS_GUIClockResume ();
 
  } else GUI_Redraw ( GUIRedrawMethod_Redraw );
 
