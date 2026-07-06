@@ -292,15 +292,26 @@ static void _redraw ( GUIFileMenu* apMenu, int afAll ) {
  GUIFileMenu_Cleanup (  ( GUIObject* )apMenu  );
 
  if ( !afAll ) {
-                                       /* Serialize the file-list redraw with the async  */
-  SMS_GUIClockSuspend ();              /* VBLANK clock thread: both issue GS DMA, and an  */
-                                       /* unsuspended scroll redraw races the clock's     */
-  GSContext_NewPacket ( 1, 0, GSPaintMethod_Init );  /* GIF stream, corrupting the bottom */
-  GSContext_CallList2 (  1, ( u64*           )&s_BitBltPack  );  /* bar. Resume re-blits   */
-  GUIFileMenu_Render (  ( GUIObject* )apMenu, 1  );  /* the clock cleanly afterwards.      */
+
+  /* The partial scroll redraw only repaints the list panel (s_BitBltPack       */
+  /* backdrop restore + list, Y = 58 .. m_Height-36). The GUI is single-        */
+  /* buffered, so the bottom bar below that (status/path text + the async       */
+  /* clock, Y >= m_Height-36) is never touched here -- any corruption of it is  */
+  /* STICKY and accumulates across a long scroll. So we must also repaint the   */
+  /* full-width status line every step (g_pStatusLine->Render re-blits its      */
+  /* backdrop + panel + cached path text, exactly as GUI_Status does), and      */
+  /* serialize with the async VBLANK clock: SMS_GUIClockResume kicks a          */
+  /* DMAC_GIF chain, and GSContext_Flush(KeepLists) kicks the scroll's VIF1     */
+  /* chain WITHOUT waiting, so without the DMA_Wait the two cross-arbitrate on   */
+  /* the GIF and corrupt the clock box. Resume then re-blits the clock cleanly. */
+  GSContext_NewPacket ( 1, 0, GSPaintMethod_Init );
+  GSContext_CallList2 (  1, ( u64*           )&s_BitBltPack  );
+  GUIFileMenu_Render (  ( GUIObject* )apMenu, 1  );
+  g_pStatusLine -> Render ( g_pStatusLine, 1 );
+  SMS_GUIClockSuspend ();
   GS_VSync2 ( g_GSCtx.m_DrawDelay );
   GSContext_Flush ( 1, GSFlushMethod_KeepLists );
-
+  DMA_Wait ( DMAC_VIF1 );
   SMS_GUIClockResume ();
 
  } else GUI_Redraw ( GUIRedrawMethod_Redraw );
