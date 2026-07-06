@@ -34,7 +34,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <libhdd.h>
+#include <fileio.h>   /* fioOpen/fioLseek/fioRead/fioClose -- CWD .smi skin loading */
 
+extern char          g_pBootDir[];   /* SMS_Config.c: "<dev>/path/" for CWD .smi skins */
 extern unsigned char jellyfish_jpg[];
 extern unsigned int  size_jellyfish_jpg;
 extern unsigned char splash_jpg[];    /* boot splash ( bin2c of images/splash.jpg ) */
@@ -138,85 +140,101 @@ extern void PowerOf2 ( int, int, int*, int* );
 
 static int DrawSkin ( void ) {
 
- int  lFD; 
- int  retVal = 0;
- char lPath[ 128 ];
+ int            lFD;
+ int            retVal = 0;
+ s64            lSize  = 0;
+ unsigned char* lpData = NULL;
+ char           lPath[ 128 ];
 
- strcpy ( lPath, g_pSMSSkn + 5       );
- strcat ( lPath, g_SlashStr          );
- strcat ( lPath, g_Config.m_SkinName );
- strcat ( lPath, g_pSMI              );
+ if ( g_pBootDir[ 0 ] ) {   /* non-mc boot ( USB/HDD/MX4SIO ): read <boot dir>Skins/<name>.smi via fio */
 
- lFD = MC_OpenS ( g_MCSlot, 0, lPath, O_RDONLY );
+  strcpy ( lPath, g_pBootDir          );
+  strcat ( lPath, "Skins"             );
+  strcat ( lPath, g_SlashStr          );
+  strcat ( lPath, g_Config.m_SkinName );
+  strcat ( lPath, g_pSMI              );
 
- if ( lFD >= 0 ) { 
+  lFD = fioOpen ( lPath, O_RDONLY );
 
-  s64            lSize; 
-  unsigned char* lpData; 
+  if ( lFD >= 0 ) {
+   lSize  = fioLseek ( lFD, 0, SEEK_END );
+   fioLseek ( lFD, 0, SEEK_SET );
+   lpData = malloc ( lSize );
+   if ( lpData ) fioRead ( lFD, lpData, lSize );
+   fioClose ( lFD );
+  }  /* end if */
 
-  lSize = MC_SeekS ( lFD, 0, SEEK_END ); 
-  MC_SeekS ( lFD, 0, SEEK_SET ); 
+ } else {   /* memory-card boot: original libmc path */
 
-  lpData = malloc ( lSize ); 
+  strcpy ( lPath, g_pSMSSkn + 5       );
+  strcat ( lPath, g_SlashStr          );
+  strcat ( lPath, g_Config.m_SkinName );
+  strcat ( lPath, g_pSMI              );
 
-  if ( lpData ) {
+  lFD = MC_OpenS ( g_MCSlot, 0, lPath, O_RDONLY );
 
-   unsigned short lWidth, lHeight;
+  if ( lFD >= 0 ) {
+   lSize  = MC_SeekS ( lFD, 0, SEEK_END );
+   MC_SeekS ( lFD, 0, SEEK_SET );
+   lpData = malloc ( lSize );
+   if ( lpData ) MC_ReadS ( lFD, lpData, lSize );
+   MC_CloseS ( lFD );
+  }  /* end if */
 
-   MC_ReadS ( lFD, lpData, lSize );
+ }  /* end else */
 
-   lWidth = IPU_ImageInfo ( lpData, &lHeight );
+ if ( lpData ) {
 
-   if ( lWidth ) {
+  unsigned short lWidth, lHeight;
 
-    IPULoadImage   lLoadImg;
-    u64*           lpDMA;
+  lWidth = IPU_ImageInfo ( lpData, &lHeight );
 
-    g_GSCtx.m_TBW = ( lWidth + 63 ) >> 6;
+  if ( lWidth ) {
 
-    g_GSCtx.m_VRAMTexPtr = 0x4000 - (
-     (   ( g_GSCtx.m_TBW << 6 ) * (  ( lHeight + 31 ) & ~31  ) * 4   ) >> 8
+   IPULoadImage   lLoadImg;
+   u64*           lpDMA;
+
+   g_GSCtx.m_TBW = ( lWidth + 63 ) >> 6;
+
+   g_GSCtx.m_VRAMTexPtr = 0x4000 - (
+    (   ( g_GSCtx.m_TBW << 6 ) * (  ( lHeight + 31 ) & ~31  ) * 4   ) >> 8
+   );
+   PowerOf2 ( lWidth, lHeight, ( int * )&g_GSCtx.m_TW, ( int * )&g_GSCtx.m_TH );
+
+   IPU_InitLoadImage ( &lLoadImg, lWidth, lHeight );
+   IPU_LoadImage ( &lLoadImg, lpData, lSize, 0, 0, 0, 0, 0 );
+
+   if ( lLoadImg.m_fPal ) SMS_SetPalette ( lLoadImg.m_Pal );
+
+   lLoadImg.Destroy ( &lLoadImg );
+
+   lpDMA = GSContext_NewPacket (  0, GS_TSP_PACKET_SIZE(), GSPaintMethod_Init  );
+   GSContext_RenderTexSprite (
+    ( GSTexSpritePacket* )( lpDMA - 2 ),
+    0, 0, g_GSCtx.m_Width, g_GSCtx.m_Height, 0, 0, lWidth, lHeight
+   );
+
+   if (  GS_Params () -> m_GSCRTMode == GSVideoMode_DTV_1920x1080I  ) {
+
+    lpDMA = GSContext_NewPacket (  0, GS_VGR_PACKET_SIZE(), GSPaintMethod_Continue  );
+    GSContext_RenderVGRect (
+     lpDMA, g_GSCtx.m_Width, 0, 1920, g_GSCtx.m_Height,
+     GS_SET_RGBAQ( 0x00, 0x00, 0x00, 0xFF, 0x00 ),
+     GS_SET_RGBAQ( 0x00, 0x00, 0x00, 0xFF, 0x00 )
     );
-    PowerOf2 ( lWidth, lHeight, ( int * )&g_GSCtx.m_TW, ( int * )&g_GSCtx.m_TH );
-
-    IPU_InitLoadImage ( &lLoadImg, lWidth, lHeight );
-    IPU_LoadImage ( &lLoadImg, lpData, lSize, 0, 0, 0, 0, 0 );
-
-    if ( lLoadImg.m_fPal ) SMS_SetPalette ( lLoadImg.m_Pal );
-
-    lLoadImg.Destroy ( &lLoadImg );
-
-    lpDMA = GSContext_NewPacket (  0, GS_TSP_PACKET_SIZE(), GSPaintMethod_Init  );
-    GSContext_RenderTexSprite (
-     ( GSTexSpritePacket* )( lpDMA - 2 ),
-     0, 0, g_GSCtx.m_Width, g_GSCtx.m_Height, 0, 0, lWidth, lHeight
-    );
-
-	if (  GS_Params () -> m_GSCRTMode == GSVideoMode_DTV_1920x1080I  ) {
-
-     lpDMA = GSContext_NewPacket (  0, GS_VGR_PACKET_SIZE(), GSPaintMethod_Continue  );
-     GSContext_RenderVGRect (
-      lpDMA, g_GSCtx.m_Width, 0, 1920, g_GSCtx.m_Height,
-      GS_SET_RGBAQ( 0x00, 0x00, 0x00, 0xFF, 0x00 ),
-      GS_SET_RGBAQ( 0x00, 0x00, 0x00, 0xFF, 0x00 )
-     );
-
-	}  /* end if */
-
-    GSContext_Flush ( 0, GSFlushMethod_DeleteLists );
-
-    GUI_SetColors ();
-    GSFont_Init   ();
-
-    retVal = 1;
 
    }  /* end if */
 
-   free ( lpData );
+   GSContext_Flush ( 0, GSFlushMethod_DeleteLists );
+
+   GUI_SetColors ();
+   GSFont_Init   ();
+
+   retVal = 1;
 
   }  /* end if */
 
-  MC_CloseS ( lFD );
+  free ( lpData );
 
  }  /* end if */
 

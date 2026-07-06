@@ -63,6 +63,7 @@ static char s_pIcoSys[] __attribute__(   (  section( ".data" ), aligned( 1 )  ) 
 static char s_pSMSIcn[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "mc0:/SMS/SMS.icn";
 static char s_pMC0SMC[ 128 ] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "mc0:/SMS/SMS.cfg";
 static int  s_CfgOnFS __attribute__(   (  section( ".data" )  )   );   /* 1 = config is a plain filesystem file ( non-mc boot -> CWD ), not a memory-card save */
+char g_pBootDir[ 128 ] __attribute__(   (  section( ".bss" )  )   );   /* "<dev>/path/" of the ELF when launched from a non-mc device ( for CWD skins ); empty on mc boots */
 static char s_pPS2D  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "PS2D";
 static char s_pSMSICN[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "SMS.icn";
 
@@ -106,6 +107,10 @@ void SMS_ConfigSetCWD ( const char* apELFPath ) {
 
  for ( i = 0; i <= lLast; ++i ) s_pMC0SMC[ i ] = apELFPath[ i ];
  strcpy ( &s_pMC0SMC[ lLast + 1 ], "SMS.cfg" );
+
+ for ( i = 0; i <= lLast; ++i ) g_pBootDir[ i ] = apELFPath[ i ];   /* keep the boot dir for CWD skin loading */
+ g_pBootDir[ lLast + 1 ] = '\x00';
+
  s_CfgOnFS = 1;
 
 }  /* end SMS_ConfigSetCWD */
