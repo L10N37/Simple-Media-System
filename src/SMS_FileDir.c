@@ -33,7 +33,7 @@
 #include <sys/stat.h>
 #include <malloc.h>
 
-char g_pUSB   [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "mass";
+char g_pUSB   [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "mass0";  /* [4]=digit placeholder: keeps the NUL at [5] the array's own, not a neighbour's */
 char g_pCDROM [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "cdfs";
 char g_pHDD0  [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "hdd0";
 char g_pCDDA  [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "cdda";
@@ -42,7 +42,7 @@ char g_pDVD   [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "
 char g_pCDDAFS[] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "cddafs:/";
 char g_pSMB   [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "smb";
 char g_pSMBS  [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "smb:";
-char g_pMMCE  [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "mmce";
+char g_pMMCE  [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "mmce0";  /* [4]=digit placeholder ( mirrors SMS_IOP.c lMmce[]="mmceX:" ); was "mmce" -> the g_CMedia==7 digit write ate the terminator and ran into s_pAVI (".avi") */
 
 static char s_pAVI [] __attribute__(   (  aligned( 4 ), section( ".data" ), aligned( 1 )  )   ) = ".avi";
 static char s_pDIVX[] __attribute__(   (  aligned( 4 ), section( ".data" ), aligned( 1 )  )   ) = ".divx";

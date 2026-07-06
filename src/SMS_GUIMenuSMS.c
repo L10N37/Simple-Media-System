@@ -1209,7 +1209,7 @@ static void _autousb_handler ( GUIMenu* apMenu, int aDir ) {
 #ifdef BDM
 static void _automx4sio_handler ( GUIMenu* apMenu, int aDir ) {
 
- _switch_flag ( apMenu, 4, &g_Config.m_NetworkFlags, SMS_DF_AUTO_MX4SIO );
+ _switch_flag ( apMenu, 6, &g_Config.m_NetworkFlags, SMS_DF_AUTO_MX4SIO );  /* MX4SIO row is index 6 after the HDD-APA/BDM regroup */
 
 }  /* end _automx4sio_handler */
 
@@ -1221,13 +1221,13 @@ static void _autoata_handler ( GUIMenu* apMenu, int aDir ) {
 
 static void _autoilink_handler ( GUIMenu* apMenu, int aDir ) {
 
- _switch_flag ( apMenu, 6, &g_Config.m_NetworkFlags, SMS_DF_AUTO_ILINK );
+ _switch_flag ( apMenu, 7, &g_Config.m_NetworkFlags, SMS_DF_AUTO_ILINK );  /* i.LINK row is index 7 */
 
 }  /* end _autoilink_handler */
 
 static void _automce_handler ( GUIMenu* apMenu, int aDir ) {
 
- _switch_flag ( apMenu, 7, &g_Config.m_NetworkFlags, SMS_DF_AUTO_MMCE );
+ _switch_flag ( apMenu, 8, &g_Config.m_NetworkFlags, SMS_DF_AUTO_MMCE );  /* MMCE row is index 8 */
 
 }  /* end _automce_handler */
 #endif
@@ -1235,7 +1235,7 @@ static void _automce_handler ( GUIMenu* apMenu, int aDir ) {
 static void _autohdd_handler ( GUIMenu* apMenu, int aDir ) {
 
 #ifdef BDM
- _switch_flag ( apMenu, 8, &g_Config.m_NetworkFlags, SMS_DF_AUTO_HDD );
+ _switch_flag ( apMenu, 4, &g_Config.m_NetworkFlags, SMS_DF_AUTO_HDD );  /* HDD-APA row is index 4 after the regroup */
 #else
  _switch_flag ( apMenu, 4, &g_Config.m_NetworkFlags, SMS_DF_AUTO_HDD );
 #endif
