@@ -138,18 +138,15 @@ GUIObject* GUI_CreateVersion ( void ) {
 
 extern void PowerOf2 ( int, int, int*, int* );
 
-/* HD / large DTV video modes (720p, 1080i, 576p) enlarge the framebuffer enough  */
-/* that the full-screen background texture -- placed at 0x4000 - texsize -- lands  */
-/* on top of it in VRAM, corrupting the desktop. Until mode-appropriate background */
-/* assets exist, skip the full-screen background image in those modes and let the  */
-/* cleared background show through. SD modes (NTSC / PAL / 480p) are unaffected.    */
+/* HD DTV modes (720p = 1216x676, 1080i = 1820x1018) use a framebuffer far wider   */
+/* than SD, so the full-screen background texture -- placed at 0x4000 - texsize --  */
+/* lands on top of the framebuffer in VRAM and corrupts the desktop. Until mode-    */
+/* appropriate background assets exist, skip the full-screen background image in    */
+/* those modes and let the cleared background show through. Every SD-class mode     */
+/* (NTSC/PAL/480p/576p/VESA) is exactly 640 wide and fits, so it is unaffected.     */
 static int _bgTexUnsafe ( void ) {
 
- unsigned short lMode = GS_Params () -> m_GSCRTMode;
-
- return lMode == GSVideoMode_DTV_1280x720P  ||
-        lMode == GSVideoMode_DTV_1920x1080I ||
-        lMode == GSVideoMode_DTV_640x576P;
+ return g_GSCtx.m_Width > 640;   /* only 720p (1216) / 1080i (1820) exceed 640 -> collide */
 
 }  /* end _bgTexUnsafe */
 
