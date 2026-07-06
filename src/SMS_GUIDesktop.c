@@ -685,7 +685,7 @@ static void StatusLine_Render ( GUIObject* apObj, int aCtx ) {
 
   GS_RenderRoundRect (
    ( GSRoundRectPacket* )( lpDMA - 2 ),
-   0, lY, g_GSCtx.m_Width - 1, 34, -12,
+   0, lY, g_GSCtx.m_Width - 1, 34, -8,
    g_Palette[ g_Config.m_BrowserIBCIdx - 1 ]
   );
 
@@ -880,7 +880,7 @@ void GUI_Progress ( char* apStr, int aPos, int afForceUpdate ) {
    s_lPos = aPos;
 
    GS_RenderRoundRect (
-    ( GSRoundRectPacket* )( s_lpListRRT - 2 ), 4, g_GSCtx.m_Height - 35, lWidth - 4, 34, 12, 0x20FF8080
+    ( GSRoundRectPacket* )( s_lpListRRT - 2 ), 4, g_GSCtx.m_Height - 35, lWidth - 4, 34, 8, 0x20FF8080
    );
 
    GSContext_NewPacket (  1, 0, GSPaintMethod_Init          );

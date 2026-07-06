@@ -67,7 +67,7 @@ static GUIMenuItem s_FileCtxMenu[] __attribute__(   (  section( ".data" )  )   )
  { 0, &STR_DELETE,               0,              0, _delete_handler,   0, 0 },
  { 0, NULL,                      0,              0, NULL,              0, 0 },
  { 0, &STR_ADD_BACKGROUND_IMAGE, 0,              0, _copy_bim_handler, 0, 0 },
- { 0, &STR_AUDIO,                GUICON_M3U,     0, _audio_handler,    0, 0 },
+ { 0, &STR_AUDIO,                GUICON_MP3,     0, _audio_handler,    0, 0 },   /* music filter -> MP3 icon (was M3U) */
  { 0, &STR_VIDEO,                GUICON_AVI,     0, _video_handler,    0, 0 },
  { 0, &STR_IMAGES,               GUICON_PICTURE, 0, _image_handler,    0, 0 }
 };

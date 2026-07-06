@@ -298,7 +298,7 @@ int SMS_LoadConfig ( void  ) {
  int retVal = 0;
  int lRes;
 
- g_Config.m_BrowserABCIdx    = 16;  /* active accent: white */
+ g_Config.m_BrowserABCIdx    = 10;  /* active accent: blue (match inactive; graphics wants the file-view frame to stay blue when browsing, not flip to white) */
  g_Config.m_BrowserIBCIdx    = 10;  /* inactive panels / info bar / spectrum: blue  ( idx 10 -> g_Palette[9]  = 0,0,FF )  ( was red 13 ) -> jellyfish theme */
  g_Config.m_BrowserTxtIdx    = 16;  /* browser text: white ( was yellow 15 ) */
  g_Config.m_NetworkFlags     = 0;  /* no-settings default: auto-start NO device (clean boot); user enables HDD/USB/MX4SIO/net from the menu, persisted once saved */

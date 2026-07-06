@@ -166,7 +166,7 @@ static void GUIFileMenu_Render ( GUIObject* apObj, int aCtx ) {
   int            lSelY   = lY + 34 * lpMenu -> m_YOffset;
 
   GS_RenderRoundRect (
-   ( GSRoundRectPacket* )( lpDMA - 2 ), 0, 60, g_GSCtx.m_Width - 1, lHeight, -12,
+   ( GSRoundRectPacket* )( lpDMA - 2 ), 0, 60, g_GSCtx.m_Width - 1, lHeight, -8,
    g_Palette[ *lpMenu -> m_pColor - 1 ]
   );
   lpMenu -> m_pGSPacket = lpDMA;
@@ -230,11 +230,11 @@ static void GUIFileMenu_Render ( GUIObject* apObj, int aCtx ) {
 
    GS_RenderRoundRect (
     ( GSRoundRectPacket* )(  lpMenu -> m_pSelRect + GS_RRT_PACKET_SIZE() - 2  ),
-    4, lSelY, lW, 34, 12, ( lColor & 0x00FFFFFF ) | 0x10000000
+    4, lSelY, lW, 34, 8, ( lColor & 0x00FFFFFF ) | 0x10000000
    );
    GS_RenderRoundRect (
     ( GSRoundRectPacket* )( lpMenu -> m_pSelRect - 2 ),
-    4, lSelY, lW, 34, -12, lColor
+    4, lSelY, lW, 34, -8, lColor
    );
    lpMenu -> m_pSelRect[ -1 ] = VIF_DIRECT(  GS_RRT_PACKET_SIZE()  );
    lpMenu -> m_ActiveY        = lSelY;
