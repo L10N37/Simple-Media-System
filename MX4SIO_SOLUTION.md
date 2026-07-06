@@ -269,21 +269,23 @@ Cosmetic re-theme, kept cheap:
 
 ---
 
-## 9. SMB status (known limitation, not part of the bounty)
+## 9. SMB status (not part of the bounty)
 
-SMB was investigated and is **out of scope**:
+SMB is **outside the MX4SIO bounty scope**, but it was modernised along the way:
 
-- SMS's SMB is a custom SMB1/CIFS client IOP module (`iop/SMSSMB/`, built as
-  `SMSSMB.IRX`). The real-world breakage is **server-side**: SMB1 is disabled by
-  default on modern Windows/Samba. Fixing it properly means SMB2, i.e. a client
-  rewrite — well beyond a "MX4SIO support" bounty.
-- There is also one narrow **latent client bug**: `SMB_Read`
-  (`iop/SMSSMB/src/SMSMB.c:858-901`) can spin forever on a mid-stream read error
-  — the outer `while (anBytes)` loop only decrements `anBytes` inside the
-  inner success path, so a failed `_nb_send_packet`/`_nb_read_packet` or an
-  error response loops without progress. Fixing it requires rebuilding and
-  re-embedding the IOP module; documented here, not fixed, since it is not on the
-  MX4SIO read path.
+- SMS's SMB was migrated from the legacy custom SMB1 client (`iop/SMSSMB/`,
+  `SMSSMB.IRX`) to the **modern ps2sdk `smbman`** module — the same battle-tested
+  SMB1 client OPL uses. It is embedded (`smbman_irx` in the Makefile) and loaded
+  in `src/SMS_IOP.c` (`SifExecDecompModuleBuffer(&smbman_irx, …)`); it presents an
+  iomanX `smb` device reached via `fileXioDevctl`. The legacy `iop/SMSSMB/` tree is
+  now **dead code** (not built, not loaded), so the old `SMB_Read` read-loop defect
+  noted in earlier drafts is moot.
+- SMB is now **fully GUI-configurable** — server, share, user, password and IP are
+  entered on-screen with an on-screen keyboard (`src/SMS_GUISMBrowser.c`), with no
+  pre-authored config file.
+- The remaining real-world limitation is **server-side**: `smbman` speaks **SMB1**,
+  which modern Windows/Samba disable by default. True SMB2/3 would be a separate
+  client effort, well beyond a "MX4SIO support" bounty.
 
 ---
 
