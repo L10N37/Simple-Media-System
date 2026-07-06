@@ -39,6 +39,8 @@
 extern char          g_pBootDir[];   /* SMS_Config.c: "<dev>/path/" for CWD .smi skins */
 extern unsigned char jellyfish_jpg[];
 extern unsigned int  size_jellyfish_jpg;
+extern unsigned char main_bg_mini_jpg[];        /* 256x256 plain bg used in HD (720p/1080i) modes */
+extern unsigned int  size_main_bg_mini_jpg;
 extern unsigned char splash_jpg[];    /* boot splash ( bin2c of images/splash.jpg ) */
 extern unsigned int  size_splash_jpg;
 
@@ -281,6 +283,7 @@ static int _DecodeJellyfish ( void ) {
  int              lW, lH, i, lN;
  unsigned char*   lpSrc;
  unsigned char*   lpDst;
+ int              lHD = _bgTexUnsafe ();   /* HD (720p/1080i) -> use the 256x256 plain bg, not the jellyfish */
 
  if ( s_pJFTex ) return 1;  /* already decoded & cached */
 
@@ -288,7 +291,8 @@ static int _DecodeJellyfish ( void ) {
 
  if ( !lpCtx ) return 0;
 
- if (  SMS_JPEGLoad ( lpCtx, jellyfish_jpg, size_jellyfish_jpg )  ) {
+ if (  SMS_JPEGLoad ( lpCtx, lHD ? main_bg_mini_jpg  : jellyfish_jpg,
+                             lHD ? size_main_bg_mini_jpg : size_jellyfish_jpg )  ) {
 
   lW = lpCtx -> m_pRC -> m_NewWidth;
   lH = lpCtx -> m_pRC -> m_NewHeight;
@@ -332,9 +336,7 @@ static int _DrawJellyfish ( int afFade ) {
  GSLoadImage  lLI;
  GSLoadImage* lpLI = UNCACHED_SEG( &lLI );
 
- if ( _bgTexUnsafe () ) return 0;   /* HD modes: skip the colliding full-screen background */
-
- if (  !_DecodeJellyfish ()  ) return 0;
+ if (  !_DecodeJellyfish ()  ) return 0;   /* in HD this decodes the 256x256 mini bg (fits VRAM); SD keeps the jellyfish */
 
  g_GSCtx.m_TBW = ( s_JFW + 63 ) >> 6;
 
