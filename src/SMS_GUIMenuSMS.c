@@ -1422,7 +1422,7 @@ static void _editipc_handler ( GUIMenu* apMenu, int aDir ) {
 static void _cdvd_handler ( GUIMenu* apMenu, int aDir ) {
 
 #ifdef BDM
- _switch_flag ( apMenu, 6, &g_Config.m_NetworkFlags, SMS_DF_CDVD );
+ _switch_flag ( apMenu, 9, &g_Config.m_NetworkFlags, SMS_DF_CDVD );   /* CDVD is row [9] in the BDM menu */
 #else
  _switch_flag ( apMenu, 5, &g_Config.m_NetworkFlags, SMS_DF_CDVD );
 #endif
@@ -1438,7 +1438,7 @@ static void _cdvd_spd_handler ( GUIMenu* apMenu, int aDir ) {
  else if ( lSpeed > 2 ) lSpeed = 0;
 
 #ifdef BDM
- s_DevMenu[ 7 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed = lSpeed ];
+ s_DevMenu[ 10 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed = lSpeed ];   /* CDVD-speed is row [10] */
 #else
  s_DevMenu[ 6 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed = lSpeed ];
 #endif
@@ -1451,7 +1451,7 @@ static void _dirbtn_handler ( GUIMenu* apMenu, int aDir ) {
 
  g_Config.m_BrowserFlags ^= SMS_BF_DIRB;
 #ifdef BDM
- s_DevMenu[ 8 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );
+ s_DevMenu[ 11 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );   /* dir-buttons is row [11] */
 #else
  s_DevMenu[ 7 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );
 #endif

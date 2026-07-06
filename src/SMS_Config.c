@@ -415,6 +415,7 @@ int SMS_LoadConfig ( void  ) {
 
  g_Config.m_Version       = 14;
  g_Config.m_BrowserFlags &= ~SMS_BF_UDFL;
+ g_Config.m_SkinName[ sizeof( g_Config.m_SkinName ) - 1 ] = '\x00';   /* guard: a corrupt config field must stay in-bounds */
 
  if ( g_Config.m_PlayerAC3RL < 1 ) g_Config.m_PlayerAC3RL = 6;
 

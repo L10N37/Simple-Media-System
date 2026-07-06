@@ -144,40 +144,47 @@ static int DrawSkin ( void ) {
  int            retVal = 0;
  s64            lSize  = 0;
  unsigned char* lpData = NULL;
- char           lPath[ 128 ];
+ char           lPath[ 256 ];   /* worst case: boot dir (~119) + "Skins/" + 63-char skin + ".smi" */
 
  if ( g_pBootDir[ 0 ] ) {   /* non-mc boot ( USB/HDD/MX4SIO ): read <boot dir>Skins/<name>.smi via fio */
 
-  strcpy ( lPath, g_pBootDir          );
-  strcat ( lPath, "Skins"             );
-  strcat ( lPath, g_SlashStr          );
-  strcat ( lPath, g_Config.m_SkinName );
-  strcat ( lPath, g_pSMI              );
+  if (  snprintf ( lPath, sizeof( lPath ), "%sSkins%s%s%s",
+                   g_pBootDir, g_SlashStr, g_Config.m_SkinName, g_pSMI ) >= ( int )sizeof( lPath )  )
+   return 0;   /* path too long -> fall back to the default background */
 
   lFD = fioOpen ( lPath, O_RDONLY );
 
   if ( lFD >= 0 ) {
-   lSize  = fioLseek ( lFD, 0, SEEK_END );
+   lSize = fioLseek ( lFD, 0, SEEK_END );
    fioLseek ( lFD, 0, SEEK_SET );
-   lpData = malloc ( lSize );
-   if ( lpData ) fioRead ( lFD, lpData, lSize );
+   if ( lSize > 0 ) {
+    lpData = malloc ( lSize );
+    if (  lpData && fioRead ( lFD, lpData, lSize ) != lSize  ) {
+     free ( lpData );
+     lpData = NULL;
+    }  /* end if */
+   }  /* end if */
    fioClose ( lFD );
   }  /* end if */
 
  } else {   /* memory-card boot: original libmc path */
 
-  strcpy ( lPath, g_pSMSSkn + 5       );
-  strcat ( lPath, g_SlashStr          );
-  strcat ( lPath, g_Config.m_SkinName );
-  strcat ( lPath, g_pSMI              );
+  if (  snprintf ( lPath, sizeof( lPath ), "%s%s%s%s",
+                   g_pSMSSkn + 5, g_SlashStr, g_Config.m_SkinName, g_pSMI ) >= ( int )sizeof( lPath )  )
+   return 0;   /* path too long -> fall back to the default background */
 
   lFD = MC_OpenS ( g_MCSlot, 0, lPath, O_RDONLY );
 
   if ( lFD >= 0 ) {
-   lSize  = MC_SeekS ( lFD, 0, SEEK_END );
+   lSize = MC_SeekS ( lFD, 0, SEEK_END );
    MC_SeekS ( lFD, 0, SEEK_SET );
-   lpData = malloc ( lSize );
-   if ( lpData ) MC_ReadS ( lFD, lpData, lSize );
+   if ( lSize > 0 ) {
+    lpData = malloc ( lSize );
+    if (  lpData && MC_ReadS ( lFD, lpData, lSize ) != lSize  ) {
+     free ( lpData );
+     lpData = NULL;
+    }  /* end if */
+   }  /* end if */
    MC_CloseS ( lFD );
   }  /* end if */
 
@@ -193,12 +200,18 @@ static int DrawSkin ( void ) {
 
    IPULoadImage   lLoadImg;
    u64*           lpDMA;
+   unsigned int   lTexSize;
 
    g_GSCtx.m_TBW = ( lWidth + 63 ) >> 6;
 
-   g_GSCtx.m_VRAMTexPtr = 0x4000 - (
-    (   ( g_GSCtx.m_TBW << 6 ) * (  ( lHeight + 31 ) & ~31  ) * 4   ) >> 8
-   );
+   lTexSize = (   ( g_GSCtx.m_TBW << 6 ) * (  ( lHeight + 31 ) & ~31  ) * 4   ) >> 8;
+
+   if ( lTexSize >= 0x4000 ) {   /* skin texture too large for VRAM -> fall back to default */
+    free ( lpData );
+    return 0;
+   }  /* end if */
+
+   g_GSCtx.m_VRAMTexPtr = 0x4000 - lTexSize;
    PowerOf2 ( lWidth, lHeight, ( int * )&g_GSCtx.m_TW, ( int * )&g_GSCtx.m_TH );
 
    IPU_InitLoadImage ( &lLoadImg, lWidth, lHeight );
