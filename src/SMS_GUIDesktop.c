@@ -138,6 +138,21 @@ GUIObject* GUI_CreateVersion ( void ) {
 
 extern void PowerOf2 ( int, int, int*, int* );
 
+/* HD / large DTV video modes (720p, 1080i, 576p) enlarge the framebuffer enough  */
+/* that the full-screen background texture -- placed at 0x4000 - texsize -- lands  */
+/* on top of it in VRAM, corrupting the desktop. Until mode-appropriate background */
+/* assets exist, skip the full-screen background image in those modes and let the  */
+/* cleared background show through. SD modes (NTSC / PAL / 480p) are unaffected.    */
+static int _bgTexUnsafe ( void ) {
+
+ unsigned short lMode = GS_Params () -> m_GSCRTMode;
+
+ return lMode == GSVideoMode_DTV_1280x720P  ||
+        lMode == GSVideoMode_DTV_1920x1080I ||
+        lMode == GSVideoMode_DTV_640x576P;
+
+}  /* end _bgTexUnsafe */
+
 static int DrawSkin ( void ) {
 
  int            lFD;
@@ -145,6 +160,8 @@ static int DrawSkin ( void ) {
  s64            lSize  = 0;
  unsigned char* lpData = NULL;
  char           lPath[ 256 ];   /* worst case: boot dir (~119) + "Skins/" + 63-char skin + ".smi" */
+
+ if ( _bgTexUnsafe () ) return 0;   /* HD modes: skip the colliding full-screen skin texture */
 
  if ( g_pBootDir[ 0 ] ) {   /* non-mc boot ( USB/HDD/MX4SIO ): read <boot dir>Skins/<name>.smi via fio */
 
@@ -318,6 +335,8 @@ static int _DrawJellyfish ( int afFade ) {
  GSLoadImage  lLI;
  GSLoadImage* lpLI = UNCACHED_SEG( &lLI );
 
+ if ( _bgTexUnsafe () ) return 0;   /* HD modes: skip the colliding full-screen background */
+
  if (  !_DecodeJellyfish ()  ) return 0;
 
  g_GSCtx.m_TBW = ( s_JFW + 63 ) >> 6;
@@ -405,6 +424,8 @@ static void _DrawSplash ( void ) {
  u64*             lpDMA;
  GSLoadImage      lLI;
  GSLoadImage*     lpLI = UNCACHED_SEG( &lLI );
+
+ if ( _bgTexUnsafe () ) return;   /* HD modes: skip the colliding boot-splash texture */
 
  lpCtx = SMS_JPEGInit ( NULL, NULL );
 
