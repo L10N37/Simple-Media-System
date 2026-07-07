@@ -58,7 +58,7 @@ g_XShift:   .word   0x00000000
 .globl GS_InitLoadImage
 .globl GS_LoadImage
 .globl GS_RRV
-.globl GS_RenderRoundRect
+.globl GS_RenderRoundRect_asm
 .globl GS_VSync
 .globl GS_L2P
 .globl GS_VSync2
@@ -997,8 +997,8 @@ _gs_rrv:
     add     $sp, $sp, 24
 .end GS_RRV
 
-.ent GS_RenderRoundRect
-GS_RenderRoundRect:
+.ent GS_RenderRoundRect_asm
+GS_RenderRoundRect_asm:
     subu    $sp, $sp, 160
     sd      $fp, 144($sp)
     sd      $s7, 128($sp)
@@ -1072,7 +1072,7 @@ GS_RenderRoundRect:
     ld      $s0,  16($sp)
     jr      $ra
     addiu   $sp, $sp, 160
-.end GS_RenderRoundRect
+.end GS_RenderRoundRect_asm
 
 .ent GS_VSync
 GS_VSync:

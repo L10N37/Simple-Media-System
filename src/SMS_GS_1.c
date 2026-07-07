@@ -566,3 +566,92 @@ void GS_StoreImage ( GSStoreImage* apPkt, void* apDst ) {
  lpVIFIFO  [ 0 ] = 0x06000000;
 
 }  /* end GS_StoreImage */
+
+/* Smooth-corner replacement for the assembly GS_RenderRoundRect ( still present
+ * as GS_RenderRoundRect_asm ). Byte-compatible packet: same 34-dword layout, the
+ * same VIF DIRECT( 17 ) transfer, the same PRIM flags and vertex counts -- only
+ * the vertex DISTRIBUTION changed: corners are now true arcs ( 5 segments each )
+ * instead of the old coarse facets, so small radii ( 8 and below ) render as a
+ * rectangle with smooth corners rather than an octagon. */
+void GS_RenderRoundRect ( GSRoundRectPacket* apPack, int anX, int anY, int aW, int aH, int aRad, s64 aColor ) {
+
+ static const float s_Arc6[ 6 ] = {   /* sin 0,18,36,54,72,90 deg -- outline corner arcs */
+  0.000000F, 0.309017F, 0.587785F, 0.809017F, 0.951057F, 1.000000F
+ };
+ static const float s_Arc7[ 7 ] = {   /* sin 0,15,30,45,60,75,90 deg -- fill row arcs    */
+  0.000000F, 0.258819F, 0.500000F, 0.707107F, 0.866025F, 0.965926F, 1.000000F
+ };
+
+ u64*  lpDMA = ( u64* )apPack;
+ float lX0   = ( float )anX;
+ float lY0   = ( float )anY;
+ float lX1   = ( float )( anX + aW );
+ float lY1   = ( float )( anY + aH );
+ int   lIdx  = 8;
+ int   i;
+
+ lpDMA[ 0 ] = 0UL;
+ lpDMA[ 1 ] = 0x5000001100000000ULL;              /* VIF: NOP, DIRECT( 17 qwords )     */
+ lpDMA[ 2 ] = 0x2400000000000001ULL;              /* GIFtag: REGLIST, NLOOP 1, NREG 2  */
+ lpDMA[ 3 ] = 0x10UL;                             /* regs: PRIM, RGBAQ                 */
+ lpDMA[ 5 ] = ( u64 )aColor;
+
+ if ( aRad < 0 ) {   /* outline: linestrip around the perimeter, 27 verts ( 25 used + 2 pads ) */
+
+  float lR = ( float )-aRad;
+
+  lpDMA[ 4 ] = 0x182UL;                           /* LINESTRIP | AA1 | FST             */
+  lpDMA[ 6 ] = 27UL | 0x8000UL | ( 1ULL << 58 ) | ( 1ULL << 60 );
+  lpDMA[ 7 ] = 5UL;                               /* reg: XYZ2                         */
+
+  for ( i = 0; i < 6; ++i )   /* top-left: ( x0, y0+r ) -> ( x0+r, y0 ) */
+   lpDMA[ lIdx++ ] = GS_XYZ (
+    ( int )( lX0 + lR - lR * s_Arc6[ 5 - i ] + 0.5F ),
+    ( int )( lY0 + lR - lR * s_Arc6[ i     ] + 0.5F ), 0
+   );
+  for ( i = 0; i < 6; ++i )   /* top-right: ( x1-r, y0 ) -> ( x1, y0+r ) */
+   lpDMA[ lIdx++ ] = GS_XYZ (
+    ( int )( lX1 - lR + lR * s_Arc6[ i     ] + 0.5F ),
+    ( int )( lY0 + lR - lR * s_Arc6[ 5 - i ] + 0.5F ), 0
+   );
+  for ( i = 0; i < 6; ++i )   /* bottom-right: ( x1, y1-r ) -> ( x1-r, y1 ) */
+   lpDMA[ lIdx++ ] = GS_XYZ (
+    ( int )( lX1 - lR + lR * s_Arc6[ 5 - i ] + 0.5F ),
+    ( int )( lY1 - lR + lR * s_Arc6[ i     ] + 0.5F ), 0
+   );
+  for ( i = 0; i < 6; ++i )   /* bottom-left: ( x0+r, y1 ) -> ( x0, y1-r ) */
+   lpDMA[ lIdx++ ] = GS_XYZ (
+    ( int )( lX0 + lR - lR * s_Arc6[ i     ] + 0.5F ),
+    ( int )( lY1 - lR + lR * s_Arc6[ 5 - i ] + 0.5F ), 0
+   );
+
+  lpDMA[ lIdx ] = lpDMA[ 8 ];                     /* close the loop back to the start  */
+  lpDMA[ lIdx + 1 ] = lpDMA[ lIdx ];              /* 2 zero-length pads up to NLOOP 27 */
+  lpDMA[ lIdx + 2 ] = lpDMA[ lIdx ];
+  lpDMA[ lIdx + 3 ] = lpDMA[ lIdx ];              /* REGLIST qword pad ( GIF skips it ) */
+
+ } else {   /* fill: one vertical tristrip zig-zag, 14 arc-following rows x 2 = 28 verts */
+
+  float lR = ( float )aRad;
+
+  lpDMA[ 4 ] = 0x145UL;                           /* TRISTRIP | ABE | FST              */
+  lpDMA[ 6 ] = 28UL | 0x8000UL | ( 1ULL << 58 ) | ( 1ULL << 60 );
+  lpDMA[ 7 ] = 5UL;                               /* reg: XYZ2                         */
+
+  for ( i = 0; i < 7; ++i ) {   /* top corner region: rows y0 .. y0+r */
+   float lInset = lR - lR * s_Arc7[ i ];
+   float lRowY  = lY0 + lR - lR * s_Arc7[ 6 - i ];
+   lpDMA[ lIdx++ ] = GS_XYZ (  ( int )( lX0 + lInset + 0.5F ), ( int )( lRowY + 0.5F ), 0  );
+   lpDMA[ lIdx++ ] = GS_XYZ (  ( int )( lX1 - lInset + 0.5F ), ( int )( lRowY + 0.5F ), 0  );
+  }  /* end for */
+
+  for ( i = 0; i < 7; ++i ) {   /* bottom corner region: rows y1-r .. y1 */
+   float lInset = lR - lR * s_Arc7[ 6 - i ];
+   float lRowY  = lY1 - lR + lR * s_Arc7[ i ];
+   lpDMA[ lIdx++ ] = GS_XYZ (  ( int )( lX0 + lInset + 0.5F ), ( int )( lRowY + 0.5F ), 0  );
+   lpDMA[ lIdx++ ] = GS_XYZ (  ( int )( lX1 - lInset + 0.5F ), ( int )( lRowY + 0.5F ), 0  );
+  }  /* end for */
+
+ }  /* end else */
+
+}  /* end GS_RenderRoundRect */
