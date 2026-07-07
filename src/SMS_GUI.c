@@ -794,6 +794,17 @@ void GUI_Initialize ( int afCold ) {
 
  if ( afCold >= 0 ) {
 
+/* The InitClearAll backdrop is painted by an async GIF chain that GUI_Redraw
+ * kicks with KeepLists ( no wait ). SMS_GUIClockStart then spawns the higher-
+ * priority ( 33 < 100 ) clock thread, which snapshots the framebuffer under
+ * the clock ( GS_StoreImage -> s_pImg ) and re-blits that snapshot every tick.
+ * If the backdrop DMA has not yet repainted the clock corner, the snapshot
+ * grabs the outgoing player frame -> a persistent coloured ( red ) box under
+ * the clock on return from the music player. Drain the redraw chain first so
+ * the clock always snapshots the finished desktop. */
+  DMA_Wait ( DMAC_GIF );
+  GS_VSync ();
+
   g_Clock.m_X = g_GSCtx.m_Width  - 80;
   g_Clock.m_Y = g_GSCtx.m_Height - 35;
   g_Clock.m_W = 64;
