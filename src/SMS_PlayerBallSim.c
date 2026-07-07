@@ -24,6 +24,7 @@
 #define NBALLS 512
 
 extern unsigned char g_IconBall[ 316 ] __attribute__(   (  aligned( 16 ), section( ".data" )  )   );
+extern const unsigned char g_IconBallRGBA[];   /* 32x32 RGBA ball texture ( SMS_BallRGBA.c ) */
 
 typedef struct _ball_pos {
 
@@ -47,15 +48,20 @@ uint64_t* SMS_PlayerBallSim_Init ( uint32_t* apQWC ) {
 
  int          i;
  uint64_t*    lpUDMA;
- IPULoadImage lLoadImage;
+ GSLoadImage  lLoadImage;
+ GSLoadImage* lpLI = UNCACHED_SEG( &lLoadImage );
 
  g_GSCtx.m_VRAMTexPtr = g_GSCtx.m_VRAMPtr;
 
  lpUDMA = _U( g_BallPkt );
-
- IPU_InitLoadImage ( &lLoadImage, 32, 32 );
- IPU_LoadImage (  &lLoadImage, g_IconBall, sizeof ( g_IconBall ), 0, 0, 0, 1, 16  );
- lLoadImage.Destroy ( &lLoadImage );
+/* Upload Nadwislanski's 32x32 ball as a raw RGBA texture ( g_IconBallRGBA )
+   straight into VRAM. The old path decoded a lossy IPU/MPEG-1 blob
+   ( g_IconBall ) that could not preserve the ball's transparent edges. */
+ GS_InitLoadImage ( &lLoadImage, g_GSCtx.m_VRAMPtr, 1, GSPixelFormat_PSMCT32, 0, 0, 32, 32 );
+ SyncDCache ( &lLoadImage, &lLoadImage + 1 );
+ lpLI -> m_TrxPosReg.m_Value = GS_SET_TRXPOS( 0, 0, 0, 0, 0 );
+ GS_LoadImage ( &lLoadImage, ( void* )g_IconBallRGBA );
+ DMA_Wait ( DMAC_GIF );
 
  lpUDMA[ 0 ] = GIF_TAG( 3, 0, 0, 0, 0, 1 );
  lpUDMA[ 1 ] = GIFTAG_REGS_AD;
