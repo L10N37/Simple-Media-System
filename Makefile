@@ -38,7 +38,7 @@ EE_OBJS  = main.o SMS_OS.o SMS_GS_0.o SMS_GS_1.o SMS_GS_2.o SMS_Timer.o         
            SMS_PlayerBallSim.o SMS_SIF.o SMS_ContainerJPG.o SMS_FileMapping.o     \
            SMS_JPEGData.o SMS_JPEG.o SMS_Rescale.o SMS_MPEGInit.o                 \
            lzma2.o xz_crc32.o xz_dec_lzma2.o xz_dec_stream.o jellyfish_jpg.o     \
-           SMS_IconsRGBA.o splash_jpg.o main_bg_mini_jpg.o
+           SMS_IconsRGBA.o SMS_LoadingRGBA.o splash_jpg.o main_bg_mini_jpg.o
 
 ifeq ($(BDM),1)
   IRX_DIR = irx/

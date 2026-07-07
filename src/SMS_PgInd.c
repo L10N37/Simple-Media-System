@@ -22,50 +22,21 @@
 extern void* _gp;
 extern int   g_XShift;
 
+extern const unsigned char g_IconLoadingRGBA[];  /* 32x32 RGBA, alpha 0..0x80 (SMS_LoadingRGBA.c) */
+
 static int           s_ThreadID;
 static int           s_HandlerID;
 static unsigned char s_Stack  [                    4096 ] __attribute__(   (  aligned( 16 ), section( ".bss" )  )   );
-static u64           s_DrawPkt[                     112 ] __attribute__(   (  aligned( 64 ), section( ".bss" )  )   );
+static u64           s_DrawPkt[                      18 ] __attribute__(   (  aligned( 64 ), section( ".bss" )  )   );
 static u64           s_SendPkt[                      24 ] __attribute__(   (  aligned( 64 ), section( ".bss" )  )   );
 static unsigned int  s_Bitmap [ IND_SIZE * IND_SIZE * 4 ] __attribute__(   (  aligned( 64 ), section( ".bss" )  )   );
 
-static const unsigned int s_Data[ 144 ] __attribute__(   (  aligned( 16 ), section( ".rodata" )  )   ) = {
- 0x3F800000, 0x3F333333, 0x3F7C1C5C, 0x3F307A40,
- 0x3F708FB2, 0x3F286496, 0x3F5DB3D7, 0x3F1B3116,
- 0x3F441B7C, 0x3F094670, 0x3F248DB9, 0x3EE66003,
- 0x3EFFFFFD, 0x3EB33331, 0x3EAF1D3F, 0x3E7528F2,
- 0x3E31D0CA, 0x3DF8F11A, 0xB439FA42, 0xB4022F2E,
- 0xBE31D0E1, 0xBDF8F13A, 0xBEAF1D4A, 0xBE752901,
- 0xBF000003, 0xBEB33338, 0xBF248DBE, 0xBEE66009,
- 0xBF441B80, 0xBF094673, 0xBF5DB3DA, 0xBF1B3118,
- 0xBF708FB4, 0xBF286497, 0xBF7C1C5D, 0xBF307A41,
- 0xBF800000, 0xBF333333, 0xBF7C1C5B, 0xBF307A40,
- 0xBF708FB0, 0xBF286495, 0xBF5DB3D4, 0xBF1B3114,
- 0xBF441B79, 0xBF09466E, 0xBF248DB5, 0xBEE65FFD,
- 0xBEFFFFF3, 0xBEB3332A, 0xBEAF1D34, 0xBE7528E3,
- 0xBE31D0B3, 0xBDF8F0FA, 0x350B7BB1, 0x34C346C5,
- 0x3E31D0F8, 0x3DF8F15A, 0x3EAF1D55, 0x3E752911,
- 0x3F000008, 0x3EB3333F, 0x3F248DC2, 0x3EE66010,
- 0x3F441B84, 0x3F094676, 0x3F5DB3DD, 0x3F1B311A,
- 0x3F708FB6, 0x3F286499, 0x3F7C1C5E, 0x3F307A42,
- 0x00000000, 0x00000000, 0x3E31D0D5, 0x3DF8F12A,
- 0x3EAF1D45, 0x3E7528FA, 0x3F000001, 0x3EB33334,
- 0x3F248DBC, 0x3EE66006, 0x3F441B7E, 0x3F094672,
- 0x3F5DB3D8, 0x3F1B3117, 0x3F708FB3, 0x3F286497,
- 0x3F7C1C5D, 0x3F307A41, 0x3F800000, 0x3F333333,
- 0x3F7C1C5C, 0x3F307A40, 0x3F708FB1, 0x3F286495,
- 0x3F5DB3D5, 0x3F1B3115, 0x3F441B7A, 0x3F09466F,
- 0x3F248DB7, 0x3EE66000, 0x3EFFFFF8, 0x3EB3332D,
- 0x3EAF1D3A, 0x3E7528EA, 0x3E31D0BE, 0x3DF8F10A,
- 0xB4B9FA42, 0xB4822F2E, 0xBE31D0EC, 0xBDF8F14A,
- 0xBEAF1D50, 0xBE752909, 0xBF000006, 0xBEB3333B,
- 0xBF248DC0, 0xBEE6600D, 0xBF441B82, 0xBF094674,
- 0xBF5DB3DB, 0xBF1B3119, 0xBF708FB5, 0xBF286498,
- 0xBF7C1C5E, 0xBF307A41, 0xBF800000, 0xBF333333,
- 0xBF7C1C5B, 0xBF307A3F, 0xBF708FAF, 0xBF286494,
- 0xBF5DB3D2, 0xBF1B3113, 0xBF441B77, 0xBF09466D,
- 0xBF248DB3, 0xBEE65FFA, 0xBEFFFFEE, 0xBEB33326,
- 0xBEAF1D2F, 0xBE7528DB, 0xBE31D0A7, 0xBDF8F0EA
+/* Exact cos(2*pi*k/32); sin(k)=cos(k-8)=s_CosTab[(k+24)&31]. */
+static const float s_CosTab[ 32 ] __attribute__(   (  aligned( 16 ), section( ".rodata" )  )   ) = {
+  1.000000F, 0.980785F, 0.923880F, 0.831470F, 0.707107F, 0.555570F, 0.382683F, 0.195090F,
+  0.000000F,-0.195090F,-0.382683F,-0.555570F,-0.707107F,-0.831470F,-0.923880F,-0.980785F,
+ -1.000000F,-0.980785F,-0.923880F,-0.831470F,-0.707107F,-0.555570F,-0.382683F,-0.195090F,
+  0.000000F, 0.195090F, 0.382683F, 0.555570F, 0.707107F, 0.831470F, 0.923880F, 0.980785F
 };
 
 static void _pgind_thread ( void* );
@@ -191,13 +162,14 @@ __asm__(
 
 static void _pgind_thread ( void* apArg ) {
 
- static float s_lAlpha = 128.0F;
- const  float c_Step   = 128.0F / 18.0F;
+ static int    s_lIdx = 0;                                   /* frame 0..31, persists across Start/Stop */
 
- int           i, j;
  int           lDrawX  = ( g_GSCtx.m_Width  - IND_SIZE ) >> 1;
  int           lDrawY  = ( g_GSCtx.m_Height - IND_SIZE ) >> 1;
- int           lSendX  = ( lDrawX - IND_SIZE ) >> g_XShift;
+ int           lCX     = lDrawX + ( IND_SIZE >> 1 );
+ int           lCY     = lDrawY + ( IND_SIZE >> 1 );
+
+ int           lSendX  = ( lDrawX - IND_SIZE ) >> g_XShift;  /* bg grab region: UNCHANGED */
  int           lSendY  = lDrawY - IND_SIZE;
  int           lSendW  = ( IND_SIZE << 1 ) >> g_XShift;
  GSPixelFormat lPSM    = g_GSCtx.m_DrawCtx[ 0 ].m_FRAMEVal.PSM;
@@ -206,16 +178,21 @@ static void _pgind_thread ( void* apArg ) {
  int           lPSendY = ( int )( lSendY * lAR );
  int           lPSendH = ( int )(  ( IND_SIZE << 1 ) * lAR  ) + 2;
  int           lQWC    = (   (   lSendW * lPSendH * (  2 + ( lPSM == GSPixelFormat_PSMCT24 )  )   ) + 15    ) >> 4;
- float         lSO[ 3 ];
+
+ int           lXShift = g_XShift;
+
+ unsigned int  lTBW    = ( IND_SIZE + 63 ) >> 6;             /* = 1 */
+ unsigned int  lTexPtr = 0x4000 - (
+                (   ( lTBW << 6 ) * (  ( IND_SIZE + 31 ) & ~31  ) * 4   ) >> 8 );   /* = 0x3FE0 */
+ unsigned int  lTW = 5, lTH = 5;
+
  GSStoreImage  lStoreParam;
+ GSLoadImage   lLI;
+ GSLoadImage*  lpLI = UNCACHED_SEG( &lLI );
  u64           lDMA[ 4 ] __attribute__(   (  aligned( 16 )  )   );
 
- lSO[ 0 ] = ( float )IND_SIZE;
- lSO[ 1 ] = lDrawX;
- lSO[ 2 ] = lDrawY;
-
  lDMA[ 0 ] = DMA_TAG(  0, 0, DMATAG_ID_CALL, 0, s_SendPkt, 0 );
- lDMA[ 2 ] = DMA_TAG( 55, 0, DMATAG_ID_REFE, 0, s_DrawPkt, 0 );
+ lDMA[ 2 ] = DMA_TAG(  9, 0, DMATAG_ID_REFE, 0, s_DrawPkt, 0 );   /* QWC MUST be 9 */
 
  s_SendPkt[  0 ] = DMA_TAG( 6, 0, DMATAG_ID_CNT, 0, 0, 0 );
  s_SendPkt[  1 ] = 0L;
@@ -240,46 +217,63 @@ static void _pgind_thread ( void* apArg ) {
  s_SendPkt[ 20 ] = GS_SET_TEXFLUSH( 0 );
  s_SendPkt[ 21 ] = GS_TEXFLUSH;
 
- s_DrawPkt[ 0 ] = GIF_TAG( 18, 1, 0, 0, 1, 6 );
- s_DrawPkt[ 1 ] = ( GS_PRIM <<  0 ) | ( GS_RGBAQ <<  4 ) |
-                  ( GS_XYZ2 <<  8 ) | ( GS_XYZ2  << 12 ) |
-                  ( GS_XYZ2 << 16 ) | ( GS_XYZ2  << 20 );
- GS_XYZv (  &s_DrawPkt[ 2 ], ( float* )s_Data, 72, lSO, 0  );
-
- for ( i = 73, j = 109; i > 3; i -= 4, j -= 6 ) {
-  u64           lVal0 = s_DrawPkt[ i - 0 ];
-  u64           lVal1 = s_DrawPkt[ i - 1 ];
-  u64           lVal2 = s_DrawPkt[ i - 2 ];
-  u64           lVal3 = s_DrawPkt[ i - 3 ];
-  s_DrawPkt[ j - 5 ] = GS_SET_PRIM( GS_PRIM_PRIM_TRISTRIP, 0, 0, 0, 1, 0, 0, 0, 0 );
-  s_DrawPkt[ j - 4 ] = GS_SET_RGBAQ( 0xFF, 0x00, 0x00, 0x80, 0x00 );
-  s_DrawPkt[ j - 3 ] = lVal0;
-  s_DrawPkt[ j - 2 ] = lVal1;
-  s_DrawPkt[ j - 1 ] = lVal2;
-  s_DrawPkt[ j - 0 ] = lVal3;
- }  /* end for */
+ /* header AD = TEX0 + ALPHA + PRIM (NLOOP 3); then PACKED tristrip of 4 (UV,XYZ).
+  * u64 idx: header [0..7], strip tag [8..9], verts [10..17]; per-frame rewrite [11,13,15,17]. */
+ s_DrawPkt[ 0 ] = GIF_TAG( 3, 0, 0, 0, 0, 1 );
+ s_DrawPkt[ 1 ] = GIFTAG_REGS_AD;
+ s_DrawPkt[ 2 ] = GS_SET_TEX0( lTexPtr, lTBW, GSPixelFormat_PSMCT32, lTW, lTH,
+                               GS_TEX_TCC_RGBA, GS_TEX_TFX_DECAL, 0, 0, 0, 0, 0 );
+ s_DrawPkt[ 3 ] = GS_TEX0_1;
+ s_DrawPkt[ 4 ] = GS_SET_ALPHA( GS_ALPHA_A_CS, GS_ALPHA_B_CD, GS_ALPHA_C_AS, GS_ALPHA_D_CD, 0 );
+ s_DrawPkt[ 5 ] = GS_ALPHA_1;
+ s_DrawPkt[ 6 ] = GS_SET_PRIM( GS_PRIM_PRIM_TRISTRIP, GS_PRIM_IIP_FLAT, GS_PRIM_TME_ON,
+                               GS_PRIM_FGE_OFF, GS_PRIM_ABE_ON, GS_PRIM_AA1_OFF,
+                               GS_PRIM_FST_UV, GS_PRIM_CTXT_1, GS_PRIM_FIX_UNFIXED );
+ s_DrawPkt[ 7 ] = GS_PRIM;
+ s_DrawPkt[ 8 ] = GIF_TAG( 4, 1, 0, 0, 0, 2 );
+ s_DrawPkt[ 9 ] = GS_UV | ( GS_XYZ2 << 4 );
+ s_DrawPkt[ 10 ] = GS_SET_UV(  0 * 16 + 8,  0 * 16 + 8 );
+ s_DrawPkt[ 12 ] = GS_SET_UV( 31 * 16 + 8,  0 * 16 + 8 );
+ s_DrawPkt[ 14 ] = GS_SET_UV(  0 * 16 + 8, 31 * 16 + 8 );
+ s_DrawPkt[ 16 ] = GS_SET_UV( 31 * 16 + 8, 31 * 16 + 8 );
 
  GS_InitStoreImage ( &lStoreParam, 0, lSendX, lPSendY, lSendW, lPSendH );
- FlushCache ( 0 );
+ FlushCache ( 0 );                                          /* also flushes the static s_DrawPkt header for REFE */
  GS_StoreImage ( &lStoreParam, s_Bitmap );
+
+ GS_InitLoadImage ( &lLI, lTexPtr, lTBW, GSPixelFormat_PSMCT32, 0, 0, IND_SIZE, IND_SIZE );
+ SyncDCache ( &lLI, &lLI + 1 );
+ lpLI -> m_TrxPosReg.m_Value = GS_SET_TRXPOS( 0, 0, 0, 0, 0 );
+ GS_LoadImage ( &lLI, ( void* )g_IconLoadingRGBA );
+ DMA_Wait ( DMAC_GIF );
 
  while ( 1 ) {
 
-  float          lRA   = s_lAlpha;
-  u64*           lpDMA = UNCACHED_SEG( &s_DrawPkt[ 3 ] );
+  float lc, ls;
+  u64*  lpDMA = UNCACHED_SEG( &s_DrawPkt[ 0 ] );
 
   SleepThread ();
 
-  for ( i = 0; i < 110; i += 6 ) {
-   int lA = ( int )( lRA + 0.5F );
-   lpDMA[ i ] = GS_SET_RGBAQ( 0xFF, 0x00, 0x00, lA, 0x00 );
-   lRA -= c_Step;
-   if ( lRA < 0.0F ) lRA = 128.0F;
-  }  /* end for */
+  lc = s_CosTab[ s_lIdx ];
+  ls = s_CosTab[ ( s_lIdx + 24 ) & 31 ];
 
-  s_lAlpha -= c_Step;
+  /* rotate offsets, then apply GS_XYZ's exact per-axis transform inline (x:>>xshift<<4, y:*AR<<4). */
+  {
+   float rx, ry;   int dx, dy;   u64* p = &lpDMA[ 0 ];
+   #define PGIND_SET( SLOT, DX, DY )                                                  \
+     rx = ( DX ) * lc - ( DY ) * ls;                                                  \
+     ry = ( DX ) * ls + ( DY ) * lc;                                                  \
+     dx = ( ( lCX + ( int )( rx + ( rx >= 0 ? 0.5F : -0.5F ) ) ) >> lXShift ) << 4;   \
+     dy = ( int )( ( lCY + ry ) * lAR + ( ( lCY + ry ) >= 0 ? 0.5F : -0.5F ) ) << 4;  \
+     p[ SLOT ] = GS_SET_XYZ( dx, dy, 0 )
+   PGIND_SET( 11, -16, -16 );   /* TL */
+   PGIND_SET( 13,  16, -16 );   /* TR */
+   PGIND_SET( 15, -16,  16 );   /* BL */
+   PGIND_SET( 17,  16,  16 );   /* BR */
+   #undef PGIND_SET
+  }
 
-  if ( s_lAlpha <= 0.0F ) s_lAlpha = 128.0F;
+  s_lIdx = ( s_lIdx + 1 ) & 31;
 
   DMA_SendChain ( DMAC_GIF, lDMA );
 
