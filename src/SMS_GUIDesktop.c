@@ -569,11 +569,31 @@ static void Desktop_Render ( GUIObject* apObj, int aCtx ) {
  * _DrawSplash ). */
    _DrawSplash ();
 
+   if (  _bgTexUnsafe ()  ) {
+/* HD DTV (720p/1080i): do NOT upload the full-screen background texture. At
+ * 1080i the framebuffer alone eats ~14.5K of VRAM's 16K blocks, so the 256KB
+ * mini-bg placed at 0x4000 - texsize lands on the font-glyph VRAM and combs
+ * the text ( the "picket-fence" 1080i report ); and any pixel the stretch
+ * leaves uncovered bakes into the shared desktop shadow ( m_pDBuf ) as a
+ * stationary black rectangle ( the 720p black-bar report ). Paint a texture-
+ * free opaque gradient instead -- exactly what upstream does in HD -- using
+ * the already-allocated InitClear packet. That frees the VRAM the font needs
+ * AND guarantees an opaque backdrop capture. SD modes keep the jellyfish. */
+    GSContext_RenderVGRect (
+     lpDMA, 0, 0, g_GSCtx.m_Width, g_GSCtx.m_Height,
+     GS_SET_RGBAQ( 0x00, 0x00, 0x40, 0x80, 0x00 ),
+     GS_SET_RGBAQ( 0x00, 0x00, 0x00, 0x80, 0x00 )
+    );
+    GSContext_Flush ( 0, GSFlushMethod_KeepLists );
+    GS_VSync ();
+
+   } else {
 /* Fade the desktop background up from black, so the splash's fade-out flows
  * straight into the desktop with no black gap. The opaque jellyfish covers the
  * whole screen, so the old gradient fill is no longer needed. */
-   _DrawJellyfish ( 1 );
-   ( void )lpDMA;
+    _DrawJellyfish ( 1 );
+    ( void )lpDMA;
+   }  /* end else */
 
    ( void )lBP;  /* animated "SMS" ball-logo watermark removed -- SMS branding
                   * now appears on the boot splash ( _DrawSplash ) above. */
