@@ -241,7 +241,7 @@ static void GUIFileMenu_Render ( GUIObject* apObj, int aCtx ) {
 
   }  /* end if */
 
-  SMS_InitBitBlt ( s_BitBltPack, 9, 58, g_GSCtx.m_Height - 58 - 36 );
+  SMS_InitBitBlt ( s_BitBltPack, 9, 59, g_GSCtx.m_Height - 59 - 36 );   /* starts below the device bar's Y=56..58 selection arrow */
 
  }  /* end if */
 

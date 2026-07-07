@@ -94,14 +94,25 @@ static GSLoadImage s_BitBlt;
 
 static void GUIDevMenu_RenderSelRect ( GUIDevMenu* apMenu, _DevMenuItem* apActive, _DevMenuItem* apSelected ) {
 
- GS_RenderRoundRect (
-  ( GSRoundRectPacket* )( apMenu -> m_pActRect - 2 ),
-  apActive -> m_XOffset - 1, 4, 48, 48, 8, ( g_Palette[ g_Config.m_BrowserSCIdx - 1 ] & 0x00FFFFFF ) | 0x10000000
- );
- GS_RenderRoundRect (
-  ( GSRoundRectPacket* )( apMenu -> m_pSelRect - 2 ),
-  apSelected -> m_XOffset - 1, 4, 48, 48, -8, ( g_Palette[ g_Config.m_BrowserSCIdx - 1 ] & 0x00FFFFFF ) | 0x80000000
- );
+/* Selection marker ( per graphics, item 25 ): the rounded highlight frames are
+ * replaced by a small white arrow -- an 8x3 upward-pointing triangle with its tip
+ * at Y = 56, centred under the device icon the user is choosing. m_pActRect was
+ * initialized to a GS no-op at allocation and is no longer drawn to. */
+ u64* lpDMA = apMenu -> m_pSelRect;
+ int  lCX   = apSelected -> m_XOffset + 24;   /* centre of the 48px device icon */
+
+ ( void )apActive;
+
+ lpDMA[ 0 ] = GIF_TAG( 1, 1, 0, 0, GIFTAG_FLG_REGLIST, 6 );
+ lpDMA[ 1 ] = GIFTAG_REGS_PRIM            | ( GIFTAG_REGS_RGBAQ <<  4 ) |
+              ( GIFTAG_REGS_XYZ2  <<  8 ) | ( GIFTAG_REGS_XYZ2  << 12 ) |
+              ( GIFTAG_REGS_XYZ2  << 16 ) | ( GIFTAG_REGS_NOP   << 20 );
+ lpDMA[ 2 ] = GS_SET_PRIM( GS_PRIM_PRIM_TRIANGLE, 0, 0, 0, 1, 1, 0, 0, 0 );
+ lpDMA[ 3 ] = GS_SET_RGBAQ( 0xFF, 0xFF, 0xFF, 0x80, 0x00 );
+ lpDMA[ 4 ] = GS_XYZ( lCX,     56, 0 );   /* tip                 */
+ lpDMA[ 5 ] = GS_XYZ( lCX - 4, 59, 0 );   /* base left           */
+ lpDMA[ 6 ] = GS_XYZ( lCX + 4, 59, 0 );   /* base right          */
+ lpDMA[ 7 ] = 0UL;
 
 }  /* end GUIDevMenu_RenderSelRect */
 
@@ -146,7 +157,7 @@ static void GUIDevMenu_Render ( GUIObject* apObj, int aCtx ) {
 
   if ( lpMenu -> m_pActRect && lpMenu -> m_pActive ) GUIDevMenu_RenderSelRect (  lpMenu, ( _DevMenuItem* )( unsigned int )lpMenu -> m_pActive -> m_Param, ( _DevMenuItem* )( unsigned int )lpMenu -> m_pSelected -> m_Param  );
 
-  lXYXY = GS_L2P ( 0, 0, g_GSCtx.m_LWidth, 58 );
+  lXYXY = GS_L2P ( 0, 0, g_GSCtx.m_LWidth, 59 );   /* rows 0..58: panel + the Y=56..58 selection arrow */
   lX = ( lXYXY >>  0 ) & 0xFFFF;
   lY = ( lXYXY >> 16 ) & 0xFFFF;
   lW = ( lXYXY >> 32 ) & 0xFFFF;
@@ -298,8 +309,15 @@ static int GUIDevMenu_HandleMount ( GUIDevMenu* apMenu, unsigned int aMount, u64
 
   if ( lpList -> m_Size == 1 ) {
 
-   apMenu -> m_pActRect = GSContext_NewList (  GS_RRT_PACKET_SIZE ()  );
-   apMenu -> m_pSelRect = GSContext_NewList (  GS_RRT_PACKET_SIZE ()  );
+   {  /* m_pActRect is kept ( Render submits both lists ) but is now a permanent GS
+       * no-op; m_pSelRect holds the 4-qword arrow packet built by RenderSelRect. */
+    int i;
+    apMenu -> m_pActRect = GSContext_NewList ( 2 );
+    apMenu -> m_pActRect[ 0 ] = GIF_TAG( 0, 1, 0, 0, 0, 0 );   /* NLOOP=0 -> draws nothing */
+    apMenu -> m_pActRect[ 1 ] = 0UL;
+    apMenu -> m_pSelRect = GSContext_NewList ( 8 );
+    for ( i = 0; i < 8; ++i ) apMenu -> m_pSelRect[ i ] = 0UL;  /* benign until first render */
+   }
 
    GUIDevMenu_RenderSelRect ( apMenu, lpItem, lpItem );
 
