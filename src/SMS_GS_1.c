@@ -598,7 +598,10 @@ void GS_RenderRoundRect ( GSRoundRectPacket* apPack, int anX, int anY, int aW, i
 
  if ( aRad < 0 ) {   /* outline: linestrip around the perimeter, 27 verts ( 25 used + 2 pads ) */
 
-  float lR = ( float )-aRad;
+  float lR   = ( float )-aRad;
+  float lMax = ( float )(  ( aW < aH ? aW : aH ) >> 1  );
+
+  if ( lR > lMax ) lR = lMax;   /* match the fill clamp so outline + fill corners stay aligned */
 
   lpDMA[ 4 ] = 0x182UL;                           /* LINESTRIP | AA1 | FST             */
   lpDMA[ 6 ] = 27UL | 0x8000UL | ( 1ULL << 58 ) | ( 1ULL << 60 );
@@ -632,9 +635,16 @@ void GS_RenderRoundRect ( GSRoundRectPacket* apPack, int anX, int anY, int aW, i
 
  } else {   /* fill: one vertical tristrip zig-zag, 14 arc-following rows x 2 = 28 verts */
 
-  float lR = ( float )aRad;
+  float lR   = ( float )aRad;
+  float lMax = ( float )(  ( aW < aH ? aW : aH ) >> 1  );
 
-  lpDMA[ 4 ] = 0x145UL;                           /* TRISTRIP | ABE | FST              */
+  if ( lR > lMax ) lR = lMax;   /* corners <= half the shorter side -> fold-proof for thin rects */
+
+  lpDMA[ 4 ] = 0x144UL;                           /* TRISTRIP | ABE | FST -- type 4, NOT the fan
+                                                   * 5 ( 0x145 ): these verts are emitted in strip
+                                                   * order with no center pivot, so PRIM=fan drew
+                                                   * diagonal wedge triangles + gaps ( the "triangular
+                                                   * glitches" on panels and the selection bar ).   */
   lpDMA[ 6 ] = 28UL | 0x8000UL | ( 1ULL << 58 ) | ( 1ULL << 60 );
   lpDMA[ 7 ] = 5UL;                               /* reg: XYZ2                         */
 
