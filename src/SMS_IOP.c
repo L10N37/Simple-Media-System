@@ -610,8 +610,8 @@ int SMS_IOPStartATA ( int afStatus ) {
 
 int SMS_IOPStartMMCE ( int afStatus ) {
 
- static char lMmce[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "mmceX:";
- int         i, ret, lFD;
+ static char lMmce[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "mmceX:/";
+ int         i, lTry;
 
  /* MMCE ( SD2PSX / MemCard PRO ) exposes its microSD over the memory-card / SIO2
   * port via mmceman as browsable mmce0: / mmce1: devices -- NOT BDM mass:, so it
@@ -624,27 +624,39 @@ int SMS_IOPStartMMCE ( int afStatus ) {
 
  SifExecDecompModuleBuffer ( &mmceman_irx, size_mmceman_irx, 0, NULL, &i );
 
- for ( i = 0; i < 5; ++i ) {
-  ret = 0x01000000;
-  while ( ret-- ) asm ( "nop\nnop\nnop\nnop" );
- }  /* end for */
-
  g_IOPFlags |= SMS_IOPF_MMCE;
 
+ /* Presence is tested the OPL / NHDDL way ( mmcesupport.c ): fileXioDevctl(
+  * "mmceN:/", 0x1, ... ), where 0x1 == MMCE_CMD_PING -- a pure SIO2 controller
+  * handshake that does NOT need the microSD FAT mounted. The old fioDopen(
+  * "mmceN:" ) instead sent a filesystem dir-open ( MMCE_CMD_FS_DOPEN ) on the
+  * empty root, which returns < 0 on a present-but-still-mounting card -> the card
+  * read as "not detected". mmceman's __start already pings + resets both ports
+  * synchronously inside the blocking module load above, so a present card answers
+  * on the first ping; the small bounded re-poll only covers a card still settling
+  * right after that reset ( an empty slot's ping self-bounds at the IOP-side
+  * timeout, which also paces the retries -- no EE delay call needed ). The
+  * "mmceN:/" root string is exactly what the browser opens ( SMS_FileDir.c ), so a
+  * detected card is immediately browsable via the same ioman->iomanX bridge as
+  * mass:. */
  for ( i = 0; i < 2; ++i ) {
 
   lMmce[ 4 ] = i + '0';
-  lFD = fioDopen ( lMmce );
 
-  if ( lFD >= 0 ) {
+  for ( lTry = 0; lTry < 3; ++lTry ) {
 
-   fioDclose ( lFD );
-   if (  !( s_MmceAdded & ( 1 << i ) )  ) {
-    g_MmceFlags |= ( 1 << i );
-    s_MmceAdded |= ( 1 << i );
+   if (  fileXioDevctl ( lMmce, 0x1 /* MMCE_CMD_PING */, NULL, 0, NULL, 0 ) != -1  ) {
+
+    if (  !( s_MmceAdded & ( 1 << i ) )  ) {
+     g_MmceFlags |= ( 1 << i );
+     s_MmceAdded |= ( 1 << i );
+    }  /* end if */
+
+    break;
+
    }  /* end if */
 
-  }  /* end if */
+  }  /* end for */
 
  }  /* end for */
 
