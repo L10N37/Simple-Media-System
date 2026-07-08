@@ -1253,6 +1253,20 @@ static int _start_device (  GUIMenu* apMenu, int ( *Start ) ( int )  ) {
 
  } else {
 
+/* Swallow the still-held confirm before the menu is rebuilt. _device_handler
+ * parks the cursor on s_DevMenu[0] ( "Network Settings" ), and SMS's software
+ * auto-repeat ( QueryPad0 -> QueryPad1 ) would otherwise stream the held CROSS
+ * straight down Network Settings -> Edit IP config -> the IP octet editor and
+ * roll octet 1 ( 0..255 ), pinning the user there -- the "starting MMCE dumps
+ * me in the network octet loop" report. MMCE is the worst offender because its
+ * start does a ~1-2 s blind busy-wait ( SMS_IOP.c ) with no on-screen feedback,
+ * so the user keeps holding X. Same drain idiom the rest of the GUI already
+ * uses ( e.g. SMS_GUISMBrowser "swallow the press that opened us" ), bounded on
+ * g_Timer ( milliseconds ) so a genuinely stuck pad can never hang the wait. */
+  {
+   u64 lEnd = g_Timer + 3000;
+   while (  GUI_ReadButtons () && g_Timer < lEnd  );
+  }
   GUI_MenuPopState ( apMenu );
   _device_handler ( apMenu, 0 );
 
