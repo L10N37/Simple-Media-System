@@ -295,6 +295,8 @@ static int _mc_get_info ( void ) {
 
 int SMS_ConfigOnFS ( void ) { return s_CfgOnFS; }   /* 1 = booted from a filesystem device ( config is a plain file on the boot drive, not an mc save ) */
 
+const char* SMS_ConfigPath ( void ) { return s_pMC0SMC; }   /* the SMS.cfg path derived from argv[0]; its device prefix ( mmce/mass/pfs ) tells us what to mount for the config */
+
 int SMS_LoadConfig ( void  ) {
 
  int retVal = 0;

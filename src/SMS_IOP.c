@@ -809,18 +809,42 @@ void SMS_IOPInit ( void ) {
  ee_thread_t lThreadParam;
 
 #ifdef BDM
-/* Booted from a filesystem device ( e.g. USB )? SMS.cfg lives on that drive, but
- * SMS_LoadConfig already ran ( inside GUI_Initialize ) BEFORE the drive was
- * mounted, so it silently fell back to defaults ( "settings not loaded on boot"
- * ). The display is up by now, so mounting here is safe -- doing it PRE-GUI
- * black-screened the boot. Mount USB and re-load the config BEFORE the auto-start
- * section below reads m_NetworkFlags, then re-apply the palette so colours take.
- * ( Display MODE still needs a reboot to switch -- the GS is already inited -- but
- * colours / auto-start / browser+player settings now persist across boots. ) */
+/* Booted from a filesystem device? SMS.cfg lives on THAT device ( the argv[0]
+ * boot drive ), but SMS_LoadConfig already ran inside GUI_Initialize BEFORE any
+ * device was mounted, so it silently fell back to defaults ( "settings not loaded
+ * on boot" ). Mount the boot device HERE -- keyed off the config path's device
+ * prefix, i.e. lazy-load via arg0 -- then re-load the config BEFORE the auto-start
+ * section reads m_NetworkFlags, and re-apply the palette. Done post-GUI ( display
+ * already up ) so a mount hang is a visible stall, NOT a black boot ( mounting
+ * pre-GUI black-screened ). Display MODE still needs a reboot to switch ( GS
+ * already inited ), but colours / auto-start / browser+player settings persist. */
  if ( SMS_ConfigOnFS () ) {
-  SMS_IOPStartUSB ( 1 );   /* idempotent; the AUTO_USB call below becomes a no-op */
-  SMS_LoadConfig  ();
-  GUI_SetColors   ();
+
+  const char* lpCfg = SMS_ConfigPath ();   /* e.g. "mmce0:/APPS/SMS.cfg" */
+
+  if ( strncmp ( lpCfg, "mmce", 4 ) == 0 ) {
+
+   SMS_IOPStartMMCE ( 1 );   /* booted from SD2PSX / MemCard PRO */
+
+  } else if ( strncmp ( lpCfg, "mass", 4 ) == 0 ) {
+
+   int lCfgFD;
+
+   SMS_IOPStartUSB ( 1 );                       /* mass could be USB ... */
+
+   lCfgFD = fioOpen ( lpCfg, O_RDONLY );        /* is the cfg actually on USB? */
+   if ( lCfgFD >= 0 ) fioClose ( lCfgFD );
+   else SMS_IOPStartMX4SIO ( 1 );               /* ... or MX4SIO ( also mass ) */
+
+  } else if ( strncmp ( lpCfg, "pfs", 3 ) == 0 || strncmp ( lpCfg, "hdd", 3 ) == 0 ) {
+
+   SMS_IOPStartHDD ( 1 );                        /* internal HDD ( PFS ) */
+
+  }  /* end else if */
+
+  SMS_LoadConfig ();
+  GUI_SetColors  ();
+
  }  /* end if */
 #endif
 
