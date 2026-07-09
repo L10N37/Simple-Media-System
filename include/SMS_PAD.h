@@ -20,6 +20,7 @@ int ReadPadStatus_raw(int port, int slot);
 int ReadCombinedPadStatus_raw(void);
 void PadDeinitPads(void);
 void PadInitPads(void);
+void PadReacquire(void);   /* re-open the pad ports after a live SIO2 driver load ( mmceman ) desyncs padman */
 #define SMS_PadButtonStatus padButtonStatus
 #define PAD_Init() PadInitPads()
 #define PAD_Quit() PadDeinitPads()

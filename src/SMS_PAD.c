@@ -48,6 +48,40 @@ void PadDeinitPads(void)
     }
 }
 
+void PadReacquire(void)
+{
+    int lState;
+    int lTries;
+
+    /* mmceman, loaded LIVE by SMS_IOPStartMMCE, installs a sio2man hook and
+     * pings/RESETs the SD2PSX on the shared SIO2 memory-card ports; that one-
+     * shot bus traffic knocks padman's ALREADY-open controller port out of
+     * PAD_STATE_STABLE, after which padRead() returns 0 and the pad reads dead.
+     * SMS opens the pad once at boot ( GUI_Initialize ) and never re-acquires
+     * it, so the desync is permanent -> "files browse but no buttons register".
+     * Re-run padman's port handshake here, exactly as GUI_Initialize does. Safe
+     * synchronously: this runs on the EE GUI thread with the async pad poller
+     * suspended. Bounded by an iteration + nop-spin cap ( NOT g_Timer, which
+     * GUI_Suspend resets during a menu handler ) so it can never hang. */
+    if (!pad_inited)
+        return;
+
+    PadDeinitPads();
+    PadInitPads();
+
+    for (lTries = 0; lTries < 240; ++lTries) {
+
+        lState = padGetState(0, 0);
+
+        if (lState == PAD_STATE_STABLE || lState == PAD_STATE_FINDCTP1)
+            break;
+
+        { int lSpin = 0x00020000; while (lSpin--) asm ("nop\nnop\nnop\nnop"); }   /* ~ms of real time so padman can re-STABLE */
+    }
+
+    padSetMainMode(0, 0, PAD_MMODE_DIGITAL, PAD_MMODE_LOCK);
+}
+
 int ReadPadStatus_raw(int port, int slot)
 {
     struct padButtonStatus buttons;

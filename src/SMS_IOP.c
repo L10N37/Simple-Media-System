@@ -18,6 +18,7 @@
 #include "SMS_Data.h"
 #include "SMS_Config.h"
 #include "SMS_GUI.h"
+#include "SMS_PAD.h"
 #include "SMS_Locale.h"
 #include "SMS_SIF.h"
 #include "SMS_SPU.h"
@@ -666,6 +667,14 @@ int SMS_IOPStartMMCE ( int afStatus ) {
   }  /* end for */
 
  }  /* end for */
+
+ /* mmceman's sio2man hook + the SIO2 PING/RESET traffic above desyncs padman's
+  * already-open controller port ( the pad reads dead after Start MMCE ). Re-open
+  * both pad ports now -- while the GUI pad poller is suspended and BEFORE
+  * _start_device drains the still-held confirm, so the drain then acts on a live
+  * pad. Also covers the AUTO_MMCE-at-boot path ( SMS_IOPInit ), which runs after
+  * GUI_Initialize has opened the pad but before GUI_Run starts polling. */
+ PadReacquire ();
 
  return g_IOPFlags & SMS_IOPF_MMCE;
 
