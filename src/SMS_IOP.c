@@ -416,8 +416,6 @@ int SMS_IOPStartUSB ( int afStatus ) {
 #ifdef BDM
  int ret;
 
- if ( g_IOPFlags & SMS_IOPF_USB ) return g_IOPFlags & SMS_IOPF_USB;   /* idempotent: already mounted ( early boot mount / auto-start ) -> don't re-load usbd */
-
  SifExecDecompModuleBuffer ( &usbd_irx, size_usbd_irx, 0, NULL, &i );
  g_IOPFlags |= SMS_IOPF_USB;
 

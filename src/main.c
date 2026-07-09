@@ -34,8 +34,6 @@ DISABLE_EXTRA_TIMERS_FUNCTIONS();
 
 int main ( int argc, char** argv ) {
 
- int lfFSBoot = 0;
-
  if ( argc > 0 && argv[ 0 ][ 0 ] == 'm' && argv[ 0 ][ 1 ] == 'c' ) {
 
   char lSlot = argv[ 0 ][ 2 ];
@@ -49,28 +47,12 @@ int main ( int argc, char** argv ) {
   g_pExec1    [ 2 ] = lSlot;
   g_MCSlot          = lSlot - '0';
 
- } else if ( argc > 0 ) {
-
-  SMS_ConfigSetCWD ( argv[ 0 ] );   /* non-mc boot -> settings in CWD ( next to the ELF ) */
-  lfFSBoot = 1;
-
- }  /* end else if */
+ } else if ( argc > 0 ) SMS_ConfigSetCWD ( argv[ 0 ] );   /* non-mc boot -> settings in CWD ( next to the ELF ) */
 
  SMS_IOPReset ( 0 );
  SMS_EEInit   ();
  CDVD_Init    ();
  CDDA_Init    ();
-
-#ifdef BDM
-/* Booted from a filesystem device ( e.g. USB ) -> SMS.cfg lives on that drive,
- * NOT the memory card. Mount USB mass storage NOW, BEFORE GUI_Initialize runs
- * SMS_LoadConfig, otherwise the config read ( and every later save ) targets an
- * unmounted mass0: and silently fails -- the "no settings loaded" + "save
- * errored" seen when booting from USB. Same call AUTO_USB already makes, just
- * earlier; idempotent so SMS_IOPInit's later auto-start is a no-op. Harmless if
- * no USB device is present. */
- if ( lfFSBoot ) SMS_IOPStartUSB ( 0 );
-#endif
 
  GUI_Initialize ( 1 );
  SMS_PgIndStart ();
