@@ -230,7 +230,7 @@ static void _pgind_thread ( void* apArg ) {
                                GS_PRIM_FGE_OFF, GS_PRIM_ABE_ON, GS_PRIM_AA1_OFF,
                                GS_PRIM_FST_UV, GS_PRIM_CTXT_1, GS_PRIM_FIX_UNFIXED );
  s_DrawPkt[ 7 ] = GS_PRIM;
- s_DrawPkt[ 8 ] = GIF_TAG( 4, 1, 0, 0, 0, 2 );
+ s_DrawPkt[ 8 ] = GIF_TAG( 4, 1, 0, 0, 1, 2 );   /* FLG=1 REGLIST: the 4 verts below pack UV+XYZ2 two-per-qword ( [10]=UV0 [11]=XYZ0 ... ). FLG=0 PACKED misreads them ( each reg = a full qword ) -> garbage/off-screen quad = invisible spinner. Matches the ball sim's REGLIST vertex tag. */
  s_DrawPkt[ 9 ] = GS_UV | ( GS_XYZ2 << 4 );
  s_DrawPkt[ 10 ] = GS_SET_UV(  0 * 16 + 8,  0 * 16 + 8 );
  s_DrawPkt[ 12 ] = GS_SET_UV( 31 * 16 + 8,  0 * 16 + 8 );
