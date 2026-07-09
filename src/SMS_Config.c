@@ -293,6 +293,8 @@ static int _mc_get_info ( void ) {
 }  /* end _mc_get_info */
 #endif  /* BDM */
 
+int SMS_ConfigOnFS ( void ) { return s_CfgOnFS; }   /* 1 = booted from a filesystem device ( config is a plain file on the boot drive, not an mc save ) */
+
 int SMS_LoadConfig ( void  ) {
 
  int retVal = 0;

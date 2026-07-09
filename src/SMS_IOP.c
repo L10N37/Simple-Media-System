@@ -416,6 +416,8 @@ int SMS_IOPStartUSB ( int afStatus ) {
 #ifdef BDM
  int ret;
 
+ if ( g_IOPFlags & SMS_IOPF_USB ) return g_IOPFlags & SMS_IOPF_USB;   /* idempotent: already mounted -> don't re-load usbd */
+
  SifExecDecompModuleBuffer ( &usbd_irx, size_usbd_irx, 0, NULL, &i );
  g_IOPFlags |= SMS_IOPF_USB;
 
@@ -805,6 +807,22 @@ void SMS_IOPInit ( void ) {
  int         i, lFD;
  char        lBuff[ 64 ];
  ee_thread_t lThreadParam;
+
+#ifdef BDM
+/* Booted from a filesystem device ( e.g. USB )? SMS.cfg lives on that drive, but
+ * SMS_LoadConfig already ran ( inside GUI_Initialize ) BEFORE the drive was
+ * mounted, so it silently fell back to defaults ( "settings not loaded on boot"
+ * ). The display is up by now, so mounting here is safe -- doing it PRE-GUI
+ * black-screened the boot. Mount USB and re-load the config BEFORE the auto-start
+ * section below reads m_NetworkFlags, then re-apply the palette so colours take.
+ * ( Display MODE still needs a reboot to switch -- the GS is already inited -- but
+ * colours / auto-start / browser+player settings now persist across boots. ) */
+ if ( SMS_ConfigOnFS () ) {
+  SMS_IOPStartUSB ( 1 );   /* idempotent; the AUTO_USB call below becomes a no-op */
+  SMS_LoadConfig  ();
+  GUI_SetColors   ();
+ }  /* end if */
+#endif
 
  SifLoadModule ( s_pLIBSD, 0, NULL );
 

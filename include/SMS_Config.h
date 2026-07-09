@@ -136,6 +136,7 @@ int  SMS_LoadConfig ( void                );
 int  SMS_SaveConfig ( void                );
 void SMS_SetMCSlot  ( char                );
 void SMS_ConfigSetCWD ( const char*       );
+int  SMS_ConfigOnFS ( void                );
 void SMS_LoadXLT    ( void                );
 void SMS_SetPalette ( const unsigned int* );
 
