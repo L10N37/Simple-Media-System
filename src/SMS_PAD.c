@@ -26,6 +26,7 @@
 static unsigned char padArea[2][256] __attribute__(   (  aligned( 64 ), section( ".data" )  )   );
 static unsigned int old_pad[2] = {0, 0};
 int pad_inited = 0;
+static int s_padState[2] = { PAD_STATE_DISCONN, PAD_STATE_DISCONN };   /* last state per port, for the self-heal reader */
 
 void PadInitPads(void)
 {
@@ -50,47 +51,57 @@ void PadDeinitPads(void)
 
 void PadReacquire(void)
 {
-    int lState;
-    int lTries;
-
     /* mmceman, loaded LIVE by SMS_IOPStartMMCE, installs a sio2man hook and
-     * pings/RESETs the SD2PSX on the shared SIO2 memory-card ports; that one-
-     * shot bus traffic knocks padman's ALREADY-open controller port out of
-     * PAD_STATE_STABLE, after which padRead() returns 0 and the pad reads dead.
-     * SMS opens the pad once at boot ( GUI_Initialize ) and never re-acquires
-     * it, so the desync is permanent -> "files browse but no buttons register".
-     * Re-run padman's port handshake here, exactly as GUI_Initialize does. Safe
-     * synchronously: this runs on the EE GUI thread with the async pad poller
-     * suspended. Bounded by an iteration + nop-spin cap ( NOT g_Timer, which
-     * GUI_Suspend resets during a menu handler ) so it can never hang. */
+     * pings/RESETs the SD2PSX on the shared SIO2 memory-card ports; that bus
+     * traffic knocks padman's ALREADY-open controller port out of STABLE, after
+     * which a bare padRead() returns 0 = "files browse but no buttons register".
+     * Re-open both ports so the port state machine re-arms, then let the
+     * per-frame self-heal in ReadPadStatus_raw drive them back to STABLE over the
+     * next frames ( padman needs real vblank time a synchronous busy-wait here
+     * cannot provide -- a one-shot re-acquire did NOT hold on hardware ). A plain
+     * port re-open keeps the padman RPC binding ( lighter than padEnd/padInit ).
+     * Safe: runs on the EE GUI thread with the async poller suspended. */
     if (!pad_inited)
         return;
 
-    PadDeinitPads();
-    PadInitPads();
+    padPortClose(0, 0);
+    padPortClose(1, 0);
+    padPortOpen(0, 0, padArea[0]);
+    padPortOpen(1, 0, padArea[1]);
 
-    for (lTries = 0; lTries < 240; ++lTries) {
-
-        lState = padGetState(0, 0);
-
-        if (lState == PAD_STATE_STABLE || lState == PAD_STATE_FINDCTP1)
-            break;
-
-        { int lSpin = 0x00020000; while (lSpin--) asm ("nop\nnop\nnop\nnop"); }   /* ~ms of real time so padman can re-STABLE */
-    }
-
-    padSetMainMode(0, 0, PAD_MMODE_DIGITAL, PAD_MMODE_LOCK);
+    s_padState[0] = PAD_STATE_DISCONN;   /* force the reader to re-arm the mode when the port next reaches STABLE */
+    s_padState[1] = PAD_STATE_DISCONN;
 }
 
 int ReadPadStatus_raw(int port, int slot)
 {
     struct padButtonStatus buttons;
     u32 paddata;
+    int state;
 
     paddata = 0;
-    if (padRead(port, slot, &buttons) != 0) {
-        paddata = 0xffff ^ buttons.btns;
+
+    /* OPL-parity per-frame self-heal ( pad.c readPad ): a live SIO2 driver load
+     * ( mmceman ) or ongoing MC/SIO2 traffic can knock this port out of STABLE,
+     * after which a bare padRead() returns 0 FOREVER ( dead controller, never
+     * recovered ). Poll padGetState every read so padman's state machine keeps
+     * progressing back to STABLE; re-arm the analog/lock mode the moment it
+     * re-connects; and read buttons only while it is actually connected. This is
+     * what lets SMS survive mmceman ( and any future SIO2-hooking device ) the
+     * way OPL/NHDDL do. For a already-stable pad this adds one cheap padGetState
+     * and behaves exactly as before. */
+    state = padGetState(port, slot);
+
+    if (state == PAD_STATE_STABLE || state == PAD_STATE_FINDCTP1) {
+
+        if (s_padState[port] != PAD_STATE_STABLE && s_padState[port] != PAD_STATE_FINDCTP1)
+            padSetMainMode(port, slot, PAD_MMODE_DIGITAL, PAD_MMODE_LOCK);   /* just (re)connected -> re-arm */
+
+        if (padRead(port, slot, &buttons) != 0)
+            paddata = 0xffff ^ buttons.btns;
     }
+
+    s_padState[port] = state;
 
     return paddata;
 }
