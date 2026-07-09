@@ -1616,7 +1616,7 @@ FileContext* STIO_InitFileContext ( const char* aFileName, void* apUnused ) {
  }  /* end if */
 #else  /* PS2 */
 #ifdef BDM
- int lXio = ( aFileName != NULL && ( strncmp ( aFileName, "mass", 4 ) == 0 || strncmp ( aFileName, "smb", 3 ) == 0 ) );
+ int lXio = ( aFileName != NULL && ( strncmp ( aFileName, "mass", 4 ) == 0 || strncmp ( aFileName, "smb", 3 ) == 0 || strncmp ( aFileName, "mmce", 4 ) == 0 ) );   /* mmce: read via fileXio + STIO_Fill 4KB chunks -- mmce_fs_read does the whole request in ONE SIO2 shot ( no driver chunking ), the same large-read stall that hit MX4SIO on this bus */
  int lFD  = lXio ? fileXioOpen ( aFileName, O_RDONLY ) : fioOpen ( aFileName, O_RDONLY );
 #else
  int lFD = fioOpen ( aFileName, O_RDONLY );

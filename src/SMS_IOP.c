@@ -626,26 +626,31 @@ int SMS_IOPStartMMCE ( int afStatus ) {
 
  g_IOPFlags |= SMS_IOPF_MMCE;
 
- /* Presence is tested the OPL / NHDDL way ( mmcesupport.c ): fileXioDevctl(
-  * "mmceN:/", 0x1, ... ), where 0x1 == MMCE_CMD_PING -- a pure SIO2 controller
-  * handshake that does NOT need the microSD FAT mounted. The old fioDopen(
-  * "mmceN:" ) instead sent a filesystem dir-open ( MMCE_CMD_FS_DOPEN ) on the
-  * empty root, which returns < 0 on a present-but-still-mounting card -> the card
-  * read as "not detected". mmceman's __start already pings + resets both ports
-  * synchronously inside the blocking module load above, so a present card answers
-  * on the first ping; the small bounded re-poll only covers a card still settling
-  * right after that reset ( an empty slot's ping self-bounds at the IOP-side
-  * timeout, which also paces the retries -- no EE delay call needed ). The
-  * "mmceN:/" root string is exactly what the browser opens ( SMS_FileDir.c ), so a
-  * detected card is immediately browsable via the same ioman->iomanX bridge as
-  * mass:. */
+ /* Detection ( NHDDL parity, devices_mmce.c:26 ): the PING ( devctl 0x1 ) proves
+  * ONLY that the SD2PSX / MemCard PRO controller answered on this SIO2 port -- NOT
+  * that a microSD is inserted or its FAT mounted. mmceman has NO mount op; the FAT
+  * is mounted lazily inside mmce_fs_dopen and can still be settling right after the
+  * load-time RESET. So gate "present / browsable" on a REAL dir-open: ping first
+  * ( fast-skips a port with no controller ), then retry fileXioDopen( "mmceN:/" --
+  * the exact string the browser opens, SMS_FileDir.c:248 ) a few times, and list
+  * the slot only once it actually opens. This stops a controller-present-but-no-
+  * card / not-yet-mounted slot from showing up as an empty, unbrowsable device
+  * ( the earlier ping-only detection did exactly that ). Browsing then works via
+  * the FULL_IOMAN legacy-hook in iomanx.irx that bridges fio* to the iomanX mmce
+  * device, same as mass:. */
  for ( i = 0; i < 2; ++i ) {
 
   lMmce[ 4 ] = i + '0';
 
-  for ( lTry = 0; lTry < 3; ++lTry ) {
+  if (  fileXioDevctl ( lMmce, 0x1 /* MMCE_CMD_PING */, NULL, 0, NULL, 0 ) == -1  ) continue;   /* no controller on this port */
 
-   if (  fileXioDevctl ( lMmce, 0x1 /* MMCE_CMD_PING */, NULL, 0, NULL, 0 ) != -1  ) {
+  for ( lTry = 0; lTry < 6; ++lTry ) {
+
+   int lFD = fileXioDopen ( lMmce );   /* mounts the FAT lazily; < 0 while still settling / no card */
+
+   if ( lFD >= 0 ) {
+
+    fileXioDclose ( lFD );
 
     if (  !( s_MmceAdded & ( 1 << i ) )  ) {
      g_MmceFlags |= ( 1 << i );
@@ -655,6 +660,8 @@ int SMS_IOPStartMMCE ( int afStatus ) {
     break;
 
    }  /* end if */
+
+   { int lSpin = 0x00800000; while ( lSpin-- ) asm ( "nop\nnop\nnop\nnop" ); }   /* let the FAT settle, then retry */
 
   }  /* end for */
 
