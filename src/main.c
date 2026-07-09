@@ -72,6 +72,17 @@ int main ( int argc, char** argv ) {
  GUI_DeleteObject ( g_pVerStr );
  SMS_PgIndStop ();
 
+#ifdef BDM
+/* Filesystem boot ( USB / MMCE / ... ): the config -- and thus the chosen display
+ * mode -- was loaded by SMS_IOPInit AFTER GUI_Initialize already brought the
+ * screen up in the default ( auto NTSC/PAL ) mode, so the resolution never
+ * switched to what the user picked. The loading spinner is stopped now, so it is
+ * safe to re-init the GUI ( same call as returning from the player ) to apply the
+ * saved mode. Guarded on != Default so an auto-mode boot skips the needless
+ * re-init, and on SMS_ConfigOnFS so mc boot ( config already applied ) is untouched. */
+ if (  SMS_ConfigOnFS () && g_Config.m_DisplayMode != GSVideoMode_Default  ) GUI_Initialize ( 0 );
+#endif
+
  GUI_Run ();
 
  return 0;
