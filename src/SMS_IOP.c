@@ -623,6 +623,7 @@ int SMS_IOPStartMMCE ( int afStatus ) {
   * MX4SIO is active ); MX4SIO is the primary target, so defer to it. Only mmceman is
   * needed ( NHDDL loads it alone -- mmcedrv is not required ). Probe each slot and
   * raise a connect event for any newly-present card. */
+ if ( g_IOPFlags & SMS_IOPF_MMCE ) return g_IOPFlags & SMS_IOPF_MMCE;   /* idempotent: already up ( e.g. resolver started it ) -> don't reload mmceman / re-acquire the pad */
  if ( g_IOPFlags & SMS_IOPF_MX4SIO ) return 0;   /* shares the SIO2 port with MX4SIO */
 
  SifExecDecompModuleBuffer ( &mmceman_irx, size_mmceman_irx, 0, NULL, &i );
@@ -802,6 +803,69 @@ void SMS_IOPowerOff ( void ) {
 
 static SifCmdHandlerData_t handlerdata[32];
 
+#ifdef BDM
+/* Non-re-mountable boot ( SMB / host / cdrom, flagged by SMS_ConfigFallback ):
+ * config CANNOT live next to the ELF, so find the FIRST attached, writable FS
+ * device and keep SMS.cfg at its ROOT ( "<dev>N:/SMS.cfg" -- root needs no mkdir ).
+ * Re-find it next boot by scanning the SAME fixed order ( mass0..3, then mmce0..1 ),
+ * so a USB unit-renumber is tolerated. USB is tried first ( idempotent mount, no
+ * pad / DEV9 ); MMCE only if MX4SIO isn't the SIO2 owner ( never the case on an SMB
+ * boot ). All probes are READ-ONLY, so we never drop a stray file. If nothing
+ * writable is attached, leave s_CfgOnFS 0 -> SMS_LoadConfig/SaveConfig fall through
+ * to mc0: as the true last resort. Called ONLY from SMS_IOPInit ( post-GUI ), so a
+ * mount stall is visible, never a black boot. */
+static void _cfg_resolve_fallback ( void ) {
+
+ int  n, lUsb = -1, lMmce = -1, lFD;
+ char lPath[ 24 ];
+
+ SMS_IOPStartUSB ( 1 );                                   /* idempotent ( guard at top of SMS_IOPStartUSB ) */
+
+ for ( n = 0; n < 4; ++n ) {
+
+  if (  !checkConnectedMassDev ( n )  ) continue;
+
+  if ( lUsb < 0 ) lUsb = n;                               /* remember the first present USB unit ( save target ) */
+
+  sprintf ( lPath, "mass%d:/SMS.cfg", n );
+  lFD = fioOpen ( lPath, O_RDONLY );
+
+  if ( lFD >= 0 ) { fioClose ( lFD ); SMS_ConfigUseFSPath ( lPath ); return; }   /* existing cfg on USB */
+
+ }  /* end for */
+
+ if (  !( g_IOPFlags & SMS_IOPF_MX4SIO )  ) {             /* SIO2 free -> MMCE may be started */
+
+  SMS_IOPStartMMCE ( 1 );
+
+  for ( n = 0; n < 2; ++n ) {
+
+   sprintf ( lPath, "mmce%d:/", n );
+   lFD = fioDopen ( lPath );
+   if ( lFD < 0 ) continue;                               /* device not present */
+   fioDclose ( lFD );
+
+   if ( lMmce < 0 ) lMmce = n;                            /* remember the first present MMCE unit */
+
+   sprintf ( lPath, "mmce%d:/SMS.cfg", n );
+   lFD = fioOpen ( lPath, O_RDONLY );
+
+   if ( lFD >= 0 ) { fioClose ( lFD ); SMS_ConfigUseFSPath ( lPath ); return; }   /* existing cfg on MMCE */
+
+  }  /* end for */
+
+ }  /* end if */
+
+/* No existing SMS.cfg anywhere -> pick a save target ( USB preferred ). The file
+ * is created on the user's first Save. */
+ if ( lUsb  >= 0 ) { sprintf ( lPath, "mass%d:/SMS.cfg", lUsb  ); SMS_ConfigUseFSPath ( lPath ); return; }
+ if ( lMmce >= 0 ) { sprintf ( lPath, "mmce%d:/SMS.cfg", lMmce ); SMS_ConfigUseFSPath ( lPath ); return; }
+
+/* Nothing attached -> mc0: last resort ( s_CfgOnFS stays 0 ). */
+
+}  /* end _cfg_resolve_fallback */
+#endif  /* BDM */
+
 void SMS_IOPInit ( void ) {
 
  int         i, lFD;
@@ -845,7 +909,17 @@ void SMS_IOPInit ( void ) {
   SMS_LoadConfig ();
   GUI_SetColors  ();
 
- }  /* end if */
+ } else if ( SMS_ConfigFallback () ) {   /* SMB / host / cdrom boot: config can't live on the boot device */
+
+/* Resolve an attached, writable USB / MMCE device to hold SMS.cfg ( pins the path
+ * + flips to the FS save/load branch ), then load it. mc0: only if nothing writable
+ * is attached. Same post-GUI slot as the re-mountable branch, before AUTO_* reads
+ * m_NetworkFlags. */
+  _cfg_resolve_fallback ();
+  SMS_LoadConfig ();
+  GUI_SetColors  ();
+
+ }  /* end else if */
 #endif
 
  SifLoadModule ( s_pLIBSD, 0, NULL );
