@@ -100,6 +100,16 @@ void SMS_ConfigSetCWD ( const char* apELFPath ) {
  * on the memory card. The mc-save icon path is skipped for this case ( s_CfgOnFS ). */
  int i, lLast = -1;
 
+/* CWD config only works for a boot device SMS can RE-MOUNT at config time ( the
+ * lazy-load in SMS_IOPInit: "mass" = USB / MX4SIO / iLink, "mmce", "pfs" / "hdd"
+ * = internal HDD ). A device SMS cannot re-establish after its IOP reset -- SMB
+ * ( no stored share credentials; the share is usually read-only ), host:, cdrom
+ * -- would make EVERY SMS.cfg save/load fail ( the "Error" on Save when running
+ * from OPL-over-SMB ). For those, leave config on the memory card ( mc0: ), where
+ * the SMB server list ( SMS.smb ) and IPCONFIG.DAT already save + persist fine. */
+ if (  strncmp ( apELFPath, "mass", 4 ) != 0 && strncmp ( apELFPath, "mmce", 4 ) != 0 &&
+       strncmp ( apELFPath, "pfs",  3 ) != 0 && strncmp ( apELFPath, "hdd",  3 ) != 0  ) return;
+
  for ( i = 0; apELFPath[ i ] && i < ( int )sizeof ( s_pMC0SMC ) - 9; ++i )
   if ( apELFPath[ i ] == '/' || apELFPath[ i ] == ':' || apELFPath[ i ] == '\\' ) lLast = i;
 
