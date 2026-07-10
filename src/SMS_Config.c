@@ -445,6 +445,41 @@ int SMS_SaveConfig ( void ) {
 
   int lFD = fioOpen ( s_pMC0SMC, O_WRONLY | O_CREAT );
 
+/* A USB replug re-enumerates the bus, so the boot drive can renumber ( massN
+ * shifts to a different unit ), leaving the config path -- pinned to the boot
+ * unit from argv[0] -- aimed at the wrong / absent drive, so the open above fails
+ * ( "saved once, then save errors" ). ONLY on that failure, and only for a
+ * "massN:" path, scan the other units for the one that still holds our SMS.cfg
+ * ( written on an earlier save ) and retry there, updating the unit so later
+ * saves self-heal too. The probe is READ-ONLY, so we never create a stray
+ * SMS.cfg on the wrong drive. */
+  if (  lFD < 0 && strncmp ( s_pMC0SMC, "mass", 4 ) == 0 && s_pMC0SMC[ 4 ] >= '0' && s_pMC0SMC[ 4 ] <= '9'  ) {
+
+   char lUnit, lOrig = s_pMC0SMC[ 4 ];
+
+   for ( lUnit = '0'; lUnit <= '3'; ++lUnit ) {
+
+    int lProbe;
+
+    if ( lUnit == lOrig ) continue;
+
+    s_pMC0SMC[ 4 ] = lUnit;
+    lProbe = fioOpen ( s_pMC0SMC, O_RDONLY );   /* does our cfg live on this unit now? */
+
+    if ( lProbe >= 0 ) {
+
+     fioClose ( lProbe );
+     lFD = fioOpen ( s_pMC0SMC, O_WRONLY | O_CREAT );   /* yes -> save here */
+     break;
+
+    }  /* end if */
+
+   }  /* end for */
+
+   if ( lFD < 0 ) s_pMC0SMC[ 4 ] = lOrig;   /* boot drive not found -> leave the path unchanged */
+
+  }  /* end if */
+
   if ( lFD >= 0 ) {
    if (  fioWrite (  lFD, &g_Config, sizeof ( g_Config )  ) == sizeof ( g_Config )  ) retVal = 1;
    fioClose ( lFD );
