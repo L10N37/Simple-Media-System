@@ -43,6 +43,7 @@ extern void RestoreFileDir              ( void**                                
 extern char g_SMSLng[ 12 ] __attribute__(   (  aligned( 1 ), section( ".data" )  )   );
 extern char g_SMSPal[ 13 ] __attribute__(   (  aligned( 1 ), section( ".data" )  )   );
 extern char g_SMSSMB[ 128 ] __attribute__(   (  aligned( 1 ), section( ".data" )  )   );
+extern char g_pBootDir[];   /* SMS_Config.c: "<dev>/path/" on a non-mc boot ( imports -> CWD ), empty on mc */
 
 static char* s_pFileName;
 static char* s_pPathEnd;
@@ -204,9 +205,31 @@ static int _do_sms_action ( const char* apDst ) {
 
 }  /* end _do_sms_action */
 
+/* Import a browsed config/asset file. On a FS boot copy it next to the ELF
+ * ( "<boot dir><apName>" ) so the matching CWD-first loader picks it up; on a mc /
+ * SMB boot keep _do_sms_action's memory-card destination. Same save-gate + status +
+ * error flow. Returns 1 on success. */
+static int _copy_cwd_or_mc ( const char* apName, const char* apMCRel ) {
+
+ char lDst[ 128 ];
+
+ if ( !g_pBootDir[ 0 ] ) return _do_sms_action ( apMCRel );   /* mc / SMB -> unchanged */
+
+ strcpy ( lDst, g_pBootDir );
+ strcat ( lDst, apName );
+
+ GUI_Status ( STR_PROCESSING.m_pStr );
+
+ if (  SMS_SaveConfig () && _copy_file_to_mc ( lDst, s_pFileName )  ) return 1;
+
+ GUI_Error ( STR_ERROR.m_pStr );
+ return 0;
+
+}  /* end _copy_cwd_or_mc */
+
 static void _copy_lng_handler ( GUIMenu* apMenu, int aDir ) {
 
- if (  _do_sms_action ( g_SMSLng )  ) {
+ if (  _copy_cwd_or_mc ( "SMS.lng", g_SMSLng )  ) {
   SMS_LocaleInit ();
   SMS_LocaleSet  ();
  }  /* end if */
@@ -215,7 +238,7 @@ static void _copy_lng_handler ( GUIMenu* apMenu, int aDir ) {
 
 static void _copy_pal_handler ( GUIMenu* apMenu, int aDir ) {
 
- if (  _do_sms_action ( &g_SMSPal[ 1 ] )  ) {
+ if (  _copy_cwd_or_mc ( "SMS.pal", &g_SMSPal[ 1 ] )  ) {
   SMS_LoadPalette ();
   GUI_SetColors   ();
   GUI_Redraw      ( GUIRedrawMethod_InitClearObj );
@@ -280,20 +303,44 @@ static void _copy_smb_handler ( GUIMenu* apMenu, int aDir ) {
 
 static void _copy_bim_handler ( GUIMenu* apMenu, int aDir ) {
 
- int lRes = fioMkdir ( g_pSMSSkn );
+ char* lpPtr = strrchr ( s_pFileName, '/' );
 
- if ( lRes == 0 || lRes == -4 ) {
+ if ( g_pBootDir[ 0 ] ) {   /* FS boot -> import to "<boot dir>Skins/" */
 
-  char  lBuf[ 1024 ];
-  char* lpPtr = strrchr ( s_pFileName, '/' );
+  char lDir[ 128 ], lDst[ 512 ];
 
-  strcpy ( lBuf, &g_pSMSSkn[ 5 ] );
-  strcat ( lBuf, g_SlashStr );
-  strcat ( lBuf, lpPtr + 1  );
+  strcpy ( lDir, g_pBootDir );
+  strcat ( lDir, "Skins" );
+  fioMkdir ( lDir );
 
-  if (  _do_sms_action ( lBuf )  ) SMS_EEScanDir ( g_pSMSSkn, g_pExtSMI, g_Config.m_pSkinList );
+  strcpy ( lDst, lDir );
+  strcat ( lDst, g_SlashStr );
+  strcat ( lDst, lpPtr + 1 );
 
- } else GUI_Error ( STR_ERROR.m_pStr );
+  GUI_Status ( STR_PROCESSING.m_pStr );
+
+  if (  SMS_SaveConfig () && _copy_file_to_mc ( lDst, s_pFileName )  )
+   SMS_EEScanDir ( lDir, g_pExtSMI, g_Config.m_pSkinList );
+  else
+   GUI_Error ( STR_ERROR.m_pStr );
+
+ } else {   /* mc boot ( unchanged ) */
+
+  int lRes = fioMkdir ( g_pSMSSkn );
+
+  if ( lRes == 0 || lRes == -4 ) {
+
+   char lBuf[ 1024 ];
+
+   strcpy ( lBuf, &g_pSMSSkn[ 5 ] );
+   strcat ( lBuf, g_SlashStr );
+   strcat ( lBuf, lpPtr + 1  );
+
+   if (  _do_sms_action ( lBuf )  ) SMS_EEScanDir ( g_pSMSSkn, g_pExtSMI, g_Config.m_pSkinList );
+
+  } else GUI_Error ( STR_ERROR.m_pStr );
+
+ }  /* end else */
 
 }  /* end _copy_bim_handler */
 

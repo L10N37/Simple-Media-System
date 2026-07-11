@@ -499,57 +499,68 @@ void* GSFont_Load ( const char* apFileName ) {
   0x59, 0x80, 0x9B, 0xAA, 0xBE, 0x82, 0x31, 0x46, 0x8F, 0xA5, 0x40, 0x7D, 0x34, 0x63, 0x31, 0xA5
  };
 
- SMS_GUID lGUID;
- int      lFD, lFileSize;
+ int   lFileSize = 0;
+ char* lpRaw     = NULL;
 
- lFD = MC_OpenS ( g_MCSlot, 0, apFileName + 4, O_RDONLY );
+/* Read the whole .mbf font. A CWD path ( "<dev>/.../name.mbf" on an FS boot ) is
+ * read via fio; a memory-card path ( "mc?:..." ) keeps the libmc read ( stripping
+ * the 4-char "mc?:" device prefix ). The on-disk format is device-agnostic: a
+ * 16-byte GUID + 4-byte uncompressed size, then the XOR-obfuscated lzma2 body. */
+ if ( apFileName[ 0 ] == 'm' && apFileName[ 1 ] == 'c' && apFileName[ 3 ] == ':' ) {
 
- if ( lFD >= 0 ) {
+  int lFD = MC_OpenS ( g_MCSlot, 0, apFileName + 4, O_RDONLY );
 
-  lFileSize = MC_SeekS ( lFD, 0, SEEK_END );
-  MC_SeekS ( lFD, 0, SEEK_SET );
-
-  if (   MC_ReadS (  lFD, lGUID, sizeof ( lGUID )  ) == sizeof ( lGUID ) &&
-         !memcmp (  lGUID, sl_FontGUID, sizeof ( lGUID )  )
-  ) {
-
-   unsigned int lDataSize;
-
-   if (  MC_ReadS ( lFD, &lDataSize, 4 ) == 4  ) {
-
-    char* lpFile;
-
-    g_MBFont = ( unsigned int* )malloc ( lDataSize       );
-    lpFile   = ( char*         )malloc ( lFileSize -= 20 );
-
-    if (  MC_ReadS ( lFD, lpFile, lFileSize ) == lFileSize  ) {
-
-     lpFile[ 0 ] ^= 'E';
-     lpFile[ 1 ] ^= 'E';
-     lpFile[ 2 ] ^= 'U';
-     lpFile[ 3 ] ^= 'G';
-     lpFile[ 4 ] ^= 'X';
-
-     if ( lzma2_get_uncompressed_size((unsigned char *)lpFile, lFileSize) != lDataSize )  goto error;
-     
-     lzma2_uncompress((unsigned char *)lpFile, lFileSize, ( unsigned char* )g_MBFont, lDataSize);
-		 
-    } else {
-error:
-     free ( g_MBFont );
-     g_MBFont = NULL;
-
-    }  /* end else */
-
-    free ( lpFile );
-
+  if ( lFD >= 0 ) {
+   lFileSize = MC_SeekS ( lFD, 0, SEEK_END );
+   MC_SeekS ( lFD, 0, SEEK_SET );
+   if ( lFileSize > 0 ) {
+    lpRaw = ( char* )malloc ( lFileSize );
+    if (  lpRaw && MC_ReadS ( lFD, lpRaw, lFileSize ) != lFileSize  ) { free ( lpRaw ); lpRaw = NULL; }
    }  /* end if */
+   MC_CloseS ( lFD );
+  }  /* end if */
+
+ } else {
+
+  int lFD = fioOpen ( apFileName, O_RDONLY );
+
+  if ( lFD >= 0 ) {
+   lFileSize = fioLseek ( lFD, 0, SEEK_END );
+   fioLseek ( lFD, 0, SEEK_SET );
+   if ( lFileSize > 0 ) {
+    lpRaw = ( char* )malloc ( lFileSize );
+    if (  lpRaw && fioRead ( lFD, lpRaw, lFileSize ) != lFileSize  ) { free ( lpRaw ); lpRaw = NULL; }
+   }  /* end if */
+   fioClose ( lFD );
+  }  /* end if */
+
+ }  /* end else */
+
+ if (  lpRaw && lFileSize > 24 && !memcmp ( lpRaw, sl_FontGUID, sizeof ( SMS_GUID ) )  ) {   /* >24 -> body >= 5, room for the XOR */
+
+  unsigned int   lDataSize;
+  unsigned char* lpBody    = ( unsigned char* )lpRaw + 20;   /* past the 16+4 header */
+  int            lBodySize = lFileSize - 20;
+
+  memcpy ( &lDataSize, lpRaw + 16, 4 );
+
+  lpBody[ 0 ] ^= 'E';
+  lpBody[ 1 ] ^= 'E';
+  lpBody[ 2 ] ^= 'U';
+  lpBody[ 3 ] ^= 'G';
+  lpBody[ 4 ] ^= 'X';
+
+  if (  lzma2_get_uncompressed_size ( lpBody, lBodySize ) == lDataSize  ) {
+
+   g_MBFont = ( unsigned int* )malloc ( lDataSize );
+
+   if ( g_MBFont ) lzma2_uncompress ( lpBody, lBodySize, ( unsigned char* )g_MBFont, lDataSize );
 
   }  /* end if */
 
-  MC_CloseS ( lFD );
-
  }  /* end if */
+
+ if ( lpRaw ) free ( lpRaw );
 
  return g_MBFont;
 

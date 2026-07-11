@@ -147,9 +147,40 @@ void SMS_ConfigSetCWD ( const char* apELFPath ) {
 
 }  /* end SMS_ConfigSetCWD */
 
+/* CWD-first asset probe. On a re-mountable FS boot ( g_pBootDir set ) where
+ * "<bootdir><apName>" exists, copy that fio path into apBuf and return 1. Return 0
+ * ( mc / SMB boot, or the CWD copy is absent ) -> the caller falls back to its
+ * existing memory-card read, so no on-card asset is ever lost. The probe is a bare
+ * fioOpen ( only errors, never hangs, on an unmounted device ) -> boot-safe once
+ * past GUI_Initialize. Assets sit FLAT next to the ELF, same as SMS.cfg / SMS.smb. */
+int SMS_ConfigAssetPath ( char* apBuf, int aSize, const char* apName ) {
+
+ int lLen = strlen ( g_pBootDir );
+ int lFD;
+
+ if ( !g_pBootDir[ 0 ] ) return 0;                             /* mc / SMB boot -> mc read */
+ if (  lLen + ( int )strlen ( apName ) >= aSize  ) return 0;
+
+ strcpy ( apBuf, g_pBootDir );                                 /* "<dev>/path/" ( trailing sep ) */
+ strcpy ( apBuf + lLen, apName );
+
+ lFD = fioOpen ( apBuf, O_RDONLY );
+ if ( lFD < 0 ) return 0;                                      /* CWD miss -> mc fallback */
+ fioClose ( lFD );
+
+ return 1;
+
+}  /* end SMS_ConfigAssetPath */
+
 static void _load_font ( unsigned int anIndex ) {
 
- int lFD = fioOpen ( s_pFontNames[ anIndex ], O_RDONLY );
+ char        lP[ 128 ];
+ const char* lpName = s_pFontNames[ anIndex ];
+ const char* lpBase = strrchr ( lpName, '/' );
+ int         lFD;
+
+ lpBase = lpBase ? lpBase + 1 : lpName;   /* bare "<name>.mtf" for the CWD probe */
+ lFD    = fioOpen (  SMS_ConfigAssetPath ( lP, sizeof ( lP ), lpBase ) ? lP : lpName, O_RDONLY  );
 
  if ( lFD >= 0 ) {
 
@@ -290,13 +321,17 @@ void SMS_SaveSMBInfo ( void ) {
 
 void SMS_LoadPalette ( void ) {
 
- int i, lFD = MC_OpenS ( g_MCSlot, 0, g_SMSPal, O_RDONLY );
+ int  i, lFD, lLoaded = 0;
+ char lP[ 128 ];
 
- if ( lFD >= 0 ) {
+ if (  SMS_ConfigAssetPath ( lP, sizeof ( lP ), "SMS.pal" )  ) {   /* CWD copy next to the ELF */
+  int lF = fioOpen ( lP, O_RDONLY );
+  if ( lF >= 0 ) { fioRead ( lF, s_DefPalette, 64 ); fioClose ( lF ); lLoaded = 1; }
+ }  /* end if */
 
-  MC_ReadS ( lFD, s_DefPalette, 64 );
-  MC_CloseS ( lFD );
-
+ if ( !lLoaded ) {   /* memory-card fallback ( unchanged ) */
+  lFD = MC_OpenS ( g_MCSlot, 0, g_SMSPal, O_RDONLY );
+  if ( lFD >= 0 ) { MC_ReadS ( lFD, s_DefPalette, 64 ); MC_CloseS ( lFD ); }
  }  /* end if */
 
  for ( i = 0; i < 16; ++i ) s_DefPalette[ i ] = ( s_DefPalette[ i ] & 0x00FFFFFF ) | 0x60000000;
@@ -455,6 +490,13 @@ int SMS_LoadConfig ( void  ) {
   for ( lRes = 0; lRes < 5; ++lRes ) _load_font ( lRes );
 
   SMS_EEScanDir ( g_pSMSSkn, g_pExtSMI, g_Config.m_pSkinList );
+
+  if ( g_pBootDir[ 0 ] ) {   /* also list CWD skins ( "<boot dir>Skins/" ); SMS_EEScanDir dedups */
+   char lSkinDir[ 128 ];
+   strcpy ( lSkinDir, g_pBootDir );
+   strcat ( lSkinDir, "Skins" );
+   SMS_EEScanDir ( lSkinDir, g_pExtSMI, g_Config.m_pSkinList );
+  }  /* end if */
 
  }  /* end if */
 
@@ -630,12 +672,19 @@ void SMS_LoadXLT ( void ) {
  char* lppFonts[ 4 ] = {
   s_pLatin2, s_pCyrill, s_pLatin1, s_pGreek
  };
+ char  lP[ 128 ];
 
  for ( i = 0; i < 4; ++i ) {
 
+  const char* lpBase;
+
   lFD = strlen ( lppFonts[ i ] );
-  lppFonts[ i ][ lFD - 1 ] = 'x';
-  lFD = fioOpen ( lppFonts[ i ], O_RDONLY );
+  lppFonts[ i ][ lFD - 1 ] = 'x';   /* .mtf -> .mtx */
+
+  lpBase = strrchr ( lppFonts[ i ], '/' );
+  lpBase = lpBase ? lpBase + 1 : lppFonts[ i ];
+
+  lFD = fioOpen (  SMS_ConfigAssetPath ( lP, sizeof ( lP ), lpBase ) ? lP : lppFonts[ i ], O_RDONLY  );
 
   if ( lFD >= 0 ) {
 

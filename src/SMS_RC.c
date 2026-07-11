@@ -45,6 +45,8 @@ static unsigned int       s_CmdBuf[ 5 ] __attribute__(   (  aligned( 64 ), secti
 
 extern unsigned char g_RCData[ 256 ] __attribute__(   (  aligned( 64 ), section ( ".sbss" )  )   );
 
+extern char g_pBootDir[];   /* SMS_Config.c: "<dev>/path/" on a non-mc boot, empty on mc */
+
 extern unsigned int RC_ReadDummy ( void );
 extern unsigned int RC_ReadX     ( void );
 extern unsigned int RC_ReadI     ( void );
@@ -79,12 +81,19 @@ static void inline _patch_version ( unsigned char* apData, int aSize, char* apNa
 
 static int inline _load_rmman ( void ) {
 
- static char* s_Paths[] __attribute__(   (  section( ".data" )  )   ) = {
-  s_pROM1RMMAN, g_pSMSRMMAN, NULL
- };
+ char*  lPaths[ 4 ];
+ char   lCWD[ 128 ];
+ char** lppPtr = lPaths;
+ int    n = 0, retVal = -1;
 
- char** lppPtr = s_Paths;
- int    retVal = -1;
+ lPaths[ n++ ] = s_pROM1RMMAN;                                     /* ROM copy first ( fastest, on most consoles ) */
+ if ( g_pBootDir[ 0 ] ) {                                          /* then "<boot dir>RMMAN.IRX" on an FS boot */
+  strcpy ( lCWD, g_pBootDir );
+  strcat ( lCWD, "RMMAN.IRX" );
+  lPaths[ n++ ] = lCWD;
+ }  /* end if */
+ lPaths[ n++ ] = g_pSMSRMMAN;                                      /* memory-card copy last */
+ lPaths[ n   ] = NULL;
 
  while ( *lppPtr ) {
 

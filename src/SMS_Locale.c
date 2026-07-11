@@ -703,75 +703,94 @@ static SMString       s_SMStringUDF[ sizeof ( s_SMStringDef ) / sizeof ( s_SMStr
 
 void SMS_LocaleInit ( void ) {
 
- int lFD = MC_OpenS ( g_MCSlot, 0, g_SMSLng, O_RDONLY );
+ s64            lSize   = 0;
+ unsigned char* lpAlloc = NULL;
+ char           lP[ 128 ];
 
  if ( s_pUDFBuf ) {
   free ( s_pUDFBuf );
   s_pUDFBuf = NULL;
  }  /* end if */
 
- if ( lFD >= 0 ) {
+ if (  SMS_ConfigAssetPath ( lP, sizeof ( lP ), "SMS.lng" )  ) {   /* CWD copy next to the ELF */
 
-  s64  lSize = MC_SeekS ( lFD, 0, SEEK_END );
+  int lF = fioOpen ( lP, O_RDONLY );
 
-  if ( lSize > 0 ) {
-
-   unsigned int   lIdx;
-   unsigned char* lpEnd;
-   unsigned char* lpPtr;
-   unsigned char* lpAlloc;
-   unsigned char* lpBuff = lpPtr = lpAlloc = ( unsigned char* )malloc ( lSize + 1 );
-
-   lpEnd = lpBuff + lSize;
-   lIdx  = 0;
-
-   MC_SeekS ( lFD, 0, SEEK_SET   );
-   MC_ReadS ( lFD, lpBuff, lSize );
-
-   while ( 1 ) {
-
-    while ( lpPtr != lpEnd && *lpPtr != '\r' && *lpPtr != '\n' ) ++lpPtr;
-
-    *lpPtr = '\x00';
-
-    s_SMStringUDF[ lIdx ].m_pStr = ( char * )lpBuff;
-    s_SMStringUDF[ lIdx ].m_Len  = lpPtr - lpBuff;
-
-    if (  !s_SMStringUDF[ lIdx++ ].m_Len ||
-          lpPtr++ == lpEnd               ||
-          lIdx    == sizeof ( s_SMStringUDF ) / sizeof ( s_SMStringUDF[ 0 ] )
-    ) break;
-
-    if ( *lpPtr  == '\n'  ) ++lpPtr;
-
-    lpBuff = lpPtr;
-
-   }  /* end while */
-
-   if (  lIdx != sizeof ( s_SMStringUDF ) / sizeof ( s_SMStringUDF[ 0 ] )  ) {
-
-    free ( lpAlloc );
-    g_Config.m_BrowserFlags &= ~SMS_BF_UDFL;
-
-   } else {
-
-    char* lpUDF = s_SMStringUDF[ 167 ].m_pStr;
-
-    s_pUDFBuf = lpAlloc;
-    g_Config.m_BrowserFlags |= SMS_BF_UDFL;
-
-    if ( lpUDF[ 0 ] == 'm' && lpUDF[ 1 ] == 'c' &&
-         lpUDF[ 3 ] == ':' && lpUDF[ 4 ] == '/' &&
-         lpUDF[ 5 ] == 'B' && !strcmp ( &lpUDF[ 7 ], &s_SMStringDef[ 167 ].m_pStr[ 7 ] )
-    ) lpUDF[ 6 ] = s_SMStringDef[ 167 ].m_pStr[ 6 ];
-
-   }  /* end else */
-
+  if ( lF >= 0 ) {
+   lSize = fioLseek ( lF, 0, SEEK_END );
+   if ( lSize > 0 ) {
+    lpAlloc = ( unsigned char* )malloc ( lSize + 1 );
+    fioLseek ( lF, 0, SEEK_SET );
+    fioRead  ( lF, lpAlloc, lSize );
+   }  /* end if */
+   fioClose ( lF );
   }  /* end if */
 
-  MC_CloseS ( lFD );
+ }  /* end if */
 
- }  /* end else */
+ if ( !lpAlloc ) {   /* memory-card fallback ( unchanged libmc read ) */
+
+  int lFD = MC_OpenS ( g_MCSlot, 0, g_SMSLng, O_RDONLY );
+
+  if ( lFD >= 0 ) {
+   lSize = MC_SeekS ( lFD, 0, SEEK_END );
+   if ( lSize > 0 ) {
+    lpAlloc = ( unsigned char* )malloc ( lSize + 1 );
+    MC_SeekS ( lFD, 0, SEEK_SET   );
+    MC_ReadS ( lFD, lpAlloc, lSize );
+   }  /* end if */
+   MC_CloseS ( lFD );
+  }  /* end if */
+
+ }  /* end if */
+
+ if ( lpAlloc && lSize > 0 ) {
+
+  unsigned int   lIdx  = 0;
+  unsigned char* lpBuff = lpAlloc;
+  unsigned char* lpPtr  = lpAlloc;
+  unsigned char* lpEnd  = lpAlloc + lSize;
+
+  while ( 1 ) {
+
+   while ( lpPtr != lpEnd && *lpPtr != '\r' && *lpPtr != '\n' ) ++lpPtr;
+
+   *lpPtr = '\x00';
+
+   s_SMStringUDF[ lIdx ].m_pStr = ( char * )lpBuff;
+   s_SMStringUDF[ lIdx ].m_Len  = lpPtr - lpBuff;
+
+   if (  !s_SMStringUDF[ lIdx++ ].m_Len ||
+         lpPtr++ == lpEnd               ||
+         lIdx    == sizeof ( s_SMStringUDF ) / sizeof ( s_SMStringUDF[ 0 ] )
+   ) break;
+
+   if ( *lpPtr  == '\n'  ) ++lpPtr;
+
+   lpBuff = lpPtr;
+
+  }  /* end while */
+
+  if (  lIdx != sizeof ( s_SMStringUDF ) / sizeof ( s_SMStringUDF[ 0 ] )  ) {
+
+   free ( lpAlloc );
+   g_Config.m_BrowserFlags &= ~SMS_BF_UDFL;
+
+  } else {
+
+   char* lpUDF = s_SMStringUDF[ 167 ].m_pStr;
+
+   s_pUDFBuf = lpAlloc;
+   g_Config.m_BrowserFlags |= SMS_BF_UDFL;
+
+   if ( lpUDF[ 0 ] == 'm' && lpUDF[ 1 ] == 'c' &&
+        lpUDF[ 3 ] == ':' && lpUDF[ 4 ] == '/' &&
+        lpUDF[ 5 ] == 'B' && !strcmp ( &lpUDF[ 7 ], &s_SMStringDef[ 167 ].m_pStr[ 7 ] )
+   ) lpUDF[ 6 ] = s_SMStringDef[ 167 ].m_pStr[ 6 ];
+
+  }  /* end else */
+
+ }  /* end if */
 
 }  /* end SMS_LocaleInit */
 

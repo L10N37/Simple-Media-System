@@ -162,49 +162,53 @@ static int DrawSkin ( void ) {
 
  if ( _bgTexUnsafe () ) return 0;   /* HD modes: skip the colliding full-screen skin texture */
 
- if ( g_pBootDir[ 0 ] ) {   /* non-mc boot ( USB/HDD/MX4SIO ): read <boot dir>Skins/<name>.smi via fio */
+ if ( g_pBootDir[ 0 ] ) {   /* FS boot ( USB/HDD/MX4SIO ): try <boot dir>Skins/<name>.smi via fio first */
 
   if (  snprintf ( lPath, sizeof( lPath ), "%sSkins%s%s%s",
-                   g_pBootDir, g_SlashStr, g_Config.m_SkinName, g_pSMI ) >= ( int )sizeof( lPath )  )
-   return 0;   /* path too long -> fall back to the default background */
+                   g_pBootDir, g_SlashStr, g_Config.m_SkinName, g_pSMI ) < ( int )sizeof( lPath )  ) {
 
-  lFD = fioOpen ( lPath, O_RDONLY );
+   lFD = fioOpen ( lPath, O_RDONLY );
 
-  if ( lFD >= 0 ) {
-   lSize = fioLseek ( lFD, 0, SEEK_END );
-   fioLseek ( lFD, 0, SEEK_SET );
-   if ( lSize > 0 ) {
-    lpData = malloc ( lSize );
-    if (  lpData && fioRead ( lFD, lpData, lSize ) != lSize  ) {
-     free ( lpData );
-     lpData = NULL;
+   if ( lFD >= 0 ) {
+    lSize = fioLseek ( lFD, 0, SEEK_END );
+    fioLseek ( lFD, 0, SEEK_SET );
+    if ( lSize > 0 ) {
+     lpData = malloc ( lSize );
+     if (  lpData && fioRead ( lFD, lpData, lSize ) != lSize  ) {
+      free ( lpData );
+      lpData = NULL;
+     }  /* end if */
     }  /* end if */
+    fioClose ( lFD );
    }  /* end if */
-   fioClose ( lFD );
+
   }  /* end if */
 
- } else {   /* memory-card boot: original libmc path */
+ }  /* end if */
+
+ if ( !lpData ) {   /* memory-card boot, OR the CWD skin is absent -> libmc fallback ( keeps card skins ) */
 
   if (  snprintf ( lPath, sizeof( lPath ), "%s%s%s%s",
-                   g_pSMSSkn + 5, g_SlashStr, g_Config.m_SkinName, g_pSMI ) >= ( int )sizeof( lPath )  )
-   return 0;   /* path too long -> fall back to the default background */
+                   g_pSMSSkn + 5, g_SlashStr, g_Config.m_SkinName, g_pSMI ) < ( int )sizeof( lPath )  ) {
 
-  lFD = MC_OpenS ( g_MCSlot, 0, lPath, O_RDONLY );
+   lFD = MC_OpenS ( g_MCSlot, 0, lPath, O_RDONLY );
 
-  if ( lFD >= 0 ) {
-   lSize = MC_SeekS ( lFD, 0, SEEK_END );
-   MC_SeekS ( lFD, 0, SEEK_SET );
-   if ( lSize > 0 ) {
-    lpData = malloc ( lSize );
-    if (  lpData && MC_ReadS ( lFD, lpData, lSize ) != lSize  ) {
-     free ( lpData );
-     lpData = NULL;
+   if ( lFD >= 0 ) {
+    lSize = MC_SeekS ( lFD, 0, SEEK_END );
+    MC_SeekS ( lFD, 0, SEEK_SET );
+    if ( lSize > 0 ) {
+     lpData = malloc ( lSize );
+     if (  lpData && MC_ReadS ( lFD, lpData, lSize ) != lSize  ) {
+      free ( lpData );
+      lpData = NULL;
+     }  /* end if */
     }  /* end if */
+    MC_CloseS ( lFD );
    }  /* end if */
-   MC_CloseS ( lFD );
+
   }  /* end if */
 
- }  /* end else */
+ }  /* end if */
 
  if ( lpData ) {
 

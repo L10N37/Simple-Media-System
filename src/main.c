@@ -28,6 +28,8 @@
 #include <sys/ioctl.h>
 #include <fileio.h>
 
+extern char g_pBootDir[];   /* SMS_Config.c: "<dev>/path/" on a non-mc boot, empty on mc */
+
 #ifdef DISABLE_EXTRA_TIMERS_FUNCTIONS
 DISABLE_EXTRA_TIMERS_FUNCTIONS();
 #endif
@@ -68,6 +70,7 @@ int main ( int argc, char** argv ) {
 
  SMS_LoadXLT ();
  SMS_EEScanDir ( g_pMC0SMS, g_pExtMBF, g_Config.m_pMBFList );
+ if ( g_pBootDir[ 0 ] ) SMS_EEScanDir ( g_pBootDir, g_pExtMBF, g_Config.m_pMBFList );   /* CWD .mbf too ( dedups ) */
  SMS_HistoryLoad ();
  GUI_DeleteObject ( g_pVerStr );
  SMS_PgIndStop ();

@@ -912,6 +912,8 @@ void SMS_IOPInit ( void ) {
 
   SMS_LoadConfig ();
   GUI_SetColors  ();
+  SMS_LocaleInit ();   /* re-read SMS.lng now the boot device is mounted ( CWD-first ) */
+  SMS_LocaleSet  ();
 
  } else if ( SMS_ConfigFallback () ) {   /* SMB / host / cdrom boot: config can't live on the boot device */
 

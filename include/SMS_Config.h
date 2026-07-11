@@ -141,6 +141,7 @@ const char* SMS_ConfigPath ( void         );
 int  SMS_ConfigFallback  ( void           );
 void SMS_ConfigUseFSPath ( const char*    );
 int  SMS_MCPresent       ( void           );
+int  SMS_ConfigAssetPath ( char*, int, const char* );
 void SMS_LoadXLT    ( void                );
 void SMS_SetPalette ( const unsigned int* );
 

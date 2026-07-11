@@ -12,11 +12,14 @@
 #include "SMS_History.h"
 #include "SMS_List.h"
 #include "SMS_MC.h"
+#include "SMS_Config.h"
 
 #include <fileio.h>
 #include <string.h>
 
 #define HIST_SIZE 32
+
+extern char g_pBootDir[];   /* SMS_Config.c: "<dev>/path/" on a non-mc boot, empty on mc */
 
 static SMS_List* s_pHst;
 
@@ -24,9 +27,38 @@ static char s_pHistory[] __attribute__(   (  aligned( 1 ), section( ".data" )  )
 
 void SMS_HistoryLoad ( void ) {
 
- int lFD = MC_OpenS ( g_MCSlot, 0, s_pHistory, O_RDONLY );
+ char lP[ 128 ];
+ int  lFD;
 
  s_pHst = SMS_ListInit ();
+
+ if (  SMS_ConfigAssetPath ( lP, sizeof ( lP ), "SMS.hst" )  ) {   /* CWD copy next to the ELF */
+
+  lFD = fioOpen ( lP, O_RDONLY );
+
+  if ( lFD >= 0 ) {
+
+   while ( 1 ) {
+
+    unsigned short lSize;
+    SMS_ListNode*  lpNode;
+
+    if (  fioRead ( lFD, &lSize, 2 ) != 2  ) break;
+
+    lpNode = SMS_ListPushBackBuf ( s_pHst, lSize + 1 );
+    fioRead ( lFD, _STR( lpNode ),     lSize );
+    fioRead ( lFD, &lpNode -> m_Param, 8     );
+
+   }  /* end while */
+
+   fioClose ( lFD );
+   return;
+
+  }  /* end if */
+
+ }  /* end if */
+
+ lFD = MC_OpenS ( g_MCSlot, 0, s_pHistory, O_RDONLY );   /* memory-card fallback ( unchanged ) */
 
  if ( lFD < 0 ) return;
 
@@ -88,14 +120,19 @@ void SMS_HistoryAdd ( const char* apPath, s64  aPTS ) {
 void SMS_HistorySave ( void ) {
 
  int  lFD;
- char lPath[ 32 ];
+ char lPath[ 128 ];
 
- lPath[ 0 ] = 'm';
- lPath[ 1 ] = 'c';
- lPath[ 2 ] = '0' + g_MCSlot;
- lPath[ 3 ] = ':';
- lPath[ 4 ] = '/';
- strcpy ( &lPath[ 5 ], s_pHistory );
+ if ( g_pBootDir[ 0 ] ) {   /* CWD boot -> save next to the ELF */
+  strcpy ( lPath, g_pBootDir );
+  strcat ( lPath, "SMS.hst" );
+ } else {
+  lPath[ 0 ] = 'm';
+  lPath[ 1 ] = 'c';
+  lPath[ 2 ] = '0' + g_MCSlot;
+  lPath[ 3 ] = ':';
+  lPath[ 4 ] = '/';
+  strcpy ( &lPath[ 5 ], s_pHistory );
+ }  /* end else */
 
  lFD = fioOpen ( lPath, O_CREAT | O_WRONLY );
 

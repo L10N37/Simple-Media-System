@@ -937,15 +937,25 @@ SubtitleContext* SubtitleContext_Init ( FileContext* apFileCtx, SubtitleFormat a
  if ( g_Config.m_MBFName[ 0 ] && !g_MBFont ) {
 
   char lPath[ strlen ( g_pMC0SMS ) + strlen ( g_Config.m_MBFName ) + 6 ];
+  char lName[ strlen ( g_Config.m_MBFName ) + strlen ( g_pExtMBF ) + 1 ];
+  char lCWD [ 128 ];
 
   GUI_Progress ( STR_LOADING_FONT.m_pStr, 50, 0 );
 
-  strcpy ( lPath, g_pMC0SMS          );
-  strcat ( lPath, g_SlashStr         );
-  strcat ( lPath, g_Config.m_MBFName );
-  strcat ( lPath, g_pExtMBF          );
+  strcpy ( lName, g_Config.m_MBFName );
+  strcat ( lName, g_pExtMBF );   /* "<name>.mbf" */
 
-  if (  !GSFont_Load ( lPath )  ) GUI_Error ( STR_ERROR.m_pStr );
+  if (  SMS_ConfigAssetPath ( lCWD, sizeof ( lCWD ), lName )  ) GSFont_Load ( lCWD );   /* CWD copy */
+
+  if ( !g_MBFont ) {   /* memory-card fallback ( unchanged path ) */
+   strcpy ( lPath, g_pMC0SMS          );
+   strcat ( lPath, g_SlashStr         );
+   strcat ( lPath, g_Config.m_MBFName );
+   strcat ( lPath, g_pExtMBF          );
+   GSFont_Load ( lPath );
+  }  /* end if */
+
+  if ( !g_MBFont ) GUI_Error ( STR_ERROR.m_pStr );
 
   GUI_Progress ( STR_LOADING_SUBTITLES.m_pStr, 100, 0 );
 
