@@ -50,7 +50,7 @@ static unsigned int s_DefPalette[ 16 ] __attribute__(   (  section( ".data" )  )
 unsigned int g_Palette[ 16 ] __attribute__(   (  section( ".bss" )  )   );
 
 char g_SMSPal[ 13 ] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "/SMS/SMS.pal";
-char g_SMSSMB[ 17 ] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "mc0:/SMS/SMS.smb";
+char g_SMSSMB[ 128 ] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "mc0:/SMS/SMS.smb";   /* server list; tracks the SMS.cfg directory ( CWD on FS boots ) via _derive_smb_path */
 
 static char s_pASCII [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "mc0:SMS/ascii.mtf";
 static char s_pLatin2[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "mc0:SMS/latin2.mtf";
@@ -95,6 +95,22 @@ void SMS_SetMCSlot ( char aSlot ) {
 
 }  /* end SMS_SetMCSlot */
 
+/* Keep the SMB server list ( g_SMSSMB ) in the SAME directory as SMS.cfg
+ * ( s_pMC0SMC ), so everything-but-IPCONFIG lands together: CWD on a filesystem
+ * boot, the resolved fallback device on a card-less SMB boot, mc?:/SMS otherwise.
+ * Only the directory is copied across; the file name is always SMS.smb. */
+static void _derive_smb_path ( void ) {
+
+ int i, lLast = -1;
+
+ for ( i = 0; s_pMC0SMC[ i ] && i < ( int )sizeof ( g_SMSSMB ) - 9; ++i )
+  if ( s_pMC0SMC[ i ] == '/' || s_pMC0SMC[ i ] == ':' ) lLast = i;
+
+ for ( i = 0; i <= lLast; ++i ) g_SMSSMB[ i ] = s_pMC0SMC[ i ];
+ strcpy ( &g_SMSSMB[ lLast + 1 ], "SMS.smb" );
+
+}  /* end _derive_smb_path */
+
 void SMS_ConfigSetCWD ( const char* apELFPath ) {
 /* Launched from a non-memory-card device ( USB / HDD / MX4SIO / etc., where mc0:
  * may be dead ): keep settings next to the ELF -- <boot dir>SMS.cfg -- instead of
@@ -126,6 +142,8 @@ void SMS_ConfigSetCWD ( const char* apELFPath ) {
  g_pBootDir[ lLast + 1 ] = '\x00';
 
  s_CfgOnFS = 1;
+
+ _derive_smb_path ();   /* SMB server list -> CWD too */
 
 }  /* end SMS_ConfigSetCWD */
 
@@ -237,7 +255,7 @@ void SMS_SaveSMBInfo ( void ) {
 
  if ( !g_Config.m_pSMBList ) return;
 
- fioMkdir ( g_pMC0SMS );
+ if ( !s_CfgOnFS ) fioMkdir ( g_pMC0SMS );   /* mc target -> ensure mc?:/SMS; on FS the CWD / device-root dir already exists */
 
  lFD = fioOpen ( g_SMSSMB, O_CREAT | O_WRONLY | O_TRUNC );
 
@@ -305,6 +323,8 @@ static int _mc_get_info ( void ) {
  return lRes;
 
 }  /* end _mc_get_info */
+
+int SMS_MCPresent ( void ) { return _mc_get_info () > -2; }   /* memory card in the configured slot present + usable? */
 #endif  /* BDM */
 
 int SMS_ConfigOnFS ( void ) { return s_CfgOnFS; }   /* 1 = booted from a filesystem device ( config is a plain file on the boot drive, not an mc save ) */
@@ -316,7 +336,7 @@ int SMS_ConfigFallback ( void ) { return s_CfgFallback; }   /* 1 = SMB/host/cdro
 /* The FS-fallback resolver ( SMS_IOPInit, non-re-mountable boot ) found a writable
  * device -- pin SMS.cfg to it and switch to the FS save/load path. apPath is a
  * short device-root path ( e.g. "mass0:/SMS.cfg", <= 15 bytes ) that fits s_pMC0SMC. */
-void SMS_ConfigUseFSPath ( const char* apPath ) { strcpy ( s_pMC0SMC, apPath ); s_CfgOnFS = 1; }
+void SMS_ConfigUseFSPath ( const char* apPath ) { strcpy ( s_pMC0SMC, apPath ); s_CfgOnFS = 1; _derive_smb_path (); }
 
 int SMS_LoadConfig ( void  ) {
 
@@ -491,6 +511,7 @@ int SMS_SaveConfig ( void ) {
 
      fioClose ( lProbe );
      lFD = fioOpen ( s_pMC0SMC, O_WRONLY | O_CREAT );   /* yes -> save here */
+     if ( lFD >= 0 ) _derive_smb_path ();   /* keep the SMB list on the same self-healed unit */
      break;
 
     }  /* end if */

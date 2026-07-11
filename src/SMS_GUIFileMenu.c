@@ -42,7 +42,7 @@ static char s_pHDLdr[] __attribute__(   (  section( ".data" ), aligned( 1 )  )  
 
 extern char g_SMSLng[ 12 ] __attribute__(   (  aligned( 1 ), section( ".data" )  )   );
 extern char g_SMSPal[ 13 ] __attribute__(   (  aligned( 1 ), section( ".data" )  )   );
-extern char g_SMSSMB[ 17 ] __attribute__(   (  aligned( 1 ), section( ".data" )  )   );
+extern char g_SMSSMB[ 128 ] __attribute__(   (  aligned( 1 ), section( ".data" )  )   );
 
 extern FileContext* GUI_MiniBrowser ( FileContext*, char*, void** );
 extern void         GUI_FileCtxMenu ( char*, char*, int, int      );
@@ -616,8 +616,8 @@ static void _context_action_file ( GUIFileMenu* apMenu, int afPopup ) {
    else if (  !strcmp ( lpCur, sl_SMSsms )  )
     lAction = 6;  /* update SMS image */
 #endif  /* EMBEDDED */
-   else if (  !strcmp ( lpCur, &g_SMSSMB[ 9 ] )  )
-    lAction = 7;  /* update SMB server list */
+   else if (  !strcmp ( lpCur, "SMS.smb" )  )
+    lAction = 7;  /* update SMB server list ( fixed file name; g_SMSSMB dir now varies by boot device ) */
    else {
     int lLen = strlen ( lpCur );
     if ( lLen > 4 && lpCur[ lLen - 4 ] == '.' &&

@@ -805,19 +805,23 @@ static SifCmdHandlerData_t handlerdata[32];
 
 #ifdef BDM
 /* Non-re-mountable boot ( SMB / host / cdrom, flagged by SMS_ConfigFallback ):
- * config CANNOT live next to the ELF, so find the FIRST attached, writable FS
- * device and keep SMS.cfg at its ROOT ( "<dev>N:/SMS.cfg" -- root needs no mkdir ).
- * Re-find it next boot by scanning the SAME fixed order ( mass0..3, then mmce0..1 ),
- * so a USB unit-renumber is tolerated. USB is tried first ( idempotent mount, no
- * pad / DEV9 ); MMCE only if MX4SIO isn't the SIO2 owner ( never the case on an SMB
- * boot ). All probes are READ-ONLY, so we never drop a stray file. If nothing
- * writable is attached, leave s_CfgOnFS 0 -> SMS_LoadConfig/SaveConfig fall through
- * to mc0: as the true last resort. Called ONLY from SMS_IOPInit ( post-GUI ), so a
+ * config CANNOT live next to the ELF. A memory card is the natural home here
+ * ( "nowhere else to go" ), so if one is present KEEP the mc0:/SMS default and do
+ * nothing. ONLY when there is no card do we fall back to the first attached,
+ * writable FS device and keep SMS.cfg at its ROOT ( "<dev>N:/SMS.cfg" -- root needs
+ * no mkdir ), re-found next boot by scanning the SAME fixed order ( mass0..3, then
+ * mmce0..1 ) so a USB unit-renumber is tolerated. USB is tried first ( idempotent
+ * mount, no pad / DEV9 ); MMCE only if MX4SIO isn't the SIO2 owner ( never the case
+ * on an SMB boot ). All probes are READ-ONLY, so we never drop a stray file. If
+ * nothing writable is attached either, leave s_CfgOnFS 0 -> mc0: ( save will error,
+ * but there is genuinely nowhere ). Called ONLY from SMS_IOPInit ( post-GUI ), so a
  * mount stall is visible, never a black boot. */
 static void _cfg_resolve_fallback ( void ) {
 
  int  n, lUsb = -1, lMmce = -1, lFD;
  char lPath[ 24 ];
+
+ if (  SMS_MCPresent ()  ) return;   /* memory card present -> config stays on mc0:/SMS ( s_CfgOnFS 0 ) */
 
  SMS_IOPStartUSB ( 1 );                                   /* idempotent ( guard at top of SMS_IOPStartUSB ) */
 

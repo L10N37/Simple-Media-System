@@ -42,7 +42,7 @@ extern void RestoreFileDir              ( void**                                
 
 extern char g_SMSLng[ 12 ] __attribute__(   (  aligned( 1 ), section( ".data" )  )   );
 extern char g_SMSPal[ 13 ] __attribute__(   (  aligned( 1 ), section( ".data" )  )   );
-extern char g_SMSSMB[ 17 ] __attribute__(   (  aligned( 1 ), section( ".data" )  )   );
+extern char g_SMSSMB[ 128 ] __attribute__(   (  aligned( 1 ), section( ".data" )  )   );
 
 static char* s_pFileName;
 static char* s_pPathEnd;
@@ -263,7 +263,18 @@ static void _copy_sms_handler ( GUIMenu* apMenu, int aDir ) {
 #endif  /* EMBEDDED */
 static void _copy_smb_handler ( GUIMenu* apMenu, int aDir ) {
 
- if (  _do_sms_action ( &g_SMSSMB[ 5 ] )  ) SMS_LoadSMBInfo ();
+/* Import the browsed server list to wherever SMS.smb now lives ( CWD on an FS boot,
+ * mc?:/SMS otherwise ) -- NOT the fixed mc0:/ path _do_sms_action hardwires, or an
+ * FS-boot list would import to the card yet load from CWD. Same save-gate + status
+ * + error flow as _do_sms_action, just targeting g_SMSSMB directly. */
+ int retVal = 0;
+
+ GUI_Status ( STR_PROCESSING.m_pStr );
+
+ if (  SMS_SaveConfig ()  ) retVal = _copy_file_to_mc ( g_SMSSMB, s_pFileName );
+
+ if ( retVal ) SMS_LoadSMBInfo ();
+ else          GUI_Error ( STR_ERROR.m_pStr );
 
 }  /* end _copy_smb_handler */
 
