@@ -582,12 +582,16 @@ int SMS_SaveConfig ( void ) {
 
  if ( lRes > -2 ) {
 
-  SMS_MCTable lDir __attribute__(   (  aligned( 64 )  )   );
+/* libmc's MC_GetDir does NOT see the fio-created mc?:/SMS dir on the modern
+ * iomanX + mcman stack, so the old MC_GetDir precheck read "dir absent" on EVERY
+ * save after the first, and `!fioMkdir(existing)` == !(-4 EEXIST) == 0 -> the gate
+ * went false and the config write was silently skipped ( "saves once, then Error"
+ * -- the mc / SMB-with-card save bug ). Mirror SMS_SaveSMBInfo + the IP-config save:
+ * create the dir via fio and accept 0 ( created ) or -4 ( already exists ). Coherent
+ * with the fio SMS_LoadConfig; the real success test stays the fioWrite below. */
+  lRes = fioMkdir ( g_pMC0SMS );
 
-  MC_GetDir ( g_MCSlot, 0, s_pSMS, 0, 1, &lDir );
-  MC_Sync ( &lRes );
-
-  if (  lRes || !fioMkdir ( g_pMC0SMS )  ) {
+  if (  lRes == 0 || lRes == -4  ) {
 
    int lFD = fioOpen ( s_pIcoSys, O_RDONLY );
 
