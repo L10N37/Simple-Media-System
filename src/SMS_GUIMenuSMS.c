@@ -83,6 +83,7 @@ static void _startmx4sio_handler ( GUIMenu*, int );
 static void _startata_handler    ( GUIMenu*, int );
 static void _startilink_handler  ( GUIMenu*, int );
 static void _startmce_handler    ( GUIMenu*, int );
+static void _startudpbd_handler  ( GUIMenu*, int );
 static void _pairbt_handler      ( GUIMenu*, int );
 #endif
 static void _starthdd_handler ( GUIMenu*, int );
@@ -227,6 +228,9 @@ static char s_pAutoMMCE  [] __attribute__(   (  section( ".data" ), aligned( 1 )
 static char s_pStartMMCE [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start MMCE support";
 static SMString s_StrAutoMMCE  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoMMCE  ) - 1, s_pAutoMMCE  };
 static SMString s_StrStartMMCE __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartMMCE ) - 1, s_pStartMMCE };
+
+static char s_pStartUDPBD[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start UDPBD network drive";
+static SMString s_StrStartUDPBD __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartUDPBD ) - 1, s_pStartUDPBD };
 
 static char s_pPairBT[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Pair Bluetooth controller";
 static SMString s_StrPairBT __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pPairBT ) - 1, s_pPairBT };
@@ -638,6 +642,14 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
   s_DevMenu[ ++lSize ].m_pOptionName = &s_StrStartMMCE;
   s_DevMenu[   lSize ].Handler       = _startmce_handler;
+
+ }  /* end if */
+
+ if (  !( g_IOPFlags & SMS_IOPF_UDPBD ) && ( g_IOPFlags & SMS_IOPF_DEV9_IS ) &&
+       !( g_IOPFlags & ( SMS_IOPF_NET | SMS_IOPF_SMB ) )  ) {   /* Ethernet present + NIC free -> udpbd ( mutually exclusive with SMB ) */
+
+  s_DevMenu[ ++lSize ].m_pOptionName = &s_StrStartUDPBD;
+  s_DevMenu[   lSize ].Handler       = _startudpbd_handler;
 
  }  /* end if */
 
@@ -1325,6 +1337,12 @@ static void _startmce_handler ( GUIMenu* apMenu, int aDir ) {
  _start_device ( apMenu, SMS_IOPStartMMCE );
 
 }  /* end _startmce_handler */
+
+static void _startudpbd_handler ( GUIMenu* apMenu, int aDir ) {
+
+ _start_device ( apMenu, SMS_IOPStartUDPBD );
+
+}  /* end _startudpbd_handler */
 
 /* Pair a DS3/DS4 to the USB Bluetooth dongle: write the dongle's MAC into the
  * controller that is currently plugged in via USB ( functionally identical to

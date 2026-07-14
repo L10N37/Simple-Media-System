@@ -62,6 +62,7 @@ static int _dev_icon_index ( _DevMenuItem* apItem ) {
   if ( g_Mx4sioMask & lBit ) return 7;
   if ( g_AtaMask    & lBit ) return 8;
   if ( g_IlinkMask  & lBit ) return 9;
+  if ( g_UdpbdMask  & lBit ) return 6;   /* udpbd network drive reuses the SMB / network icon */
  }  /* end if */
  if ( apItem -> m_DevID == 7 ) return 10;   /* MMCE ( mmce0:/mmce1: ) */
 #endif

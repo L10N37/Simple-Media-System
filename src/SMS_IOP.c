@@ -51,6 +51,7 @@ unsigned int g_IOPFlags;
 unsigned int g_Mx4sioMask;
 unsigned int g_AtaMask;
 unsigned int g_IlinkMask;
+unsigned int g_UdpbdMask;   /* mass units that are the udpbd network drive ( -> SMB icon ) */
 unsigned int g_MmceFlags;   /* pending MMCE connect events: bit0 = mmce0:, bit1 = mmce1: */
 #endif
 
@@ -70,6 +71,7 @@ extern unsigned char IEEE1394_bd_irx[];
 extern unsigned char mmceman_irx    [];
 extern unsigned char ds34usb_irx    [];
 extern unsigned char ds34bt_irx     [];
+extern unsigned char smap_udpbd_irx [];
 
 extern unsigned char sio2man_irx [];
 extern unsigned char iomanx_irx  [];
@@ -89,6 +91,7 @@ extern unsigned int size_IEEE1394_bd_irx;
 extern unsigned int size_mmceman_irx;
 extern unsigned int size_ds34usb_irx;
 extern unsigned int size_ds34bt_irx;
+extern unsigned int size_smap_udpbd_irx;
 
 extern unsigned int size_sio2man_irx;
 extern unsigned int size_iomanx_irx;
@@ -109,6 +112,11 @@ static unsigned int s_MassAdded;
  * 2 = ATA-as-BDM ( ata_bd, which bundles its own atad ). Both register the same atad
  * IOP library, so only the first to start may own the bus -- the other backs off. */
 static int s_AtaBusOwner;
+/* Which network personality owns the single EMAC3 NIC this boot: 0 = free, 1 = SMS
+ * SMB/host ( PS2SMAP + SMSTCPIP ), 2 = udpbd ( smap_udpbd, its own SMAP ). Both
+ * register the 'smap' library, so only the first to start may own it -- the other
+ * backs off ( no runtime swap without a full IOP reset ). */
+static int s_NetOwner;
 /* MMCE units ( bit0=mmce0:, bit1=mmce1: ) already announced to the device strip,
  * so a re-probe doesn't append a duplicate ( same idea as s_MassAdded ). */
 static unsigned int s_MmceAdded;
@@ -311,11 +319,15 @@ int SMS_IOPStartNet ( int afStatus ) {
  char lSMAPArgs[ 80 ];
  int  lSMAPALen;
 
+ if (  s_NetOwner == 2  ) return 0;   /* udpbd owns the NIC this boot -- can't also load SMS's SMAP */
+
  if (  !( g_IOPFlags & SMS_IOPF_DEV9_IS )  ) return 0;
  if (  !( g_IOPFlags & SMS_IOPF_DEV9    )  ) {
   SMS_IOCtl ( g_pDEV9X, DEV9CTLINIT, NULL );
   g_IOPFlags |= SMS_IOPF_DEV9;
  }  /* end if */
+
+ s_NetOwner = 1;   /* SMS SMB/host networking now owns the NIC */
 
  if ( afStatus ) GUI_Status ( STR_INITIALIZING_NETWORK.m_pStr );
 
@@ -617,6 +629,66 @@ int SMS_IOPStartATA ( int afStatus ) {
 
 }  /* end SMS_IOPStartATA */
 
+int SMS_IOPStartUDPBD ( int afStatus ) {
+
+ unsigned int lBefore;
+ int          i, ret;
+ char         lArg[ 24 ];
+ static char  lP1[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPBD: preparing network (DEV9)...";
+ static char  lP2[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPBD: loading driver (smap_udpbd)...";
+ static char  lP3[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPBD: connecting to server...";
+
+ /* UDP block device over Ethernet. smap_udpbd bundles its OWN SMAP driver + a tiny
+  * IP/UDP/ARP stack, so it is MUTUALLY EXCLUSIVE with SMS's SMB/host TCP-IP stack
+  * ( both claim the one EMAC3 NIC + register the 'smap' library ) -- one network
+  * personality per boot, tracked by s_NetOwner. Needs only DEV9. No server address is
+  * configured: the driver BROADCASTS to auto-discover the server; the PS2's OWN static
+  * IP ( IPCONFIG.DAT -> g_pDefIP ) is passed as the ip= arg. Pure dev9/SMAP -- stays
+  * off the SIO2 bus, so MX4SIO / MMCE are unaffected. Mounts as a BDM massN: drive, so
+  * browsing + playback reuse the existing mass path unchanged. */
+ if (  g_IOPFlags & SMS_IOPF_UDPBD  ) return g_IOPFlags & SMS_IOPF_UDPBD;   /* idempotent */
+ if (  s_NetOwner == 1 || ( g_IOPFlags & ( SMS_IOPF_NET | SMS_IOPF_SMB ) )  ) return 0;   /* SMB/host owns the NIC */
+ if (  !( g_IOPFlags & SMS_IOPF_DEV9_IS )  ) return 0;   /* no DEV9 hardware */
+ if (  !g_pDefIP[ 0 ]  ) return 0;                        /* no static IP set -> udpbd can't reach a server */
+
+ GUI_Status ( lP1 );
+ if (  !( g_IOPFlags & SMS_IOPF_DEV9 )  ) {
+  SMS_IOCtl ( g_pDEV9X, DEV9CTLINIT, NULL );
+  g_IOPFlags |= SMS_IOPF_DEV9;
+ }  /* end if */
+
+ lBefore = _bdm_scan ();
+
+ GUI_Status ( lP2 );
+ sprintf ( lArg, "ip=%s", g_pDefIP );   /* single NUL-terminated arg token, argc-parsed by the module */
+
+ /* Claim the NIC + flag udpbd ONLY if the driver actually loads -- otherwise leave
+  * the NIC free so the user can still start SMB this boot ( don't lock them out ). */
+ if (  SifExecDecompModuleBuffer ( &smap_udpbd_irx, size_smap_udpbd_irx, strlen ( lArg ) + 1, lArg, &i ) < 0  )
+  return 0;
+
+ s_NetOwner  = 2;
+ g_IOPFlags |= SMS_IOPF_UDPBD;
+
+ GUI_Status ( lP3 );
+ /* Unlike MX4SIO/ATA ( their block device registers synchronously during module
+  * init ), udpbd registers ASYNCHRONOUSLY: the SMAP PHY link-up ( ~2-5s ), the
+  * broadcast server-discovery round-trip and the FAT mount all happen AFTER the
+  * module loads. So POLL for a newly-appeared mass unit ( NHDDL's delayAttempts
+  * pattern ) and break the instant it shows, instead of a single fixed wait that
+  * would miss the mount; give up after ~NHDDL's budget ( a no-server / no-link boot
+  * simply adds no drive ). */
+ for ( i = 0; i < 20 && _bdm_scan () == lBefore; ++i ) {
+  ret = 0x01000000;
+  while ( ret-- ) asm ( "nop\nnop\nnop\nnop" );
+ }  /* end for */
+
+ _bdm_register_new ( lBefore, &g_UdpbdMask );
+
+ return g_IOPFlags & SMS_IOPF_UDPBD;
+
+}  /* end SMS_IOPStartUDPBD */
+
 int SMS_IOPStartMMCE ( int afStatus ) {
 
  static char lMmce[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "mmceX:/";
@@ -692,6 +764,7 @@ int SMS_IOPStartMMCE ( int afStatus ) {
 int SMS_IOPStartILINK ( int afStatus ) { return 0; }
 int SMS_IOPStartATA   ( int afStatus ) { return 0; }
 int SMS_IOPStartMMCE  ( int afStatus ) { return 0; }
+int SMS_IOPStartUDPBD ( int afStatus ) { return 0; }
 #endif
 
 #ifdef BDM
