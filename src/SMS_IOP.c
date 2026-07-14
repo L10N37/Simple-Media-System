@@ -69,6 +69,7 @@ extern unsigned char iLinkman_irx   [];
 extern unsigned char IEEE1394_bd_irx[];
 extern unsigned char mmceman_irx    [];
 extern unsigned char ds34usb_irx    [];
+extern unsigned char ds34bt_irx     [];
 
 extern unsigned char sio2man_irx [];
 extern unsigned char iomanx_irx  [];
@@ -87,6 +88,7 @@ extern unsigned int size_iLinkman_irx;
 extern unsigned int size_IEEE1394_bd_irx;
 extern unsigned int size_mmceman_irx;
 extern unsigned int size_ds34usb_irx;
+extern unsigned int size_ds34bt_irx;
 
 extern unsigned int size_sio2man_irx;
 extern unsigned int size_iomanx_irx;
@@ -904,6 +906,33 @@ int SMS_IOPStartDS34USB ( int afStatus ) {
  return SMS_IOPF_DS34USB;
 
 }  /* end SMS_IOPStartDS34USB */
+
+/* DS3/4 over Bluetooth ( ds34bt.irx: its own HCI/L2CAP stack over usbd + a USB BT
+ * dongle ). Same shape as SMS_IOPStartDS34USB -- usbd alone, load-result checked,
+ * idempotent, non-fatal on failure. Reads a controller that was already paired to
+ * the dongle ( in-app pairing writes the dongle MAC into the pad, see the pair
+ * handler ). Still off the SIO2 bus. */
+int SMS_IOPStartDS34BT ( int afStatus ) {
+
+ int i;
+
+ (void)afStatus;
+
+ if ( g_IOPFlags & SMS_IOPF_DS34BT ) return g_IOPFlags & SMS_IOPF_DS34BT;
+
+ if (  !( g_IOPFlags & SMS_IOPF_USB )  ) {
+  SifExecDecompModuleBuffer ( &usbd_irx, size_usbd_irx, 0, NULL, &i );
+  g_IOPFlags |= SMS_IOPF_USB;
+ }  /* end if */
+
+ if (  SifExecDecompModuleBuffer ( &ds34bt_irx, size_ds34bt_irx, 0, NULL, &i ) < 0  )
+  return 0;
+
+ g_IOPFlags |= SMS_IOPF_DS34BT;
+
+ return SMS_IOPF_DS34BT;
+
+}  /* end SMS_IOPStartDS34BT */
 #endif  /* BDM */
 
 void SMS_IOPInit ( void ) {

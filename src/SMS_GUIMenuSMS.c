@@ -29,6 +29,8 @@
 #include "SMS_GUIClock.h"
 #include "SMS_IOP.h"
 #include "SMS_ioctl.h"
+#include "libds34usb.h"   /* ds34usb_get_bdaddr / ds34usb_set_bdaddr -- BT pairing */
+#include "libds34bt.h"    /* ds34bt_get_bdaddr ( dongle MAC )        -- BT pairing */
 
 #include <kernel.h>
 #include <malloc.h>
@@ -81,6 +83,7 @@ static void _startmx4sio_handler ( GUIMenu*, int );
 static void _startata_handler    ( GUIMenu*, int );
 static void _startilink_handler  ( GUIMenu*, int );
 static void _startmce_handler    ( GUIMenu*, int );
+static void _pairbt_handler      ( GUIMenu*, int );
 #endif
 static void _starthdd_handler ( GUIMenu*, int );
 static void _refresh_handler  ( GUIMenu*, int );
@@ -225,7 +228,10 @@ static char s_pStartMMCE [] __attribute__(   (  section( ".data" ), aligned( 1 )
 static SMString s_StrAutoMMCE  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoMMCE  ) - 1, s_pAutoMMCE  };
 static SMString s_StrStartMMCE __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartMMCE ) - 1, s_pStartMMCE };
 
-static GUIMenuItem s_DevMenu[ 20 ] __attribute__(   (  section( ".data" )  )   ) = {
+static char s_pPairBT[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Pair Bluetooth controller";
+static SMString s_StrPairBT __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pPairBT ) - 1, s_pPairBT };
+
+static GUIMenuItem s_DevMenu[ 24 ] __attribute__(   (  section( ".data" )  )   ) = {
  {                   0, &STR_NETWORK_SETTINGS,    0, 0, _network_handler,    0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_CONTROLLER_SLOT2,    0, 0, _cntslot_handler,    0, 0 },
  {                   0, &STR_AUTOSTART_NETWORK,   0, 0, _autonet_handler,    0, 0 },
@@ -632,6 +638,13 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
   s_DevMenu[ ++lSize ].m_pOptionName = &s_StrStartMMCE;
   s_DevMenu[   lSize ].Handler       = _startmce_handler;
+
+ }  /* end if */
+
+ if (  g_IOPFlags & SMS_IOPF_DS34BT  ) {   /* Bluetooth driver up -> offer controller pairing */
+
+  s_DevMenu[ ++lSize ].m_pOptionName = &s_StrPairBT;
+  s_DevMenu[   lSize ].Handler       = _pairbt_handler;
 
  }  /* end if */
 #endif
@@ -1312,6 +1325,32 @@ static void _startmce_handler ( GUIMenu* apMenu, int aDir ) {
  _start_device ( apMenu, SMS_IOPStartMMCE );
 
 }  /* end _startmce_handler */
+
+/* Pair a DS3/DS4 to the USB Bluetooth dongle: write the dongle's MAC into the
+ * controller that is currently plugged in via USB ( functionally identical to
+ * sixpair / OPL's PAIR ). Afterwards the user unplugs USB and turns the controller
+ * on -- it connects to the dongle wirelessly and the ds34bt poller picks it up.
+ * Reuses the RPCs already bound at boot ( SMS_PadDS34Init ). */
+static void _pairbt_handler ( GUIMenu* apMenu, int aDir ) {
+
+ unsigned char lDongle[ 6 ], lPad[ 6 ];
+ int           lDongleOK, lPadOK, lSetOK;
+
+ /* Hold the ds34 RPC lock across the whole read/write sequence: the input poller is
+  * busy on the SAME ds34usb client while the controller is plugged in for pairing,
+  * and two threads on one non-reentrant SIF RPC client would corrupt each other. */
+ SMS_PadDS34Lock ();
+  lDongleOK = ds34bt_get_bdaddr ( lDongle );
+  lPadOK    = lDongleOK ? ds34usb_get_bdaddr ( 0, lPad )    : 0;   /* also confirms a controller is plugged in by USB */
+  lSetOK    = lPadOK    ? ds34usb_set_bdaddr ( 0, lDongle ) : 0;
+ SMS_PadDS34Unlock ();
+
+ if      ( !lDongleOK ) GUI_Error  ( "No Bluetooth dongle detected" );
+ else if ( !lPadOK    ) GUI_Error  ( "Plug the controller in by USB, then pair" );
+ else if ( !lSetOK    ) GUI_Error  ( "Pairing failed" );
+ else                   GUI_Status ( "Paired. Unplug USB and turn the controller on to connect." );
+
+}  /* end _pairbt_handler */
 #endif
 
 static void _starthdd_handler ( GUIMenu* apMenu, int aDir ) {

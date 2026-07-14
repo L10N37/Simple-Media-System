@@ -24,6 +24,8 @@
 #include <tamtypes.h>
 
 #include "libds34usb.h"   /* DS3/4-over-USB read API ( SIF RPC to ds34usb.irx ) */
+#include "libds34bt.h"    /* DS3/4-over-Bluetooth read API ( SIF RPC to ds34bt.irx ) */
+#include "SMS_IOP.h"      /* g_IOPFlags + SMS_IOPF_DS34USB / SMS_IOPF_DS34BT */
 
 extern void* _gp;
 
@@ -147,11 +149,20 @@ int ReadCombinedPadStatus(void)
  * present, so the whole feature is a no-op by default. */
 static volatile unsigned int s_ds34Mask     = 0;
 static int                   s_ds34ThreadID = 0;
+static int                   s_ds34Sema     = -1;   /* serializes the ds34 RPC clients: poller vs pair handler */
 
 int ReadDS34Status(void)   /* non-blocking: just the cached mask */
 {
     return s_ds34Mask;
 }
+
+/* The pair handler ( GUI thread ) and the poller ( this file ) both issue SIF RPCs
+ * on the SAME ds34usb/ds34bt clients -- one non-reentrant SifRpcClientData_t + one
+ * static rpcbuf each -- so they MUST be serialized. The poller holds this around its
+ * per-frame read; the pair handler holds it around its get/set_bdaddr sequence. No-op
+ * until the sema exists ( no poller running => no second RPC caller => no race ). */
+void SMS_PadDS34Lock(void)   { if (s_ds34Sema >= 0) WaitSema(s_ds34Sema);   }
+void SMS_PadDS34Unlock(void) { if (s_ds34Sema >= 0) SignalSema(s_ds34Sema); }
 
 static void _ds34_wake(s32 aID, u16 aTime, void *apCommon)   /* one-shot alarm cb: wake the napping poller ( interrupt ctx ) */
 {
@@ -174,33 +185,59 @@ static void _ds34_poll_thread(void *apArg)
 
     while (1) {
 
+        WaitSema(s_ds34Sema);   /* exclude the pair handler for this read */
+
         if (ds34usb_get_status(0) & DS34USB_STATE_RUNNING) {
 
-            if (ds34usb_get_data(0, lBuf))   /* blocking: returns at HID report rate ( ~200ms cap on silence ) */
+            if (ds34usb_get_data(0, lBuf))   /* wired: blocking, returns at HID report rate ( ~200ms cap on silence ) */
                 s_ds34Mask = (0xFFFF ^ *(unsigned short *)lBuf) & 0xFFFF;   /* active-low report -> active-high, 16 canonical bits only */
+
+        } else if (ds34bt_get_status(0) & DS34BT_STATE_RUNNING) {
+
+            if (ds34bt_get_data(0, lBuf))    /* wireless: same 18-byte report + same decode */
+                s_ds34Mask = (0xFFFF ^ *(unsigned short *)lBuf) & 0xFFFF;
 
         } else {
 
-            s_ds34Mask = 0;   /* no pad -> contribute nothing */
+            s_ds34Mask = 0;   /* no pad ( wired or wireless ) -> contribute nothing. get_status returns 0 fast when a driver isn't inited, so this is safe with only one loaded. */
         }
 
-        _ds34_nap();   /* ~60Hz cap, whether a pad is present or not */
+        SignalSema(s_ds34Sema);
+
+        _ds34_nap();   /* ~60Hz cap ( sema released ), whether a pad is present or not */
     }
 }
 
-/* Bind the RPC + spawn the poller. Call AFTER SMS_IOPStartDS34USB has loaded the
- * IOP module. Safe no-op if the module never came up ( ds34usb_init returns 0 ). */
+/* Bind whichever ds34 RPC servers loaded ( usb and/or bt ) + spawn the ONE shared
+ * poller. Call AFTER SMS_IOPStartDS34USB / SMS_IOPStartDS34BT. Each init is gated on
+ * its module actually having loaded ( g_IOPFlags ), so we never run a bounded bind
+ * spin against a driver that isn't there. No-op if neither came up. */
 void SMS_PadDS34Init(void)
 {
     static unsigned char s_ds34Stack[4096] __attribute__((aligned(16), section(".bss")));
 
     ee_thread_t lThread;
+    int         lHave = 0;
 
     if (s_ds34ThreadID)      /* idempotent */
         return;
 
-    if (!ds34usb_init())     /* bind the RPC ( bounded spin ); 0 = server never came up */
+    if ((g_IOPFlags & SMS_IOPF_DS34USB) && ds34usb_init())   /* bind USB RPC ( bounded spin ) */
+        lHave = 1;
+    if ((g_IOPFlags & SMS_IOPF_DS34BT) && ds34bt_init())     /* bind BT RPC ( bounded spin ) */
+        lHave = 1;
+
+    if (!lHave)   /* neither driver's server came up -> no poller */
         return;
+
+    {
+        ee_sema_t lSema;
+        lSema.init_count = 1;   /* mutex: 1 = free */
+        lSema.max_count  = 1;
+        s_ds34Sema = CreateSema(&lSema);
+        if (s_ds34Sema < 0)     /* no lock -> don't run the poller ( unsynchronized RPC would be worse ) */
+            return;
+    }
 
     lThread.func             = _ds34_poll_thread;
     lThread.stack            = s_ds34Stack;

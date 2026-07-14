@@ -29,6 +29,7 @@
 #define SMS_IOPF_ILINK    0x00008000
 #define SMS_IOPF_MMCE     0x00010000
 #define SMS_IOPF_DS34USB  0x00020000
+#define SMS_IOPF_DS34BT   0x00040000
 
 #define SMS_SIF_CMD_SMB_CONNECT    0
 #define SMS_SIF_CMD_USB_CONNECT    1
@@ -57,6 +58,7 @@ int  SMS_IOPStartATA         ( int                                    );
 int  SMS_IOPStartILINK       ( int                                    );
 int  SMS_IOPStartMMCE        ( int                                    );
 int  SMS_IOPStartDS34USB     ( int                                    );
+int  SMS_IOPStartDS34BT      ( int                                    );
 int  SMS_IOPStartHDD         ( int                                    );
 void SMS_IOPRefreshMass      ( void                                   );
 void SMS_IOPSetXLT           ( void                                   );

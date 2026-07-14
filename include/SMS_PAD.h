@@ -21,8 +21,10 @@ int ReadCombinedPadStatus_raw(void);
 void PadDeinitPads(void);
 void PadInitPads(void);
 void PadReacquire(void);   /* re-open the pad ports after a live SIO2 driver load ( mmceman ) desyncs padman */
-int  ReadDS34Status(void);   /* cached DS3/4-over-USB button mask ( 0 = none ), OR'd into port 0 */
-void SMS_PadDS34Init(void);  /* bind ds34usb RPC + start the poller ( after SMS_IOPStartDS34USB ) */
+int  ReadDS34Status(void);   /* cached DS3/4 button mask ( USB or BT; 0 = none ), OR'd into port 0 */
+void SMS_PadDS34Init(void);  /* bind ds34usb/ds34bt RPCs + start the poller ( after SMS_IOPStartDS34* ) */
+void SMS_PadDS34Lock(void);    /* hold around ds34 RPCs from another thread ( pair handler ) vs the poller */
+void SMS_PadDS34Unlock(void);
 #define SMS_PadButtonStatus padButtonStatus
 #define PAD_Init() PadInitPads()
 #define PAD_Quit() PadDeinitPads()
