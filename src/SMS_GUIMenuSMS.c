@@ -74,6 +74,7 @@ static void _automx4sio_handler ( GUIMenu*, int );
 static void _autoata_handler    ( GUIMenu*, int );
 static void _autoilink_handler  ( GUIMenu*, int );
 static void _automce_handler    ( GUIMenu*, int );
+static void _autoudpbd_handler  ( GUIMenu*, int );
 #endif
 static void _autohdd_handler  ( GUIMenu*, int );
 static void _startnet_handler ( GUIMenu*, int );
@@ -232,10 +233,13 @@ static SMString s_StrStartMMCE __attribute__(   (  section( ".data" )  )   ) = {
 static char s_pStartUDPBD[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start UDPBD network drive";
 static SMString s_StrStartUDPBD __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartUDPBD ) - 1, s_pStartUDPBD };
 
+static char s_pAutoUDPBD[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart UDPBD";
+static SMString s_StrAutoUDPBD __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoUDPBD ) - 1, s_pAutoUDPBD };
+
 static char s_pPairBT[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Pair Bluetooth controller";
 static SMString s_StrPairBT __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pPairBT ) - 1, s_pPairBT };
 
-static GUIMenuItem s_DevMenu[ 24 ] __attribute__(   (  section( ".data" )  )   ) = {
+static GUIMenuItem s_DevMenu[ 28 ] __attribute__(   (  section( ".data" )  )   ) = {
  {                   0, &STR_NETWORK_SETTINGS,    0, 0, _network_handler,    0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_CONTROLLER_SLOT2,    0, 0, _cntslot_handler,    0, 0 },
  {                   0, &STR_AUTOSTART_NETWORK,   0, 0, _autonet_handler,    0, 0 },
@@ -247,7 +251,8 @@ static GUIMenuItem s_DevMenu[ 24 ] __attribute__(   (  section( ".data" )  )   )
  {                   0, &s_StrAutoMMCE,           0, 0, _automce_handler,    0, 0 },
  {                   0, &STR_DISABLE_CDVD,        0, 0, _cdvd_handler,       0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_CDVD_SPEED,          0, 0, _cdvd_spd_handler,   0, 0 },
- { MENU_ITEM_TYPE_TEXT, &STR_DIRECTIONAL_BUTTONS, 0, 0, _dirbtn_handler,     0, 0 }
+ { MENU_ITEM_TYPE_TEXT, &STR_DIRECTIONAL_BUTTONS, 0, 0, _dirbtn_handler,     0, 0 },
+ {                   0, &s_StrAutoUDPBD,          0, 0, _autoudpbd_handler,  0, 0 }   /* row 12 */
 };
 #else
 static GUIMenuItem s_DevMenu[ 12 ] __attribute__(   (  section( ".data" )  )   ) = {
@@ -566,7 +571,7 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
  GUIMenuState* lpState = GUI_MenuPushState ( apMenu );
 #ifdef BDM
- unsigned int  lSize   = 11;
+ unsigned int  lSize   = 12;   /* 13 static rows ( 0..12 ) incl. the appended Autostart UDPBD */
 #else
  unsigned int  lSize   = 7;
 #endif
@@ -588,6 +593,7 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
  s_DevMenu[  9 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_CDVD        ? GUICON_ON : GUICON_OFF;
  s_DevMenu[ 10 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed ];
  s_DevMenu[ 11 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );
+ s_DevMenu[ 12 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_UDPBD ? GUICON_ON : GUICON_OFF;
 #else
  s_DevMenu[ 4 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD ? GUICON_ON   : GUICON_OFF;
  s_DevMenu[ 5 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_CDVD     ? GUICON_ON   : GUICON_OFF;
@@ -597,7 +603,7 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
  if ( g_IOPFlags & SMS_IOPF_DEV9_IS ) {
 
-  if (   !(  g_IOPFlags & ( SMS_IOPF_NET | SMS_IOPF_SMB )  )   ) {
+  if (   !(  g_IOPFlags & ( SMS_IOPF_NET | SMS_IOPF_SMB | SMS_IOPF_UDPBD )  )   ) {   /* hide SMB/network start when udpbd owns the NIC */
    s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_NETWORK_NOW;
    s_DevMenu[   lSize ].Handler       = _startnet_handler;
   }  /* end if */
@@ -1255,6 +1261,12 @@ static void _automce_handler ( GUIMenu* apMenu, int aDir ) {
  _switch_flag ( apMenu, 8, &g_Config.m_NetworkFlags, SMS_DF_AUTO_MMCE );  /* MMCE row is index 8 */
 
 }  /* end _automce_handler */
+
+static void _autoudpbd_handler ( GUIMenu* apMenu, int aDir ) {
+
+ _switch_flag ( apMenu, 12, &g_Config.m_NetworkFlags, SMS_DF_AUTO_UDPBD );   /* appended after the CDVD/dir rows -> row index 12 */
+
+}  /* end _autoudpbd_handler */
 #endif
 
 static void _autohdd_handler ( GUIMenu* apMenu, int aDir ) {

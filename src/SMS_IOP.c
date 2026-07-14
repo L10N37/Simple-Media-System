@@ -1123,7 +1123,7 @@ void SMS_IOPInit ( void ) {
 
  if ( g_IOPFlags & SMS_IOPF_DEV9_IS ) {
 #if NO_DEBUG
-  if (   !(  g_Config.m_NetworkFlags & ( SMS_DF_AUTO_HDD | SMS_DF_AUTO_NET | SMS_DF_AUTO_ATA )  )   )
+  if (   !(  g_Config.m_NetworkFlags & ( SMS_DF_AUTO_HDD | SMS_DF_AUTO_NET | SMS_DF_AUTO_ATA | SMS_DF_AUTO_UDPBD )  )   )
    SMS_IOCtl ( g_pDEV9X, DEV9CTLSHUTDOWN, NULL );
   else g_IOPFlags |= SMS_IOPF_DEV9;
 #else
@@ -1141,6 +1141,7 @@ void SMS_IOPInit ( void ) {
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_ATA    ) SMS_IOPStartATA    ( 1 );
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_ILINK  ) SMS_IOPStartILINK  ( 1 );
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_MMCE   ) SMS_IOPStartMMCE   ( 1 );
+ if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_UDPBD  ) SMS_IOPStartUDPBD  ( 1 );
 #endif
 
  GUI_Status ( STR_INITIALIZING_SMS.m_pStr );
