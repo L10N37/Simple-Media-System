@@ -599,7 +599,7 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
  }  /* end if */
 
- if (  !( g_IOPFlags & SMS_IOPF_USB )  ) {
+ if (  !( g_IOPFlags & SMS_IOPF_UMS )  ) {   /* UMS ( usb-mass ) not USB ( usbd ): ds34usb now loads usbd alone at boot, so keep offering "Start USB" until the MASS stack is actually up */
 
   s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_USB_NOW;
   s_DevMenu[   lSize ].Handler       = _startusb_handler;

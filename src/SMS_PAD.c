@@ -23,6 +23,10 @@
 #include <string.h>
 #include <tamtypes.h>
 
+#include "libds34usb.h"   /* DS3/4-over-USB read API ( SIF RPC to ds34usb.irx ) */
+
+extern void* _gp;
+
 static unsigned char padArea[2][256] __attribute__(   (  aligned( 64 ), section( ".data" )  )   );
 static unsigned int old_pad[2] = {0, 0};
 int pad_inited = 0;
@@ -103,6 +107,9 @@ int ReadPadStatus_raw(int port, int slot)
 
     s_padState[port] = state;
 
+    if (port == 0)                     /* merge DS3/4-over-USB ( 0 when no pad; port-0 only, avoids a double-OR ) */
+        paddata |= ReadDS34Status();
+
     return paddata;
 }
 
@@ -130,6 +137,83 @@ int ReadPadStatus(int port, int slot)
 int ReadCombinedPadStatus(void)
 {
     return (ReadPadStatus(0, 0) | ReadPadStatus(1, 0));
+}
+
+/* ---- DualShock 3/4 over USB ( ds34usb.irx, read via SIF RPC ) --------------------
+ * A low-priority EE thread polls the driver ( ds34usb_get_data BLOCKS up to ~200ms
+ * on pad silence, so it must NOT run on the GUI thread ) and caches an active-high
+ * button mask that ReadPadStatus_raw ORs into port 0. Input arrives over usbd, never
+ * SIO2, so native padman + MX4SIO are untouched; the mask is 0 whenever no pad is
+ * present, so the whole feature is a no-op by default. */
+static volatile unsigned int s_ds34Mask     = 0;
+static int                   s_ds34ThreadID = 0;
+
+int ReadDS34Status(void)   /* non-blocking: just the cached mask */
+{
+    return s_ds34Mask;
+}
+
+static void _ds34_wake(s32 aID, u16 aTime, void *apCommon)   /* one-shot alarm cb: wake the napping poller ( interrupt ctx ) */
+{
+    (void)aID;
+    (void)aTime;
+    iWakeupThread((int)apCommon);
+}
+
+static void _ds34_nap(void)   /* ~16ms sleep ( H-SYNC ticks ): caps the poll rate + yields the SIF */
+{
+    SetAlarm(250, _ds34_wake, (void *)GetThreadId());
+    SleepThread();
+}
+
+static void _ds34_poll_thread(void *apArg)
+{
+    unsigned char lBuf[18];
+
+    (void)apArg;
+
+    while (1) {
+
+        if (ds34usb_get_status(0) & DS34USB_STATE_RUNNING) {
+
+            if (ds34usb_get_data(0, lBuf))   /* blocking: returns at HID report rate ( ~200ms cap on silence ) */
+                s_ds34Mask = (0xFFFF ^ *(unsigned short *)lBuf) & 0xFFFF;   /* active-low report -> active-high, 16 canonical bits only */
+
+        } else {
+
+            s_ds34Mask = 0;   /* no pad -> contribute nothing */
+        }
+
+        _ds34_nap();   /* ~60Hz cap, whether a pad is present or not */
+    }
+}
+
+/* Bind the RPC + spawn the poller. Call AFTER SMS_IOPStartDS34USB has loaded the
+ * IOP module. Safe no-op if the module never came up ( ds34usb_init returns 0 ). */
+void SMS_PadDS34Init(void)
+{
+    static unsigned char s_ds34Stack[4096] __attribute__((aligned(16), section(".bss")));
+
+    ee_thread_t lThread;
+
+    if (s_ds34ThreadID)      /* idempotent */
+        return;
+
+    if (!ds34usb_init())     /* bind the RPC ( bounded spin ); 0 = server never came up */
+        return;
+
+    lThread.func             = _ds34_poll_thread;
+    lThread.stack            = s_ds34Stack;
+    lThread.stack_size       = sizeof(s_ds34Stack);
+    lThread.gp_reg           = &_gp;
+    lThread.initial_priority = 40;   /* below the clock (33) and GUI */
+
+    s_ds34ThreadID = CreateThread(&lThread);
+
+    if (s_ds34ThreadID > 0)
+        StartThread(s_ds34ThreadID, NULL);
+    else
+        s_ds34ThreadID = 0;
 }
 #else
 

@@ -68,6 +68,7 @@ extern unsigned char ata_bd_irx     [];
 extern unsigned char iLinkman_irx   [];
 extern unsigned char IEEE1394_bd_irx[];
 extern unsigned char mmceman_irx    [];
+extern unsigned char ds34usb_irx    [];
 
 extern unsigned char sio2man_irx [];
 extern unsigned char iomanx_irx  [];
@@ -85,6 +86,7 @@ extern unsigned int size_ata_bd_irx;
 extern unsigned int size_iLinkman_irx;
 extern unsigned int size_IEEE1394_bd_irx;
 extern unsigned int size_mmceman_irx;
+extern unsigned int size_ds34usb_irx;
 
 extern unsigned int size_sio2man_irx;
 extern unsigned int size_iomanx_irx;
@@ -416,10 +418,12 @@ int SMS_IOPStartUSB ( int afStatus ) {
 #ifdef BDM
  int ret;
 
- if ( g_IOPFlags & SMS_IOPF_USB ) return g_IOPFlags & SMS_IOPF_USB;   /* idempotent: already mounted -> don't re-load usbd */
+ if ( g_IOPFlags & SMS_IOPF_UMS ) return SMS_IOPF_USB;   /* usb-mass already up -> nothing to do. ( Guard on UMS not USB: ds34usb can load usbd ALONE, and this must still add usbmass + rescan on top of that. ) */
 
- SifExecDecompModuleBuffer ( &usbd_irx, size_usbd_irx, 0, NULL, &i );
- g_IOPFlags |= SMS_IOPF_USB;
+ if (  !( g_IOPFlags & SMS_IOPF_USB )  ) {               /* usbd may already be resident ( ds34usb loads it standalone ) -> don't double-load */
+  SifExecDecompModuleBuffer ( &usbd_irx, size_usbd_irx, 0, NULL, &i );
+  g_IOPFlags |= SMS_IOPF_USB;
+ }  /* end if */
 
  SifExecDecompModuleBuffer ( &usbmass_bd_irx, size_usbmass_bd_irx, 0, NULL, &i );
  g_IOPFlags |= SMS_IOPF_UMS;
@@ -868,6 +872,38 @@ static void _cfg_resolve_fallback ( void ) {
 /* Nothing attached -> mc0: last resort ( s_CfgOnFS stays 0 ). */
 
 }  /* end _cfg_resolve_fallback */
+
+/* Load the DS3/DS4-over-USB driver ( ds34usb.irx ). It is read on the EE via SIF
+ * RPC ( SMS_PadDS34Init ) -- input arrives over usbd, NOT the SIO2 pad bus, so
+ * padman / MX4SIO are untouched. usbd is ensured first ( idempotent -> one usbd
+ * instance ). Idempotent; a load failure is non-fatal ( the EE reader just yields
+ * nothing and native pad input is unaffected ). */
+int SMS_IOPStartDS34USB ( int afStatus ) {
+
+ int i;
+
+ (void)afStatus;
+
+ if ( g_IOPFlags & SMS_IOPF_DS34USB ) return g_IOPFlags & SMS_IOPF_DS34USB;
+
+/* ds34usb imports usbd -> load usbd ALONE if it isn't up yet. It does NOT need
+ * usbmass_bd, so we skip the USB-mass stack + its multi-second settle loop
+ * ( force-loading those on EVERY boot -- incl. MX4SIO / SD -- would be a needless
+ * boot-path regression ). SMS_IOPStartUSB guards on SMS_IOPF_UMS, so a later
+ * "Start USB" still adds usbmass + rescans on top of this. */
+ if (  !( g_IOPFlags & SMS_IOPF_USB )  ) {
+  SifExecDecompModuleBuffer ( &usbd_irx, size_usbd_irx, 0, NULL, &i );
+  g_IOPFlags |= SMS_IOPF_USB;
+ }  /* end if */
+
+ if (  SifExecDecompModuleBuffer ( &ds34usb_irx, size_ds34usb_irx, 0, NULL, &i ) < 0  )
+  return 0;   /* module didn't load -> DON'T flag it, so the EE skips ds34usb_init entirely ( no bind spin ) */
+
+ g_IOPFlags |= SMS_IOPF_DS34USB;
+
+ return SMS_IOPF_DS34USB;
+
+}  /* end SMS_IOPStartDS34USB */
 #endif  /* BDM */
 
 void SMS_IOPInit ( void ) {

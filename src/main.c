@@ -14,6 +14,7 @@
 #include "SMS_EE.h"
 #include "SMS_RC.h"
 #include "SMS_IOP.h"
+#include "SMS_PAD.h"
 #include "SMS_DSP.h"
 #include "SMS_DMA.h"
 #include "SMS_Locale.h"
@@ -64,6 +65,10 @@ int main ( int argc, char** argv ) {
 #endif  /* EMBEDDED */
  SMS_IOPInit     ();
  SMS_EEPort2Init ();
+#ifdef BDM
+ if ( SMS_IOPStartDS34USB ( 1 )  )   /* DS3/4-over-USB controller ( off the SIO2 bus ) -- only bind its RPC + */
+  SMS_PadDS34Init ();                /* start the poller if the driver actually loaded ( else a clean no-op ) */
+#endif
  CDVD_SetSpeed   ();
 
  if (  CDDA_DiskType () != DiskType_None  ) CDVD_Stop ();
