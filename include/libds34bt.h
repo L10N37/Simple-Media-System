@@ -1,3 +1,5 @@
+/* DS3/DS4-over-Bluetooth EE client API. Vendored from Open PS2 Loader
+ * ( modules/ds34bt/ee/libds34bt.h ), (c) the OPL contributors, AFL v3.0. */
 
 enum eDS34BTStatus {
     DS34BT_STATE_USB_DISCONNECTED = 0x00,

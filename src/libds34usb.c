@@ -1,3 +1,7 @@
+/* DS3/DS4-over-USB EE client library ( SIF RPC to ds34usb.irx ). Vendored from
+ * Open PS2 Loader ( github.com/ps2homebrew/Open-PS2-Loader, modules/ds34usb/ee/ ),
+ * (c) the OPL contributors, Academic Free License v3.0 -- compatible with SMS
+ * ( AFL v2.0 ). SMS-local change: ds34usb_init()'s RPC bind spin is bounded. */
 #include <kernel.h>
 #include <sifrpc.h>
 #include <string.h>

@@ -1,3 +1,5 @@
+/* DS3/DS4-over-USB EE client API. Vendored from Open PS2 Loader
+ * ( modules/ds34usb/ee/libds34usb.h ), (c) the OPL contributors, AFL v3.0. */
 
 enum eDS34USBStatus {
     DS34USB_STATE_DISCONNECTED = 0x00,
