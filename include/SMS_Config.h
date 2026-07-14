@@ -140,6 +140,7 @@ int  SMS_ConfigOnFS ( void                );
 const char* SMS_ConfigPath ( void         );
 int  SMS_ConfigFallback  ( void           );
 void SMS_ConfigUseFSPath ( const char*    );
+void SMS_ConfigClearFS   ( void           );
 int  SMS_MCPresent       ( void           );
 int  SMS_ConfigAssetPath ( char*, int, const char* );
 void SMS_LoadXLT    ( void                );

@@ -1645,42 +1645,46 @@ static void _saveipc_handler ( GUIMenu* apMenu, int aDir ) {
  lDir[ 13 ] = '\x00';
 
 #ifdef BDM
- /* libmc reports a transient "card changed" status on the first query; retry to
-  * get the stable status so the IP config reliably saves (see _mc_get_info in
-  * SMS_Config.c). */
- { int lTry; lRes = -1; for ( lTry = 0; lTry < 8; ++lTry ) { MC_GetInfo ( g_MCSlot, 0, &lRes, &lRes, &lRes ); MC_Sync ( &lRes ); if ( lRes >= 0 ) break; } }
+ /* Gate on the fio-coherent card check ( SMS_MCPresent -> _mc_get_info, which now
+  * falls back to a fio probe when libmc falsely reports the card absent on a udpbd
+  * boot ) instead of a raw MC_GetInfo, which blocks the save on such boots. */
+ lRes = SMS_MCPresent () ? 0 : -2;
 #else
  MC_GetInfo ( g_MCSlot, 0, &lRes, &lRes, &lRes );
  MC_Sync ( &lRes );
 #endif
 
- if ( lRes > -2 ) {
+ /* libmc on the modern iomanX + mcman stack does NOT see fio-created dirs, so a
+  * MC_GetDir precheck returns inconsistent status and would wrongly skip the write.
+  * Mirror SMS_SaveSMBInfo: fioMkdir unconditionally, accept 0 (created) or -4
+  * (EEXIST), then write via fio coherently with how SMS_IOP.c reads g_pIPConf at
+  * boot. The per-stage error strings below are TEMPORARY diagnostics (revert to
+  * STR_ERROR before release) to pinpoint any remaining udpbd save failure. */
+ if ( lRes <= -2 ) GUI_Error ( "IPCONFIG: card not found" );   /* TEMP diag */
+ else {
 
-  /* libmc on the modern iomanX + mcman stack does NOT see fio-created dirs, so
-   * a MC_GetDir precheck returns inconsistent status and would wrongly skip the
-   * write. Mirror SMS_SaveSMBInfo: fioMkdir unconditionally, accept 0 (created)
-   * or -4 (EEXIST), then write via fio coherently with how SMS_IOP.c reads
-   * g_pIPConf at boot. */
-  lRes = fioMkdir ( lDir );
+  int lMk = fioMkdir ( lDir );
 
-  if ( lRes == 0 || lRes == -4 ) {
+  if ( lMk != 0 && lMk != -4 ) GUI_Error ( "IPCONFIG: mkdir failed" );   /* TEMP diag */
+  else {
 
    int lFD = fioOpen ( g_pIPConf, O_CREAT | O_WRONLY );
 
-   if ( lFD >= 0 ) {
+   if ( lFD < 0 ) GUI_Error ( "IPCONFIG: open failed" );   /* TEMP diag */
+   else {
 
     i = strlen ( lBuf );
 
     lSts = fioWrite ( lFD, lBuf, i ) == i;
     fioClose ( lFD );
 
-   }  /* end if */
+    if ( !lSts ) GUI_Error ( "IPCONFIG: write failed" );   /* TEMP diag */
 
-  }  /* end if */
+   }  /* end else */
 
- }  /* end if */
+  }  /* end else */
 
- if ( !lSts ) GUI_Error ( STR_ERROR.m_pStr );
+ }  /* end else */
 
  GUIMenuSMS_UpdateStatus ( apMenu );
 

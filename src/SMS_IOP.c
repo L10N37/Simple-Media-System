@@ -888,7 +888,8 @@ void SMS_IOPInit ( void ) {
  * already inited ), but colours / auto-start / browser+player settings persist. */
  if ( SMS_ConfigOnFS () ) {
 
-  const char* lpCfg = SMS_ConfigPath ();   /* e.g. "mmce0:/APPS/SMS.cfg" */
+  const char* lpCfg   = SMS_ConfigPath ();   /* e.g. "mmce0:/APPS/SMS.cfg" */
+  int         lFSGone = 0;                    /* 1 = argv[0] boot device unreachable after the IOP reset */
 
   if ( strncmp ( lpCfg, "mmce", 4 ) == 0 ) {
 
@@ -896,7 +897,8 @@ void SMS_IOPInit ( void ) {
 
   } else if ( strncmp ( lpCfg, "mass", 4 ) == 0 ) {
 
-   int lCfgFD;
+   int  lCfgFD, lRootFD, lN;
+   char lDev[ 16 ];
 
    SMS_IOPStartUSB ( 1 );                       /* mass could be USB ... */
 
@@ -904,11 +906,30 @@ void SMS_IOPInit ( void ) {
    if ( lCfgFD >= 0 ) fioClose ( lCfgFD );
    else SMS_IOPStartMX4SIO ( 1 );               /* ... or MX4SIO ( also mass ) */
 
+/* A udpbd network drive ( wLaunchELF UDPFS ) ALSO presents as "mass:", but SMS
+ * has no driver to bring it back after the IOP reset -- staying pinned to it makes
+ * every save fail with NO memory-card fallback. Probe the device ROOT ( openable
+ * even on a first-ever USB / MX4SIO boot that has no SMS.cfg yet, so a real drive
+ * is never mistaken for a dead one ). Safe by construction: if this dopen fails,
+ * SMS_LoadConfig's fioOpen below would fail too -- config is already unusable, so
+ * degrading to the card can only help; a working drive has a mounted root -> keep. */
+   for ( lN = 0; lN < 12 && lpCfg[ lN ] && lpCfg[ lN ] != ':'; ++lN ) lDev[ lN ] = lpCfg[ lN ];
+   lDev[ lN ] = ':'; lDev[ lN + 1 ] = '/'; lDev[ lN + 2 ] = '\x00';   /* "massN:/" ( N up to 2+ digits ) */
+
+   lRootFD = fioDopen ( lDev );
+   if ( lRootFD >= 0 ) fioDclose ( lRootFD );
+   else lFSGone = 1;
+
   } else if ( strncmp ( lpCfg, "pfs", 3 ) == 0 || strncmp ( lpCfg, "hdd", 3 ) == 0 ) {
 
    SMS_IOPStartHDD ( 1 );                        /* internal HDD ( PFS ) */
 
   }  /* end else if */
+
+  if ( lFSGone ) {   /* phantom "mass:" ( udpbd ): degrade to the memory-card fallback, exactly like an SMB boot */
+   SMS_ConfigClearFS     ();
+   _cfg_resolve_fallback ();
+  }  /* end if */
 
   SMS_LoadConfig ();
   GUI_SetColors  ();

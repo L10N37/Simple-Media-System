@@ -355,6 +355,22 @@ static int _mc_get_info ( void ) {
   if ( lRes >= 0 ) break;
  }  /* end for */
 
+/* libmc can wrongly report the card ABSENT ( lRes <= -2 ) on a boot where the PS2
+ * browser never initialised it -- e.g. launched via udpbd, which resets the IOP out
+ * from under the BIOS card init -- even though the card is fully readable AND
+ * writable through fio / iomanX ( the same libmc-vs-iomanX split behind the fio
+ * config migration; cf. the mc-save "MC_GetDir precheck" bug ). Every mc save gates
+ * on this value, so a false "absent" silently blocks the write ( the udpbd "can't
+ * save settings / IPCONFIG" report ). When libmc claims absent, confirm with a fio
+ * probe of the card root -- the SAME path the save actually uses -- and trust that. */
+ if ( lRes <= -2 ) {
+  char lP[ 6 ];
+  int  lFD;
+  lP[ 0 ] = 'm'; lP[ 1 ] = 'c'; lP[ 2 ] = ( char )( '0' + g_MCSlot ); lP[ 3 ] = ':'; lP[ 4 ] = '/'; lP[ 5 ] = '\x00';
+  lFD = fioDopen ( lP );
+  if ( lFD >= 0 ) { fioDclose ( lFD ); lRes = 0; }   /* fio can open it -> present */
+ }  /* end if */
+
  return lRes;
 
 }  /* end _mc_get_info */
@@ -372,6 +388,23 @@ int SMS_ConfigFallback ( void ) { return s_CfgFallback; }   /* 1 = SMB/host/cdro
  * device -- pin SMS.cfg to it and switch to the FS save/load path. apPath is a
  * short device-root path ( e.g. "mass0:/SMS.cfg", <= 15 bytes ) that fits s_pMC0SMC. */
 void SMS_ConfigUseFSPath ( const char* apPath ) { strcpy ( s_pMC0SMC, apPath ); s_CfgOnFS = 1; _derive_smb_path (); }
+
+/* The argv[0] boot device turned out to be unreachable after the IOP reset. A UDP
+ * block device ( udpbd, launched via wLaunchELF ) advertises itself as "mass:" but
+ * SMS has no driver to re-mount it, so a config pinned there can never be saved or
+ * loaded -- and, worse, the "re-mountable device" branch never falls back to the
+ * memory card. Undo SMS_ConfigSetCWD's CWD commitment and restore the mc?:/SMS
+ * default, re-flagged as a fallback boot so SMS_IOPInit's resolver routes config to
+ * the card ( or, failing that, the first attached FS device ) -- the exact same
+ * recovery an SMB / host / cdrom boot already uses. Slot stays 0: SMS_SetMCSlot is
+ * only called on an actual mc boot, so a non-mc boot's default is mc0:. */
+void SMS_ConfigClearFS ( void ) {
+ strcpy ( s_pMC0SMC, "mc0:/SMS/SMS.cfg" );
+ s_CfgOnFS       = 0;
+ s_CfgFallback   = 1;
+ g_pBootDir[ 0 ] = '\x00';
+ _derive_smb_path ();
+}  /* end SMS_ConfigClearFS */
 
 int SMS_LoadConfig ( void  ) {
 
