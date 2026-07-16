@@ -240,21 +240,12 @@ void SMS_IOPReset ( int afExit ) {
 
  int i;
 
-/* EXIT-HANG FIX. On an exit reset ( afExit ) with DEV9 powered, quiesce DEV9 BEFORE the
- * SifIopReset below. udpfs's smap is an ALWAYS-ON RX driver -- it keeps taking packets
- * ( ARP, the server's keepalive / Go-Back-N retransmits ) long after playback -- and atad
- * shares the same DEV9, so on exit the SPEED chip is still DMAing into IOP RAM with its
- * interrupt armed. If SifIopReset reloads the IOP ROM while that DEV9 RX DMA fires, the
- * reboot stalls and the EE spins forever in `while(!SifIopSync()){}` -- the "hangs on
- * Loading boot browser after UDPFS + ATA were up" report. dev9Shutdown just stops the
- * SPEED device ( register writes + a ~1s settle -- no locks, no waits ), so this is safe
- * and covers BOTH exits: the boot-browser exit and SMS_EExec's exec-to-ELF ( which also
- * jal's here with afExit=1 ). Placed FIRST, while the ioman RPC the ioctl needs is still
- * up ( SifExitRpc runs below ). Gated on SMS_IOPF_DEV9 ( POWERED ), so a plain mc / USB /
- * MX4SIO exit -- which never powered DEV9 -- is unaffected, and the boot reset
- * ( SMS_IOPReset(0), DEV9 not yet up ) is a no-op. The ~1s pause on a network/ATA exit is
- * expected, not a hang. */
- if (  afExit && ( g_IOPFlags & SMS_IOPF_DEV9 )  ) SMS_IOCtl ( g_pDEV9X, DEV9CTLSHUTDOWN, NULL );
+/* EXIT-HANG NOTE ( the "hangs on Loading boot browser" after UDPFS/network ): the fix is
+ * the reset ARGUMENT below, NOT a DEV9 shutdown here. A previous version power-cut DEV9
+ * ( DEV9CTLSHUTDOWN ) at this point -- that was WRONG and made it worse: dev9Shutdown cuts
+ * the SPEED device with raw register writes while the neutrino smap RX thread ( prio 8 )
+ * can be mid dev9DmaTransfer busy-waiting `while(chcr & TR)` with NO timeout, so cutting
+ * power strands that DMA and the thread spins forever. Removed. See the reset below. */
 
 #if NO_DEBUG
  SifInitRpc ( 0 );
@@ -262,7 +253,20 @@ void SMS_IOPReset ( int afExit ) {
  SifLoadFileExit(); 
  SifExitRpc     (); 
 
- while(!SifIopReset(s_pUDNL, 0)){};
+/* On an EXIT reset, use the EMPTY arg -- NOT s_pUDNL ("rom0:UDNL rom0:EELOADCNF"). This
+ * is THE udpfs/network exit-hang fix. The UDNL variant runs a long IOP-kernel reload on
+ * the still-live IOP; when DEV9 is powered, the neutrino smap RX driver keeps DMAing
+ * inbound LAN frames ( it opens RX to broadcast/multicast, so there is always ARP/mDNS/
+ * etc. traffic ) into IOP RAM DURING that reload, corrupting it -- the IOP never signals
+ * BOOTEND and the EE spins forever in `while(!SifIopSync()){}` below. The empty-arg reset
+ * is the short, tolerant reboot that every network-capable reference uses with a live
+ * DEV9/smap ( wLaunchELF-R3Z, OPL, NHDDL, neutrino ) and it does NOT exhibit this. SMS
+ * re-loads all its own IOP modules right after ( SifExecModuleBuffer, below ), so nothing
+ * that the UDNL update path provided is lost. Gated narrowly on afExit && SMS_IOPF_DEV9
+ * so ONLY the broken path changes: the boot reset ( afExit==0 ) and the already-working
+ * non-network exits ( mc / USB / MX4SIO, DEV9 never powered ) keep s_pUDNL byte-identical;
+ * only a DEV9-powered exit -- the one that hangs -- switches to the empty-arg reset. */
+ while(!SifIopReset( ( afExit && ( g_IOPFlags & SMS_IOPF_DEV9 ) ) ? "" : s_pUDNL, 0)){};
 
  FlushCache(0);
  FlushCache(2);
