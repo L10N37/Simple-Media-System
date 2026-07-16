@@ -181,7 +181,13 @@ int SPU_Index2Volume ( int anIdx ) {
 
 void SPU_PlaySound ( SMSound* apSound, int aVol ) {
 
- if ( g_Config.m_BrowserFlags & SMS_BF_SDFX ) {
+/* Also require the audio RPC to be BOUND ( s_ClientDataA.server != NULL, the same test
+ * SPU_Initialize uses ). A UI sound can be requested before SPU_Initialize / AUDSRV load
+ * -- e.g. a GUI_Error modal raised from the early config-resolution path in SMS_IOPInit,
+ * which runs before AUDSRV -- and firing the RPC then would SifCallRpc an unbound server
+ * and WaitSema an uncreated sema ( s_SemaPCM == 0 ): a hang. This was latent while SDFX
+ * defaulted OFF; it is live now that it defaults ON. A pre-init sound simply no-ops. */
+ if ( ( g_Config.m_BrowserFlags & SMS_BF_SDFX ) && s_ClientDataA.server ) {
 
   s_Buffer[ 0 ] = apSound -> m_Sound;
   s_Buffer[ 1 ] = SPU_Index2Volume ( aVol );
