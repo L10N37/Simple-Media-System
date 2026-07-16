@@ -11,6 +11,20 @@ permissions:
   contents: write        # needed to publish the rolling / stable releases
 
 jobs:
+  # Legacy non-BDM build. Separate job so it runs in PARALLEL and its failure shows a
+  # red check WITHOUT blocking the BDM=1 rolling/stable release below. BDM=0 is the
+  # upstream legacy storage path (ROM system modules + the custom SMS_MC driver, no BDM
+  # devices); it is never shipped, but the knob exists, so keep it building so it can't
+  # silently rot the way it did before ( unguarded smbman fileXio calls broke the link ).
+  build-legacy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Verify non-BDM (BDM=0) build links
+      run: |
+        docker run --rm -v "$PWD":/src -w /src ps2dev/ps2dev:v1.0 \
+          sh -c 'apk add --no-cache build-base git zip && make BDM=0 all'
+
   build:
     runs-on: ubuntu-latest
     steps:

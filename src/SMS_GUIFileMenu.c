@@ -661,7 +661,9 @@ static void _action_share ( GUIFileMenu* apMenu, int afPopup ) {
  /* smbman is single-share: drop any share already open before opening a new one. */
  if ( g_SMBU >= 0 ) {
 
-  fileXioDevctl (  g_pSMBS, SMB_DEVCTL_CLOSESHARE, NULL, 0, NULL, 0  );
+#ifdef BDM
+  fileXioDevctl (  g_pSMBS, SMB_DEVCTL_CLOSESHARE, NULL, 0, NULL, 0  );   /* smbman SMB is BDM-only */
+#endif
   g_SMBU = 0x80000000;
 
  }  /* end if */
@@ -676,7 +678,11 @@ static void _action_share ( GUIFileMenu* apMenu, int afPopup ) {
 
  lOpen.PasswordType = NO_PASSWORD;
 
+#ifdef BDM
  if (  fileXioDevctl ( g_pSMBS, SMB_DEVCTL_OPENSHARE, &lOpen, sizeof ( lOpen ), NULL, 0 ) == 0  ) {
+#else
+ if ( 0 ) {   /* smbman SMB is BDM-only -> share-open unavailable in the legacy build */
+#endif
 
   g_SMBU = 0;  /* share open -- single device "smb:", no unit digit */
 

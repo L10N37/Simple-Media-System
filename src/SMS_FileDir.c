@@ -298,7 +298,11 @@ void SMS_FileDirInit ( char* apPath ) {
      * lIn.EE_addr ( = lpShare ); it never writes the iomanX devctl out-buffer.
      * So pass NULL/0 for buf/buflen -- a non-NULL buf would trigger fileXio's
      * return-buffer path and memcpy a stale IOP rwbuf over the first entries. */
+#ifdef BDM
     lnShares = fileXioDevctl (  g_pSMBS, SMB_DEVCTL_GETSHARELIST, &lIn, sizeof ( lIn ), NULL, 0  );
+#else
+    lnShares = 0;   /* smbman SMB is BDM-only -> no shares in the legacy build */
+#endif
 
     /* The IOP DMA'd straight to RAM, bypassing the EE D-cache. Invalidate the
      * region AFTER the synchronous devctl so the reads below fetch the fresh

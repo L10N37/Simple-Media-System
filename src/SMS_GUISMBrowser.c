@@ -707,8 +707,10 @@ static void _smb_handler ( GUIMenu* apMenu, int aDir ) {
 
     GUI_Status ( STR_SMB_CLOSING.m_pStr );
     SMS_PgIndStart ();
+#ifdef BDM
      if ( g_SMBU >= 0 ) fileXioDevctl (  g_pSMBS, SMB_DEVCTL_CLOSESHARE, NULL, 0, NULL, 0  );
-     fileXioDevctl (  g_pSMBS, SMB_DEVCTL_LOGOFF, NULL, 0, NULL, 0  );
+     fileXioDevctl (  g_pSMBS, SMB_DEVCTL_LOGOFF, NULL, 0, NULL, 0  );   /* smbman SMB is BDM-only */
+#endif
     SMS_PgIndStop ();
 
     g_SMBU      = 0x80000000;

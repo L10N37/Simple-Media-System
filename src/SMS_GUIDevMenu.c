@@ -543,7 +543,11 @@ int _smb_logon ( void ) {
  strncpy ( lLogOn.Password, lpInfo -> m_Password, 255 );
  lLogOn.PasswordType = lpInfo -> m_Password[ 0 ] ? PLAINTEXT_PASSWORD : NO_PASSWORD;
 
+#ifdef BDM
  lRes = fileXioDevctl (  g_pSMBS, SMB_DEVCTL_LOGON, &lLogOn, sizeof ( lLogOn ), NULL, 0  );
+#else
+ lRes = -1;   /* smbman SMB is BDM-only -> logon unavailable in the legacy build */
+#endif
 
  if ( lRes == 0 ) {
   g_SMBUnit        = 0;

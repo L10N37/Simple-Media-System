@@ -609,9 +609,11 @@ static int _gui_thread ( void* apParam ) {
    } else if ( g_IOPFlags & SMS_IOPF_SMBLOGIN ) {
 
     if (  !( s_lCntr++ & 0x3F )  ) {
-
+#ifdef BDM
      /* smbman keepalive: a synchronous ECHO devctl ( no fioDopen fd needed ).
-      * If it fails the connection is dead -- LOGOFF and signal a drop. */
+      * If it fails the connection is dead -- LOGOFF and signal a drop.
+      * smbman SMB is BDM-only ( SMS_IOPF_SMBLOGIN can never be set in the legacy
+      * build, so this branch is unreachable there -- but it must still compile ). */
      smbEcho_in_t lEcho;
      int          lStat;
 
@@ -631,7 +633,7 @@ static int _gui_thread ( void* apParam ) {
       goto raiseEvent;
 
      }  /* end if */
-
+#endif
     }  /* end if */
 
    }  /* end if */
