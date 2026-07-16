@@ -969,9 +969,8 @@ void _exit_handler ( GUIMenu* apMenu, int aDir ) {
  if ( g_PD >= 0 ) SMS_IOCtl ( g_pPFS, PFS_IOCTL_UMOUNT, NULL );
 
  if ( !lIdx ) {
-#ifdef EMBEDDED
-  if ( g_IOPFlags & SMS_IOPF_DEV9_IS ) SMS_IOCtl ( g_pDEV9X, DEV9CTLSHUTDOWN, NULL );
-#endif  /* EMBEDDED */
+/* SMS_IOPReset quiesces DEV9 first when it is powered ( the exit-hang fix -- see the note
+ * there ). Both this boot-browser exit and the exec-to-ELF exit below funnel through it. */
   SMS_IOPReset ( 1 );
 #ifndef EMBEDDED
   Exit ( 0 );

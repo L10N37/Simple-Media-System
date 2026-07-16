@@ -239,6 +239,23 @@ int SifExecDecompModuleBuffer(void *ptr, u32 size, u32 arg_len, const char *args
 void SMS_IOPReset ( int afExit ) {
 
  int i;
+
+/* EXIT-HANG FIX. On an exit reset ( afExit ) with DEV9 powered, quiesce DEV9 BEFORE the
+ * SifIopReset below. udpfs's smap is an ALWAYS-ON RX driver -- it keeps taking packets
+ * ( ARP, the server's keepalive / Go-Back-N retransmits ) long after playback -- and atad
+ * shares the same DEV9, so on exit the SPEED chip is still DMAing into IOP RAM with its
+ * interrupt armed. If SifIopReset reloads the IOP ROM while that DEV9 RX DMA fires, the
+ * reboot stalls and the EE spins forever in `while(!SifIopSync()){}` -- the "hangs on
+ * Loading boot browser after UDPFS + ATA were up" report. dev9Shutdown just stops the
+ * SPEED device ( register writes + a ~1s settle -- no locks, no waits ), so this is safe
+ * and covers BOTH exits: the boot-browser exit and SMS_EExec's exec-to-ELF ( which also
+ * jal's here with afExit=1 ). Placed FIRST, while the ioman RPC the ioctl needs is still
+ * up ( SifExitRpc runs below ). Gated on SMS_IOPF_DEV9 ( POWERED ), so a plain mc / USB /
+ * MX4SIO exit -- which never powered DEV9 -- is unaffected, and the boot reset
+ * ( SMS_IOPReset(0), DEV9 not yet up ) is a no-op. The ~1s pause on a network/ATA exit is
+ * expected, not a hang. */
+ if (  afExit && ( g_IOPFlags & SMS_IOPF_DEV9 )  ) SMS_IOCtl ( g_pDEV9X, DEV9CTLSHUTDOWN, NULL );
+
 #if NO_DEBUG
  SifInitRpc ( 0 );
  SifExitIopHeap ();
