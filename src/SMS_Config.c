@@ -329,9 +329,29 @@ void SMS_LoadPalette ( void ) {
   if ( lF >= 0 ) { fioRead ( lF, s_DefPalette, 64 ); fioClose ( lF ); lLoaded = 1; }
  }  /* end if */
 
- if ( !lLoaded ) {   /* memory-card fallback ( unchanged ) */
-  lFD = MC_OpenS ( g_MCSlot, 0, g_SMSPal, O_RDONLY );
+ if ( !lLoaded ) {   /* memory-card fallback */
+#ifdef BDM
+/* fio, NOT libmc. In BDM builds SMS_MC.h maps MC_OpenS/MC_ReadS/MC_CloseS straight onto
+ * the RAW ASYNC libmc calls ( mcOpen/mcRead/mcClose ), not the synchronous wrappers the
+ * non-BDM build gets from SMS_MC.c. Async mcOpen returns an "RPC queued" status, NOT a
+ * file descriptor -- it answers 0, which sails through `lFD >= 0`, and the mcRead that
+ * follows then hits libmc's busy guard ( a command is still in flight ) and returns
+ * without ever reading a byte. So this fallback silently loaded NOTHING and an on-card
+ * SMS.pal was ignored on every BDM boot. Using fio also keeps it coherent with the rest
+ * of the config path, which already migrated to fio because libmc cannot see the
+ * fio-created mc?:/SMS directory at all ( the same libmc-vs-iomanX split behind the
+ * config and mc-save fixes ). Palette-on-card is the last libmc reader here. */
+  char lMC[ 4 + sizeof ( g_SMSPal ) ];
+
+  lMC[ 0 ] = 'm'; lMC[ 1 ] = 'c'; lMC[ 2 ] = ( char )( '0' + g_MCSlot ); lMC[ 3 ] = ':';
+  strcpy ( &lMC[ 4 ], g_SMSPal );   /* "mc0:" + "/SMS/SMS.pal" */
+
+  lFD = fioOpen ( lMC, O_RDONLY );
+  if ( lFD >= 0 ) { fioRead ( lFD, s_DefPalette, 64 ); fioClose ( lFD ); }
+#else
+  lFD = MC_OpenS ( g_MCSlot, 0, g_SMSPal, O_RDONLY );   /* SMS_MC.c's SYNCHRONOUS wrappers -- these really do return an fd */
   if ( lFD >= 0 ) { MC_ReadS ( lFD, s_DefPalette, 64 ); MC_CloseS ( lFD ); }
+#endif
  }  /* end if */
 
  for ( i = 0; i < 16; ++i ) s_DefPalette[ i ] = ( s_DefPalette[ i ] & 0x00FFFFFF ) | 0x60000000;
@@ -355,20 +375,32 @@ static int _mc_get_info ( void ) {
   if ( lRes >= 0 ) break;
  }  /* end for */
 
-/* libmc can wrongly report the card ABSENT ( lRes <= -2 ) on a boot where the PS2
- * browser never initialised it -- e.g. launched via udpbd, which resets the IOP out
- * from under the BIOS card init -- even though the card is fully readable AND
- * writable through fio / iomanX ( the same libmc-vs-iomanX split behind the fio
- * config migration; cf. the mc-save "MC_GetDir precheck" bug ). Every mc save gates
- * on this value, so a false "absent" silently blocks the write ( the udpbd "can't
- * save settings / IPCONFIG" report ). When libmc claims absent, confirm with a fio
- * probe of the card root -- the SAME path the save actually uses -- and trust that. */
- if ( lRes <= -2 ) {
+/* libmc can wrongly report the card ABSENT on a boot where the PS2 browser never
+ * initialised it -- e.g. launched from a network drive, which resets the IOP out from
+ * under the BIOS card init -- even though the card is fully readable AND writable
+ * through fio / iomanX ( the same libmc-vs-iomanX split behind the fio config
+ * migration; cf. the mc-save "MC_GetDir precheck" bug ). Every mc save gates on this
+ * value, so a wrong answer here silently breaks saving ( the "can't save settings /
+ * IPCONFIG" report ). Confirm with a fio probe of the card root -- the SAME path the
+ * save actually uses -- and trust that.
+ *
+ * The gate is `!= 0`, NOT `<= -2`: when libmc is UNINITIALISED, mcGetInfo bails early
+ * and MC_Sync returns WITHOUT EVER WRITING lRes, so it keeps its -1 initialiser. -1 is
+ * not <= -2, so the probe below never ran -- which is exactly how this fallback failed
+ * to fire on a udpfs boot. Anything other than a confirmed 0 must reach the probe. */
+ if ( lRes != 0 ) {
   char lP[ 6 ];
   int  lFD;
   lP[ 0 ] = 'm'; lP[ 1 ] = 'c'; lP[ 2 ] = ( char )( '0' + g_MCSlot ); lP[ 3 ] = ':'; lP[ 4 ] = '/'; lP[ 5 ] = '\x00';
   lFD = fioDopen ( lP );
-  if ( lFD >= 0 ) { fioDclose ( lFD ); lRes = 0; }   /* fio can open it -> present */
+/* fio IS the authority here -- it is the interface every real save uses. Normalise BOTH
+ * ways: 0 = usable, -2 = not. Without the -2 the "uninitialised libmc" case would leak
+ * its -1 initialiser out to callers, and every gate here is `> -2`, so a genuinely
+ * absent card would read as PRESENT and the save would fail downstream on a bare
+ * "Error" instead of being reported. It also collapses libmc's aliased out-params
+ * ( MC_GetInfo writes type/free/format all onto lRes ), whose stray positives would
+ * otherwise mean "present" without anything having probed the card. */
+  if ( lFD >= 0 ) { fioDclose ( lFD ); lRes = 0; } else lRes = -2;
  }  /* end if */
 
  return lRes;
@@ -389,9 +421,9 @@ int SMS_ConfigFallback ( void ) { return s_CfgFallback; }   /* 1 = SMB/host/cdro
  * short device-root path ( e.g. "mass0:/SMS.cfg", <= 15 bytes ) that fits s_pMC0SMC. */
 void SMS_ConfigUseFSPath ( const char* apPath ) { strcpy ( s_pMC0SMC, apPath ); s_CfgOnFS = 1; _derive_smb_path (); }
 
-/* The argv[0] boot device turned out to be unreachable after the IOP reset. A UDP
- * block device ( udpbd, launched via wLaunchELF ) advertises itself as "mass:" but
- * SMS has no driver to re-mount it, so a config pinned there can never be saved or
+/* The argv[0] boot device turned out to be unreachable after the IOP reset. A network
+ * BLOCK device under another loader ( udpbd / udpfs_bd ) advertises itself as "mass:"
+ * but SMS has no driver to re-mount it, so a config pinned there can never be saved or
  * loaded -- and, worse, the "re-mountable device" branch never falls back to the
  * memory card. Undo SMS_ConfigSetCWD's CWD commitment and restore the mc?:/SMS
  * default, re-flagged as a fallback boot so SMS_IOPInit's resolver routes config to
@@ -518,19 +550,29 @@ int SMS_LoadConfig ( void  ) {
 
   }  /* end if */
 
-  SMS_LoadPalette ();
+ }  /* end if */
 
-  for ( lRes = 0; lRes < 5; ++lRes ) _load_font ( lRes );
+/* Assets are deliberately OUTSIDE the card gate above: only the config READ needs a
+ * memory card. The palette, fonts and skin list are all CWD-first with their own mc
+ * fallback ( SMS_ConfigAssetPath ) and no-op safely when no card is present, so a
+ * card-less boot -- a network drive, or USB-only -- must still get them.
+ * They used to sit inside the gate and ran anyway only by accident: an uninitialised
+ * libmc leaked its -1 initialiser out of _mc_get_info and -1 > -2 was true. Now that an
+ * absent card is correctly reported as -2, leaving them here would silently drop the
+ * palette ( SMS_LoadPalette is the only place the 0x60 alpha normalisation is applied,
+ * so every GUI panel would render opaque instead of translucent ), the fonts and the
+ * skins -- on exactly the pure-network configuration UDPFS exists to serve. */
+ SMS_LoadPalette ();
 
-  SMS_EEScanDir ( g_pSMSSkn, g_pExtSMI, g_Config.m_pSkinList );
+ for ( lRes = 0; lRes < 5; ++lRes ) _load_font ( lRes );
 
-  if ( g_pBootDir[ 0 ] ) {   /* also list CWD skins ( "<boot dir>Skins/" ); SMS_EEScanDir dedups */
-   char lSkinDir[ 128 ];
-   strcpy ( lSkinDir, g_pBootDir );
-   strcat ( lSkinDir, "Skins" );
-   SMS_EEScanDir ( lSkinDir, g_pExtSMI, g_Config.m_pSkinList );
-  }  /* end if */
+ SMS_EEScanDir ( g_pSMSSkn, g_pExtSMI, g_Config.m_pSkinList );
 
+ if ( g_pBootDir[ 0 ] ) {   /* also list CWD skins ( "<boot dir>Skins/" ); SMS_EEScanDir dedups */
+  char lSkinDir[ 128 ];
+  strcpy ( lSkinDir, g_pBootDir );
+  strcat ( lSkinDir, "Skins" );
+  SMS_EEScanDir ( lSkinDir, g_pExtSMI, g_Config.m_pSkinList );
  }  /* end if */
 
  g_Config.m_Version       = 14;

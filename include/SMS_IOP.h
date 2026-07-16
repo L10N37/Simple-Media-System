@@ -30,7 +30,7 @@
 #define SMS_IOPF_MMCE     0x00010000
 #define SMS_IOPF_DS34USB  0x00020000
 #define SMS_IOPF_DS34BT   0x00040000
-#define SMS_IOPF_UDPBD    0x00080000
+#define SMS_IOPF_UDPFS    0x00080000
 
 #define SMS_SIF_CMD_SMB_CONNECT    0
 #define SMS_SIF_CMD_USB_CONNECT    1
@@ -44,7 +44,7 @@ extern unsigned int g_Mx4sioMask;
 extern unsigned int g_AtaMask;
 extern unsigned int g_IlinkMask;
 extern unsigned int g_MmceFlags;
-extern unsigned int g_UdpbdMask;
+extern unsigned int g_UdpfsFlags;
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,7 +61,8 @@ int  SMS_IOPStartILINK       ( int                                    );
 int  SMS_IOPStartMMCE        ( int                                    );
 int  SMS_IOPStartDS34USB     ( int                                    );
 int  SMS_IOPStartDS34BT      ( int                                    );
-int  SMS_IOPStartUDPBD       ( int                                    );
+int  SMS_IOPStartUDPFS       ( int                                    );
+int  SMS_IOPNetOwnedBySMB    ( void                                   );
 int  SMS_IOPStartHDD         ( int                                    );
 void SMS_IOPRefreshMass      ( void                                   );
 void SMS_IOPSetXLT           ( void                                   );

@@ -1,0 +1,14 @@
+DECLARE_EXPORT_TABLE(smap, 1, 0)
+    DECLARE_EXPORT(_retonly)
+    DECLARE_EXPORT(_retonly)
+    DECLARE_EXPORT(_retonly)
+    DECLARE_EXPORT(_retonly)
+    DECLARE_EXPORT(SMAPGetMACAddress)
+    DECLARE_EXPORT(smap_transmit)
+    DECLARE_EXPORT(smap_register_rx_callback)
+    DECLARE_EXPORT(smap_fifo_read)
+END_EXPORT_TABLE
+
+/* Defined AFTER the table: iopfixup rejects an exported symbol sitting at .text
+ * offset 0 ( indistinguishable from null ). ps2sdk puts _retonly last for this. */
+void _retonly() {}

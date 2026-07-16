@@ -74,7 +74,7 @@ static void _automx4sio_handler ( GUIMenu*, int );
 static void _autoata_handler    ( GUIMenu*, int );
 static void _autoilink_handler  ( GUIMenu*, int );
 static void _automce_handler    ( GUIMenu*, int );
-static void _autoudpbd_handler  ( GUIMenu*, int );
+static void _autoudpfs_handler  ( GUIMenu*, int );
 #endif
 static void _autohdd_handler  ( GUIMenu*, int );
 static void _startnet_handler ( GUIMenu*, int );
@@ -84,7 +84,7 @@ static void _startmx4sio_handler ( GUIMenu*, int );
 static void _startata_handler    ( GUIMenu*, int );
 static void _startilink_handler  ( GUIMenu*, int );
 static void _startmce_handler    ( GUIMenu*, int );
-static void _startudpbd_handler  ( GUIMenu*, int );
+static void _startudpfs_handler  ( GUIMenu*, int );
 static void _pairbt_handler      ( GUIMenu*, int );
 #endif
 static void _starthdd_handler ( GUIMenu*, int );
@@ -230,11 +230,11 @@ static char s_pStartMMCE [] __attribute__(   (  section( ".data" ), aligned( 1 )
 static SMString s_StrAutoMMCE  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoMMCE  ) - 1, s_pAutoMMCE  };
 static SMString s_StrStartMMCE __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartMMCE ) - 1, s_pStartMMCE };
 
-static char s_pStartUDPBD[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start UDPBD network drive";
-static SMString s_StrStartUDPBD __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartUDPBD ) - 1, s_pStartUDPBD };
+static char s_pStartUDPFS[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start UDPFS network drive";
+static SMString s_StrStartUDPFS __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartUDPFS ) - 1, s_pStartUDPFS };
 
-static char s_pAutoUDPBD[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart UDPBD";
-static SMString s_StrAutoUDPBD __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoUDPBD ) - 1, s_pAutoUDPBD };
+static char s_pAutoUDPFS[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart UDPFS";
+static SMString s_StrAutoUDPFS __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoUDPFS ) - 1, s_pAutoUDPFS };
 
 static char s_pPairBT[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Pair Bluetooth controller";
 static SMString s_StrPairBT __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pPairBT ) - 1, s_pPairBT };
@@ -252,7 +252,7 @@ static GUIMenuItem s_DevMenu[ 28 ] __attribute__(   (  section( ".data" )  )   )
  {                   0, &STR_DISABLE_CDVD,        0, 0, _cdvd_handler,       0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_CDVD_SPEED,          0, 0, _cdvd_spd_handler,   0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_DIRECTIONAL_BUTTONS, 0, 0, _dirbtn_handler,     0, 0 },
- {                   0, &s_StrAutoUDPBD,          0, 0, _autoudpbd_handler,  0, 0 }   /* row 12 */
+ {                   0, &s_StrAutoUDPFS,          0, 0, _autoudpfs_handler,  0, 0 }   /* row 12 */
 };
 #else
 static GUIMenuItem s_DevMenu[ 12 ] __attribute__(   (  section( ".data" )  )   ) = {
@@ -571,7 +571,7 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
  GUIMenuState* lpState = GUI_MenuPushState ( apMenu );
 #ifdef BDM
- unsigned int  lSize   = 12;   /* 13 static rows ( 0..12 ) incl. the appended Autostart UDPBD */
+ unsigned int  lSize   = 12;   /* 13 static rows ( 0..12 ) incl. the appended Autostart UDPFS */
 #else
  unsigned int  lSize   = 7;
 #endif
@@ -593,7 +593,7 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
  s_DevMenu[  9 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_CDVD        ? GUICON_ON : GUICON_OFF;
  s_DevMenu[ 10 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed ];
  s_DevMenu[ 11 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );
- s_DevMenu[ 12 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_UDPBD ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[ 12 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_UDPFS ? GUICON_ON : GUICON_OFF;
 #else
  s_DevMenu[ 4 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD ? GUICON_ON   : GUICON_OFF;
  s_DevMenu[ 5 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_CDVD     ? GUICON_ON   : GUICON_OFF;
@@ -603,7 +603,7 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
  if ( g_IOPFlags & SMS_IOPF_DEV9_IS ) {
 
-  if (   !(  g_IOPFlags & ( SMS_IOPF_NET | SMS_IOPF_SMB | SMS_IOPF_UDPBD )  )   ) {   /* hide SMB/network start when udpbd owns the NIC */
+  if (   !(  g_IOPFlags & ( SMS_IOPF_NET | SMS_IOPF_SMB | SMS_IOPF_UDPFS )  )   ) {   /* hide SMB/network start when udpfs owns the NIC */
    s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_NETWORK_NOW;
    s_DevMenu[   lSize ].Handler       = _startnet_handler;
   }  /* end if */
@@ -623,7 +623,13 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
  }  /* end if */
 
 #ifdef BDM
- if (  !( g_IOPFlags & SMS_IOPF_MX4SIO )  ) {
+/* MX4SIO and MMCE drive the SAME SIO2 bus and neither module can be unloaded, so the
+ * first to start owns it for the boot ( SMS_IOPStartMX4SIO / SMS_IOPStartMMCE each
+ * refuse when the other holds it ). Hide the row the moment it could only fail, rather
+ * than offering a button that reports a bare "Error" -- _start_device has no way to
+ * explain WHY. Both rows carry the reciprocal test so the menu always reflects who owns
+ * the bus. */
+ if (   !(  g_IOPFlags & ( SMS_IOPF_MX4SIO | SMS_IOPF_MMCE )  )   ) {
 
   s_DevMenu[ ++lSize ].m_pOptionName = &s_StrStartMX4SIO;
   s_DevMenu[   lSize ].Handler       = _startmx4sio_handler;
@@ -644,18 +650,28 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
  }  /* end if */
 
- if (  !( g_IOPFlags & SMS_IOPF_MMCE )  ) {
+ if (   !(  g_IOPFlags & ( SMS_IOPF_MMCE | SMS_IOPF_MX4SIO )  )   ) {   /* MX4SIO owns the same SIO2 bus -- see the note above */
 
   s_DevMenu[ ++lSize ].m_pOptionName = &s_StrStartMMCE;
   s_DevMenu[   lSize ].Handler       = _startmce_handler;
 
  }  /* end if */
 
- if (  !( g_IOPFlags & SMS_IOPF_UDPBD ) && ( g_IOPFlags & SMS_IOPF_DEV9_IS ) &&
-       !( g_IOPFlags & ( SMS_IOPF_NET | SMS_IOPF_SMB ) )  ) {   /* Ethernet present + NIC free -> udpbd ( mutually exclusive with SMB ) */
+/* Gated on the DRIVE being mounted ( g_UdpfsFlags ), NOT on the modules being loaded
+ * ( SMS_IOPF_UDPFS ): if the modules came up but discovery failed -- server not started
+ * yet, or the PHY still negotiating -- this row MUST stay offered so the user can start
+ * the server and retry. Keying it on the module flag hid the row on the first failure
+ * and left no way back to udpfs for the whole boot. */
+/* The s_NetOwner test ( via SMS_IOPNetOwnedBySMB ) makes this row's condition IDENTICAL
+ * to SMS_IOPStartUDPFS's own guard. SMS_IOPStartNet claims the NIC BEFORE loading its
+ * modules -- deliberately, so udpfs can never land on a half-built NIC -- so a Start
+ * Network whose modules failed leaves the NIC owned with no SMS_IOPF_NET/SMB set.
+ * Without this test the row would be offered and could only answer a bare "Error". */
+ if (  !( g_UdpfsFlags & 2 ) && ( g_IOPFlags & SMS_IOPF_DEV9_IS ) &&
+       !( g_IOPFlags & ( SMS_IOPF_NET | SMS_IOPF_SMB ) ) && !SMS_IOPNetOwnedBySMB ()  ) {   /* Ethernet present + NIC genuinely free -> udpfs ( mutually exclusive with SMB ) */
 
-  s_DevMenu[ ++lSize ].m_pOptionName = &s_StrStartUDPBD;
-  s_DevMenu[   lSize ].Handler       = _startudpbd_handler;
+  s_DevMenu[ ++lSize ].m_pOptionName = &s_StrStartUDPFS;
+  s_DevMenu[   lSize ].Handler       = _startudpfs_handler;
 
  }  /* end if */
 
@@ -1262,11 +1278,11 @@ static void _automce_handler ( GUIMenu* apMenu, int aDir ) {
 
 }  /* end _automce_handler */
 
-static void _autoudpbd_handler ( GUIMenu* apMenu, int aDir ) {
+static void _autoudpfs_handler ( GUIMenu* apMenu, int aDir ) {
 
- _switch_flag ( apMenu, 12, &g_Config.m_NetworkFlags, SMS_DF_AUTO_UDPBD );   /* appended after the CDVD/dir rows -> row index 12 */
+ _switch_flag ( apMenu, 12, &g_Config.m_NetworkFlags, SMS_DF_AUTO_UDPFS );   /* appended after the CDVD/dir rows -> row index 12 */
 
-}  /* end _autoudpbd_handler */
+}  /* end _autoudpfs_handler */
 #endif
 
 static void _autohdd_handler ( GUIMenu* apMenu, int aDir ) {
@@ -1350,11 +1366,11 @@ static void _startmce_handler ( GUIMenu* apMenu, int aDir ) {
 
 }  /* end _startmce_handler */
 
-static void _startudpbd_handler ( GUIMenu* apMenu, int aDir ) {
+static void _startudpfs_handler ( GUIMenu* apMenu, int aDir ) {
 
- _start_device ( apMenu, SMS_IOPStartUDPBD );
+ _start_device ( apMenu, SMS_IOPStartUDPFS );
 
-}  /* end _startudpbd_handler */
+}  /* end _startudpfs_handler */
 
 /* Pair a DS3/DS4 to the USB Bluetooth dongle: write the dongle's MAC into the
  * controller that is currently plugged in via USB ( functionally identical to
@@ -1715,7 +1731,7 @@ static void _saveipc_handler ( GUIMenu* apMenu, int aDir ) {
 
 #ifdef BDM
  /* Gate on the fio-coherent card check ( SMS_MCPresent -> _mc_get_info, which now
-  * falls back to a fio probe when libmc falsely reports the card absent on a udpbd
+  * falls back to a fio probe when libmc falsely reports the card absent on a udpfs
   * boot ) instead of a raw MC_GetInfo, which blocks the save on such boots. */
  lRes = SMS_MCPresent () ? 0 : -2;
 #else
@@ -1728,7 +1744,7 @@ static void _saveipc_handler ( GUIMenu* apMenu, int aDir ) {
   * Mirror SMS_SaveSMBInfo: fioMkdir unconditionally, accept 0 (created) or -4
   * (EEXIST), then write via fio coherently with how SMS_IOP.c reads g_pIPConf at
   * boot. The per-stage error strings below are TEMPORARY diagnostics (revert to
-  * STR_ERROR before release) to pinpoint any remaining udpbd save failure. */
+  * STR_ERROR before release) to pinpoint any remaining udpfs save failure. */
  if ( lRes <= -2 ) GUI_Error ( "IPCONFIG: card not found" );   /* TEMP diag */
  else {
 

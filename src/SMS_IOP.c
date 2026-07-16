@@ -51,7 +51,7 @@ unsigned int g_IOPFlags;
 unsigned int g_Mx4sioMask;
 unsigned int g_AtaMask;
 unsigned int g_IlinkMask;
-unsigned int g_UdpbdMask;   /* mass units that are the udpbd network drive ( -> SMB icon ) */
+unsigned int g_UdpfsFlags;   /* bit0 = TRANSIENT "raise the mount event" ( SMS_GUI.c clears it the moment it raises ); bit1 = STICKY "udpfs: is mounted", never cleared. Two bits because the guard/menu need persistent state while the event must be one-shot -- the MMCE split ( transient g_MmceFlags vs persistent SMS_IOPF_MMCE ) done in one word. NOT a mass bitmask: udpfs is an iomanX device, not BDM. */
 unsigned int g_MmceFlags;   /* pending MMCE connect events: bit0 = mmce0:, bit1 = mmce1: */
 #endif
 
@@ -71,7 +71,9 @@ extern unsigned char IEEE1394_bd_irx[];
 extern unsigned char mmceman_irx    [];
 extern unsigned char ds34usb_irx    [];
 extern unsigned char ds34bt_irx     [];
-extern unsigned char smap_udpbd_irx [];
+extern unsigned char udpfs_smap_irx [];
+extern unsigned char udpfs_ministack_irx [];
+extern unsigned char udpfs_ioman_irx [];
 
 extern unsigned char sio2man_irx [];
 extern unsigned char iomanx_irx  [];
@@ -91,7 +93,9 @@ extern unsigned int size_IEEE1394_bd_irx;
 extern unsigned int size_mmceman_irx;
 extern unsigned int size_ds34usb_irx;
 extern unsigned int size_ds34bt_irx;
-extern unsigned int size_smap_udpbd_irx;
+extern unsigned int size_udpfs_smap_irx;
+extern unsigned int size_udpfs_ministack_irx;
+extern unsigned int size_udpfs_ioman_irx;
 
 extern unsigned int size_sio2man_irx;
 extern unsigned int size_iomanx_irx;
@@ -113,7 +117,7 @@ static unsigned int s_MassAdded;
  * IOP library, so only the first to start may own the bus -- the other backs off. */
 static int s_AtaBusOwner;
 /* Which network personality owns the single EMAC3 NIC this boot: 0 = free, 1 = SMS
- * SMB/host ( PS2SMAP + SMSTCPIP ), 2 = udpbd ( smap_udpbd, its own SMAP ). Both
+ * SMB/host ( PS2SMAP + SMSTCPIP ), 2 = udpfs ( udpfs_smap, its own SMAP ). Both
  * register the 'smap' library, so only the first to start may own it -- the other
  * backs off ( no runtime swap without a full IOP reset ). */
 static int s_NetOwner;
@@ -319,7 +323,7 @@ int SMS_IOPStartNet ( int afStatus ) {
  char lSMAPArgs[ 80 ];
  int  lSMAPALen;
 
- if (  s_NetOwner == 2  ) return 0;   /* udpbd owns the NIC this boot -- can't also load SMS's SMAP */
+ if (  s_NetOwner == 2  ) return 0;   /* udpfs owns the NIC this boot -- can't also load SMS's SMAP */
 
  if (  !( g_IOPFlags & SMS_IOPF_DEV9_IS )  ) return 0;
  if (  !( g_IOPFlags & SMS_IOPF_DEV9    )  ) {
@@ -498,9 +502,20 @@ int SMS_IOPStartMX4SIO ( int afStatus ) {
 
  int i, ret, before = 0;
 
+/* MMCE ( mmceman ) drives the SAME SIO2 port, and neither module can be unloaded, so
+ * whoever binds it first owns it for the boot -- the same first-come-first-served rule
+ * as s_AtaBusOwner / s_NetOwner. SMS_IOPStartMMCE already defers to MX4SIO; this is the
+ * missing other half. Loading mx4sio_bd onto a port mmceman already holds is undefined,
+ * not merely useless, so refuse cleanly instead. MX4SIO is the primary device: nothing
+ * on the boot path may start MMCE speculatively ahead of it ( cf. _cfg_resolve_fallback,
+ * which probes MMCE but must never start it ). */
+ if (  g_IOPFlags & SMS_IOPF_MMCE  ) return 0;
+
  for ( i = 0; i < 4; ++i ) if (  checkConnectedMassDev ( i )  ) before |= ( 1 << i );
 
- SifExecDecompModuleBuffer ( &mx4sio_bd_irx, size_mx4sio_bd_irx, 0, NULL, &i );
+/* Mirror of the residency rule in SMS_IOPStartMMCE: a load that did not take must not
+ * claim the SIO2 bus, or a failed MX4SIO start would lock MMCE out for the boot. */
+ if (  SifExecDecompModuleBuffer ( &mx4sio_bd_irx, size_mx4sio_bd_irx, 0, NULL, &i ) < 0  ) return 0;
 
  // give the module a few seconds to load
  for ( i = 0; i < 5; ++i ) {
@@ -629,27 +644,63 @@ int SMS_IOPStartATA ( int afStatus ) {
 
 }  /* end SMS_IOPStartATA */
 
-int SMS_IOPStartUDPBD ( int afStatus ) {
+/* Is the single EMAC3 NIC already claimed by SMS's own SMB/host stack this boot? The
+ * Device menu needs this to decide whether offering "Start UDPFS" is honest:
+ * SMS_IOPStartNet claims s_NetOwner BEFORE loading its modules ( deliberately -- the
+ * claim must stand even if a later module fails, so udpfs never lands on a half-built
+ * NIC ), which means SMS_IOPF_NET/SMB can be clear while the NIC is still spoken for. */
+int SMS_IOPNetOwnedBySMB ( void ) { return s_NetOwner == 1; }
 
- unsigned int lBefore;
- int          i, ret;
- char         lArg[ 24 ];
- static char  lP1[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPBD: preparing network (DEV9)...";
- static char  lP2[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPBD: loading driver (smap_udpbd)...";
- static char  lP3[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPBD: connecting to server...";
+int SMS_IOPStartUDPFS ( int afStatus ) {
 
- /* UDP block device over Ethernet. smap_udpbd bundles its OWN SMAP driver + a tiny
-  * IP/UDP/ARP stack, so it is MUTUALLY EXCLUSIVE with SMS's SMB/host TCP-IP stack
-  * ( both claim the one EMAC3 NIC + register the 'smap' library ) -- one network
-  * personality per boot, tracked by s_NetOwner. Needs only DEV9. No server address is
-  * configured: the driver BROADCASTS to auto-discover the server; the PS2's OWN static
-  * IP ( IPCONFIG.DAT -> g_pDefIP ) is passed as the ip= arg. Pure dev9/SMAP -- stays
-  * off the SIO2 bus, so MX4SIO / MMCE are unaffected. Mounts as a BDM massN: drive, so
-  * browsing + playback reuse the existing mass path unchanged. */
- if (  g_IOPFlags & SMS_IOPF_UDPBD  ) return g_IOPFlags & SMS_IOPF_UDPBD;   /* idempotent */
+ int         i, lTry;
+ char        lArg[ 24 ];
+ static char lUdpfs[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "udpfs:/";
+ static char lP1[]    __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS: preparing network (DEV9)...";
+ static char lP2[]    __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS: loading Ethernet driver...";
+ static char lP3[]    __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS: starting IP stack...";
+ static char lP4[]    __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS: discovering server...";
+ static char lE1[]    __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS FAIL [NOIP]: set this PS2's static IP in Network Config first";
+ static char lE2[]    __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS FAIL [SMAP]: Ethernet driver did not load";
+ static char lE3[]    __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS FAIL [STACK]: IP stack did not load";
+ static char lE4[]    __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS FAIL [DEV]: udpfs: device did not register";
+ static char lE5[]    __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS FAIL [DISCOVERY]: no server answered -- check the UDPFS server is running on the same LAN, and that its \"Modulo\" mode is OFF";
+ /* Per-module load state, mirroring wLaunchELF-R3Z's have_udpfs_* ( init.c:612 ). A
+  * module that is already resident answers a second load with MODULE_NO_RESIDENT_END
+  * ( its RegisterLibraryEntries fails ), which is NOT an error -- its library is still
+  * there. Without these, a retry after a later-stage failure would report a bogus
+  * [SMAP]/[STACK] failure for a module that is in fact up. */
+ static int  s_fSmap, s_fStack, s_fIoman;
+
+ /* UDPFS ( "UDP File System", transport UDPRDMA, port 0xF5F6 / service 0xF5F5 ) serves
+  * a PC FOLDER over UDP; it mounts as the iomanX device "udpfs:" -- NOT a BDM mass:
+  * drive -- so it gets its own device id and browses/streams through fio like mmce:.
+  * Three modules, in this order ( the order R3Z uses, init.c:612 ):
+  *    udpfs_smap      the EMAC3 Ethernet driver         ( no args )
+  *    udpfs_ministack the tiny IP/UDP/ARP stack         ( ip=<this PS2's static IP> )
+  *    udpfs_ioman     the "udpfs:" iomanX device        ( no args )
+  * DEV9 MUST be initialised BEFORE udpfs_smap: SMS's dev9Init wipes every registered
+  * interrupt + DMA callback ( iop/SMSDev9/src/ps2dev9.c ), and smap registers its
+  * callbacks once at load with no way to re-register, so a late DEV9CTLINIT silently
+  * kills the DMA path. The SERVER is found by UDPRDMA broadcast discovery -- there is
+  * no server address to configure; only this PS2's own static IP ( IPCONFIG.DAT ->
+  * g_pDefIP ) is passed, to ministack. MUTUALLY EXCLUSIVE with SMS's SMB/host stack:
+  * one EMAC3 NIC, and both register the 'smap' library -- one network personality per
+  * boot, tracked by s_NetOwner ( no runtime swap without a full IOP reset ). Pure
+  * dev9/SMAP, so it never touches the SIO2 bus: MX4SIO / MMCE are unaffected.
+  * ( NOT udpbd: that is the legacy 0xBDBD BLOCK-device protocol needing a disk image,
+  *   a subset of UDPFS. SMS no longer ships it -- see iop/SMSUdpfs/ATTRIBUTION.md. ) */
+/* Idempotent on the DEVICE being present, NOT merely on the modules being loaded. The
+ * modules can be up while discovery failed ( server not started yet, PHY still
+ * negotiating ), and that must stay RETRYABLE: gating this on SMS_IOPF_UDPFS would
+ * early-return without re-probing, and since the Device-menu row hides on the same
+ * condition the user would be locked out of udpfs for the whole boot with the drive
+ * simply absent -- the "nothing but Start ... no device, nothing" report. Re-entry is
+ * cheap: s_fSmap/s_fStack/s_fIoman skip the loads and we land straight on the probe. */
+ if (  g_UdpfsFlags & 2  ) return 1;   /* already mounted ( STICKY bit1 -- bit0 is the one-shot event and is cleared by the GUI within ~64ms ) */
  if (  s_NetOwner == 1 || ( g_IOPFlags & ( SMS_IOPF_NET | SMS_IOPF_SMB ) )  ) return 0;   /* SMB/host owns the NIC */
  if (  !( g_IOPFlags & SMS_IOPF_DEV9_IS )  ) return 0;   /* no DEV9 hardware */
- if (  !g_pDefIP[ 0 ]  ) return 0;                        /* no static IP set -> udpbd can't reach a server */
+ if (  !g_pDefIP[ 0 ]  ) { GUI_Error ( lE1 ); return 0; }   /* no static IP -> ministack has nothing to bind */
 
  GUI_Status ( lP1 );
  if (  !( g_IOPFlags & SMS_IOPF_DEV9 )  ) {
@@ -657,37 +708,73 @@ int SMS_IOPStartUDPBD ( int afStatus ) {
   g_IOPFlags |= SMS_IOPF_DEV9;
  }  /* end if */
 
- lBefore = _bdm_scan ();
-
+ /* Every stage below reports WHICH stage failed. A silent `return 0` here is what
+  * turns a hardware test into five round-trips ( cf. the SMB self-diagnosing
+  * "SMB FAIL [CONN|PROTO|LOGON]" in SMS_GUIDevMenu.c ). */
  GUI_Status ( lP2 );
- sprintf ( lArg, "ip=%s", g_pDefIP );   /* single NUL-terminated arg token, argc-parsed by the module */
+ if ( !s_fSmap ) {
+  if (  SifExecDecompModuleBuffer ( &udpfs_smap_irx, size_udpfs_smap_irx, 0, NULL, &i ) < 0 || i  ) {
+   GUI_Error ( lE2 );
+   return 0;
+  }  /* end if */
+  s_fSmap = 1;
+ }  /* end if */
 
- /* Claim the NIC + flag udpbd ONLY if the driver actually loads -- otherwise leave
-  * the NIC free so the user can still start SMB this boot ( don't lock them out ). */
- if (  SifExecDecompModuleBuffer ( &smap_udpbd_irx, size_smap_udpbd_irx, strlen ( lArg ) + 1, lArg, &i ) < 0  )
-  return 0;
-
- s_NetOwner  = 2;
- g_IOPFlags |= SMS_IOPF_UDPBD;
+ /* smap is up -> the NIC is ours for this boot, even if a later stage fails. Claiming
+  * it only now ( not before the load ) leaves SMB usable if smap itself never loaded. */
+ s_NetOwner = 2;
 
  GUI_Status ( lP3 );
- /* Unlike MX4SIO/ATA ( their block device registers synchronously during module
-  * init ), udpbd registers ASYNCHRONOUSLY: the SMAP PHY link-up ( ~2-5s ), the
-  * broadcast server-discovery round-trip and the FAT mount all happen AFTER the
-  * module loads. So POLL for a newly-appeared mass unit ( NHDDL's delayAttempts
-  * pattern ) and break the instant it shows, instead of a single fixed wait that
-  * would miss the mount; give up after ~NHDDL's budget ( a no-server / no-link boot
-  * simply adds no drive ). */
- for ( i = 0; i < 20 && _bdm_scan () == lBefore; ++i ) {
-  ret = 0x01000000;
-  while ( ret-- ) asm ( "nop\nnop\nnop\nnop" );
+ if ( !s_fStack ) {
+  sprintf ( lArg, "ip=%s", g_pDefIP );   /* single NUL-terminated arg token, argc-parsed by the module */
+  if (  SifExecDecompModuleBuffer ( &udpfs_ministack_irx, size_udpfs_ministack_irx, strlen ( lArg ) + 1, lArg, &i ) < 0 || i  ) {
+   GUI_Error ( lE3 );
+   return 0;
+  }  /* end if */
+  s_fStack = 1;
+ }  /* end if */
+
+ if ( !s_fIoman ) {
+  if (  SifExecDecompModuleBuffer ( &udpfs_ioman_irx, size_udpfs_ioman_irx, 0, NULL, &i ) < 0 || i  ) {
+   GUI_Error ( lE4 );
+   return 0;
+  }  /* end if */
+  s_fIoman = 1;
+ }  /* end if */
+
+ g_IOPFlags |= SMS_IOPF_UDPFS;
+
+ /* The device registers unconditionally and connects lazily on the first dopen ( see
+  * the SMS note in iop/SMSUdpfs/udpfs/src/udpfs_ioman.c ), so this probe is what
+  * actually establishes the link.
+  *
+  * NO EE-side delay between attempts, and only TWO of them: each fileXioDopen is a
+  * SYNCHRONOUS SIF RPC that blocks right through udprdma_discover's full 5-SECOND
+  * budget ( udpfs_core.c -> udprdma.c, itself 4 broadcast retries inside that window ).
+  * The dopen IS the wait -- an added spin just pads a 5s block, and eight attempts
+  * would freeze a serverless boot for ~40s. Two gives a ~10s window with 8 broadcasts,
+  * ample for the SMAP PHY to finish autonegotiating on its own thread after _start.
+  * Failing here is NOT fatal: the device stays registered and the Device-menu row stays
+  * offered ( it is gated on g_UdpfsFlags, not on the module flag ), so starting the PC
+  * server and hitting Start again re-probes and connects. */
+ GUI_Status ( lP4 );
+ for ( lTry = 0; lTry < 2; ++lTry ) {
+
+  int lFD = fileXioDopen ( lUdpfs );
+
+  if ( lFD >= 0 ) {
+   fileXioDclose ( lFD );
+   g_UdpfsFlags |= 3;   /* bit0: raise the mount event once; bit1: sticky "mounted" for the guard + menu row */
+   break;
+  }  /* end if */
+
  }  /* end for */
 
- _bdm_register_new ( lBefore, &g_UdpbdMask );
+ if (  !( g_UdpfsFlags & 2 )  ) GUI_Error ( lE5 );
 
- return g_IOPFlags & SMS_IOPF_UDPBD;
+ return g_IOPFlags & SMS_IOPF_UDPFS;
 
-}  /* end SMS_IOPStartUDPBD */
+}  /* end SMS_IOPStartUDPFS */
 
 int SMS_IOPStartMMCE ( int afStatus ) {
 
@@ -704,7 +791,11 @@ int SMS_IOPStartMMCE ( int afStatus ) {
  if ( g_IOPFlags & SMS_IOPF_MMCE ) return g_IOPFlags & SMS_IOPF_MMCE;   /* idempotent: already up ( e.g. resolver started it ) -> don't reload mmceman / re-acquire the pad */
  if ( g_IOPFlags & SMS_IOPF_MX4SIO ) return 0;   /* shares the SIO2 port with MX4SIO */
 
- SifExecDecompModuleBuffer ( &mmceman_irx, size_mmceman_irx, 0, NULL, &i );
+/* Flag RESIDENCY, not the attempt. SMS_IOPF_MMCE now also locks MX4SIO out of the shared
+ * SIO2 bus ( SMS_IOPStartMX4SIO's reciprocal guard, and the Device-menu rows ), so
+ * setting it after a load that did NOT take would cost the user MX4SIO -- the primary
+ * device -- for the whole boot, on the strength of a button press that did nothing. */
+ if (  SifExecDecompModuleBuffer ( &mmceman_irx, size_mmceman_irx, 0, NULL, &i ) < 0  ) return 0;
 
  g_IOPFlags |= SMS_IOPF_MMCE;
 
@@ -764,7 +855,7 @@ int SMS_IOPStartMMCE ( int afStatus ) {
 int SMS_IOPStartILINK ( int afStatus ) { return 0; }
 int SMS_IOPStartATA   ( int afStatus ) { return 0; }
 int SMS_IOPStartMMCE  ( int afStatus ) { return 0; }
-int SMS_IOPStartUDPBD ( int afStatus ) { return 0; }
+int SMS_IOPStartUDPFS ( int afStatus ) { return 0; }
 #endif
 
 #ifdef BDM
@@ -917,9 +1008,21 @@ static void _cfg_resolve_fallback ( void ) {
 
  }  /* end for */
 
- if (  !( g_IOPFlags & SMS_IOPF_MX4SIO )  ) {             /* SIO2 free -> MMCE may be started */
-
-  SMS_IOPStartMMCE ( 1 );
+/* MMCE is PROBED here but never STARTED. This resolver runs early in SMS_IOPInit --
+ * BEFORE the configured auto-starts ( AUTO_MX4SIO / AUTO_MMCE ) -- and mmceman claims
+ * the SIO2 bus permanently once loaded, with no unload path. Starting it speculatively
+ * just to look for an SMS.cfg would therefore decide the SIO2 owner before the user's
+ * own configuration is even read, and MX4SIO -- the primary device -- would be left
+ * loading onto a bus mmceman already owns. The `!( g_IOPFlags & SMS_IOPF_MX4SIO )`
+ * test below cannot protect against that: MX4SIO has not run yet at this point, so it
+ * always passes. The trigger is a card-less network boot ( no mc, no USB ), which the
+ * old libmc-uninitialised bug used to mask by making SMS_MCPresent() claim a card was
+ * present and returning at the top.
+ * So: only probe MMCE when something ELSE has already brought it up. If it is not up,
+ * config simply stays on mc0: -- the same "genuinely nowhere to go" outcome as a boot
+ * with no writable device at all, and a far better trade than silently costing the
+ * user MX4SIO for the whole boot. */
+ if (  g_IOPFlags & SMS_IOPF_MMCE  ) {                    /* already the SIO2 owner -> free to probe */
 
   for ( n = 0; n < 2; ++n ) {
 
@@ -1044,9 +1147,10 @@ void SMS_IOPInit ( void ) {
    if ( lCfgFD >= 0 ) fioClose ( lCfgFD );
    else SMS_IOPStartMX4SIO ( 1 );               /* ... or MX4SIO ( also mass ) */
 
-/* A udpbd network drive ( wLaunchELF UDPFS ) ALSO presents as "mass:", but SMS
- * has no driver to bring it back after the IOP reset -- staying pinned to it makes
- * every save fail with NO memory-card fallback. Probe the device ROOT ( openable
+/* A "mass:" the LOADER mounted but SMS cannot bring back after its own IOP reset --
+ * e.g. a network BLOCK drive ( udpbd / udpfs_bd ) under another loader, or a drive
+ * that simply went away -- leaves us pinned to a device that no longer exists, and
+ * every save then fails with NO memory-card fallback. Probe the device ROOT ( openable
  * even on a first-ever USB / MX4SIO boot that has no SMS.cfg yet, so a real drive
  * is never mistaken for a dead one ). Safe by construction: if this dopen fails,
  * SMS_LoadConfig's fioOpen below would fail too -- config is already unusable, so
@@ -1064,7 +1168,11 @@ void SMS_IOPInit ( void ) {
 
   }  /* end else if */
 
-  if ( lFSGone ) {   /* phantom "mass:" ( udpbd ): degrade to the memory-card fallback, exactly like an SMB boot */
+/* NOTE: a wLaunchELF-R3Z UDPFS boot does NOT come through here -- R3Z loads the
+ * ioman variant, so argv[0] is "udpfs:/...", which SMS_ConfigSetCWD rejects outright
+ * ( SMS_Config.c ) and routes to the FS/card fallback. That is deliberate and matches
+ * how an SMB boot behaves: config lands on the memory card. */
+  if ( lFSGone ) {   /* phantom "mass:": degrade to the memory-card fallback, exactly like an SMB boot */
    SMS_ConfigClearFS     ();
    _cfg_resolve_fallback ();
   }  /* end if */
@@ -1123,7 +1231,7 @@ void SMS_IOPInit ( void ) {
 
  if ( g_IOPFlags & SMS_IOPF_DEV9_IS ) {
 #if NO_DEBUG
-  if (   !(  g_Config.m_NetworkFlags & ( SMS_DF_AUTO_HDD | SMS_DF_AUTO_NET | SMS_DF_AUTO_ATA | SMS_DF_AUTO_UDPBD )  )   )
+  if (   !(  g_Config.m_NetworkFlags & ( SMS_DF_AUTO_HDD | SMS_DF_AUTO_NET | SMS_DF_AUTO_ATA | SMS_DF_AUTO_UDPFS )  )   )
    SMS_IOCtl ( g_pDEV9X, DEV9CTLSHUTDOWN, NULL );
   else g_IOPFlags |= SMS_IOPF_DEV9;
 #else
@@ -1141,7 +1249,7 @@ void SMS_IOPInit ( void ) {
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_ATA    ) SMS_IOPStartATA    ( 1 );
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_ILINK  ) SMS_IOPStartILINK  ( 1 );
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_MMCE   ) SMS_IOPStartMMCE   ( 1 );
- if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_UDPBD  ) SMS_IOPStartUDPBD  ( 1 );
+ if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_UDPFS  ) SMS_IOPStartUDPFS  ( 1 );
 #endif
 
  GUI_Status ( STR_INITIALIZING_SMS.m_pStr );

@@ -94,7 +94,8 @@ static unsigned char s_Stack  [ 4096 ] __attribute__(   (  aligned( 16 ), sectio
 int g_CurDiscDVDV;   /* 1 = current optical disc is DVD-Video -> DVDVID icon ( read in SMS_GUIDevMenu ) */
 #ifdef BDM
 unsigned int g_MassFlags;
-extern unsigned int g_MmceFlags;   /* SMS_IOP.c -- pending MMCE connect events */
+extern unsigned int g_MmceFlags;    /* SMS_IOP.c -- pending MMCE connect events  */
+extern unsigned int g_UdpfsFlags;   /* SMS_IOP.c -- bit0 = pending UDPFS connect event ( cleared here on raise ); bit1 = sticky "mounted", owned by SMS_IOP.c -- do NOT clear it */
 #endif
 
 static void ( *QueryPad ) ( void );
@@ -470,6 +471,18 @@ static int _gui_thread ( void* apParam ) {
 
     s_Event     |= ( GUI_MSG_MOUNT_BIT | GUI_MSG_MMCE | ( 1LL << 56 ) );
     g_MmceFlags &= ~2;
+
+    goto raiseEvent;
+
+   } else if ( g_UdpfsFlags & 1 ) {
+
+/* UDPFS is a single iomanX device ( "udpfs:" ), not a multi-unit one -- unit 0 always.
+ * Clear ONLY bit0: bit1 is SMS_IOP.c's sticky "mounted" state, and the Start-UDPFS row
+ * plus SMS_IOPStartUDPFS's idempotent guard both read it. Clearing it here would let a
+ * second Start re-probe and append a DUPLICATE udpfs entry to the strip
+ * ( GUIDevMenu_HandleMount does not dedup ), leaking a _DevMenuItem per press. */
+    s_Event      |= ( GUI_MSG_MOUNT_BIT | GUI_MSG_UDPFS | ( 0LL << 56 ) );
+    g_UdpfsFlags &= ~1;
 
     goto raiseEvent;
 #endif

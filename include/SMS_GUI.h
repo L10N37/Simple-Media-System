@@ -32,6 +32,15 @@
  * and GUIDevMenu_HandleMount remaps that back to device id 7. Still inside
  * GUI_MSG_MOUNT_MASK (0x1F0000). */
 #define GUI_MSG_MMCE   0x0000000000090000L
+/* UDPFS network drive ( device id 8 ). Follows MMCE's displaced numbering: the slots
+ * are now one ahead of the device ids, so id 8 takes the next free mount slot
+ * (0xA0000, decodes to raw id 9) and GUIDevMenu_HandleMount remaps it back to 8.
+ * Still inside GUI_MSG_MOUNT_MASK (0x1F0000); the mount bit is 0x100000, so mount
+ * slots run to 0xF0000 -- there is room, but note the ceiling. Device id 8 is
+ * deliberately EVEN: several playback/browser sites test `g_CMedia & 1` to decide
+ * whether the media is a disc and spin up the CDVD, so an odd id would make the drive
+ * spin during network playback. */
+#define GUI_MSG_UDPFS  0x00000000000A0000L
 
 #define GUI_MSG_MEDIA_SELECTED 0x8000000000000000L
 #define GUI_MSG_MEDIA_REMOVED  0x7000000000000000L

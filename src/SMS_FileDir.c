@@ -43,6 +43,7 @@ char g_pCDDAFS[] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "
 char g_pSMB   [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "smb";
 char g_pSMBS  [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "smb:";
 char g_pMMCE  [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "mmce0";  /* [4]=digit placeholder ( mirrors SMS_IOP.c lMmce[]="mmceX:" ); was "mmce" -> the g_CMedia==7 digit write ate the terminator and ran into s_pAVI (".avi") */
+char g_pUDPFS [] __attribute__(   (  aligned( 4 ), section( ".data" )  )   ) = "udpfs";  /* UDPFS network drive: a single iomanX device, so NO unit digit ( unlike mmce0/mmce1 ) */
 
 static char s_pAVI [] __attribute__(   (  aligned( 4 ), section( ".data" ), aligned( 1 )  )   ) = ".avi";
 static char s_pDIVX[] __attribute__(   (  aligned( 4 ), section( ".data" ), aligned( 1 )  )   ) = ".divx";
@@ -67,8 +68,10 @@ static char s_pHST [] __attribute__(   (  aligned( 4 ), section( ".data" ), alig
 
 char g_HDDWD[ 1024 ] __attribute__(   (  aligned( 1 ), section( ".bss"  )  )   );
 
-char* g_pDevName[ 8 ] = {
- g_pUSB, g_pCDROM, g_pHDD0, g_pCDDA, g_pHOST, g_pDVD, g_pSMB, g_pMMCE
+/* Indexed by g_CMedia ( the device id ) -- MUST have an entry for every id that can
+ * reach SMS_FileDirInit, or the strcpy below reads a NULL and crashes. 8 = udpfs. */
+char* g_pDevName[ 9 ] = {
+ g_pUSB, g_pCDROM, g_pHDD0, g_pCDDA, g_pHOST, g_pDVD, g_pSMB, g_pMMCE, g_pUDPFS
 };
 
 SMS_List*    g_pFileList;

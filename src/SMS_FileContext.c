@@ -20,6 +20,16 @@
  * 4 KiB (one 8-sector driver batch) is the largest size confirmed stable on
  * hardware -- 8/16/32 KiB single reads stall. */
 #define MX4SIO_RD_CHUNK 4096
+/* udpfs: is NOT bdmfs and NOT on the SIO2 bus, so the stall above does not apply to it,
+ * and its driver already splits any request into UDPFS_MAX_READ (64 KiB) UDPRDMA reads
+ * internally ( udpfs_core_read, iop/SMSUdpfs/udpfs/src/udpfs_core.c ) before
+ * fragmenting to the wire MTU. Forcing MX4SIO's 4 KiB on it would therefore buy nothing
+ * and cost 16x the network round-trips per buffer fill -- latency a video stream pays
+ * for directly. Match the protocol's own maximum instead.
+ * TUNABLE: if hardware shows stalls or poor throughput, bisect this ( 32768 / 16384 );
+ * it is deliberately a named constant so a tester can be given one value to change.
+ * MX4SIO's path MUST keep using MX4SIO_RD_CHUNK, byte-for-byte -- that is the bounty. */
+#define UDPFS_RD_CHUNK  ( 64 * 1024 )
 #endif
 
 #include <malloc.h>
@@ -1220,7 +1230,8 @@ typedef struct STIOFilePrivate {
 typedef struct STIOFilePrivate {
 
  int m_FD;
- int m_fXio;   /* 1 = opened via fileXio (mass:/BDM); 0 = legacy fio */
+ int m_fXio;      /* 1 = opened via fileXio (mass:/BDM); 0 = legacy fio */
+ int m_RdChunk;   /* max bytes per fileXio read on THIS device ( see the note at top ) */
 
 } STIOFilePrivate;
 #endif  /* _WIN32 */
@@ -1341,7 +1352,7 @@ static int STIO_Fill ( FileContext* apCtx ) {
    * device in driver-safe MX4SIO_RD_CHUNK pieces (see note at top of file). */
   int _tot = 0, _want = apCtx -> m_BufSize, _n;
   while ( _tot < _want ) {
-   int _chunk = _want - _tot; if ( _chunk > MX4SIO_RD_CHUNK ) _chunk = MX4SIO_RD_CHUNK;
+   int _chunk = _want - _tot; if ( _chunk > lpPriv -> m_RdChunk ) _chunk = lpPriv -> m_RdChunk;
    _n = fileXioRead ( lpPriv -> m_FD, ( char* )apCtx -> m_pBuff[ apCtx -> m_CurBuf ] + _tot, _chunk );
    if ( _n <= 0 ) break;
    _tot += _n;
@@ -1469,7 +1480,7 @@ static int STIO_Stream ( FileContext* apCtx, unsigned int aStartPos, unsigned in
    {
     int _tot = 0, _want = apCtx -> m_BufSize, _n;
     while ( _tot < _want ) {
-     int _chunk = _want - _tot; if ( _chunk > MX4SIO_RD_CHUNK ) _chunk = MX4SIO_RD_CHUNK;
+     int _chunk = _want - _tot; if ( _chunk > lpPriv -> m_RdChunk ) _chunk = lpPriv -> m_RdChunk;
      _n = fileXioRead ( lpPriv -> m_FD, ( char* )apCtx -> m_pBuff[ 0 ] + _tot, _chunk );
      if ( _n <= 0 ) break;
      _tot += _n;
@@ -1616,7 +1627,9 @@ FileContext* STIO_InitFileContext ( const char* aFileName, void* apUnused ) {
  }  /* end if */
 #else  /* PS2 */
 #ifdef BDM
- int lXio = ( aFileName != NULL && ( strncmp ( aFileName, "mass", 4 ) == 0 || strncmp ( aFileName, "smb", 3 ) == 0 || strncmp ( aFileName, "mmce", 4 ) == 0 ) );   /* mmce: read via fileXio + STIO_Fill 4KB chunks -- mmce_fs_read does the whole request in ONE SIO2 shot ( no driver chunking ), the same large-read stall that hit MX4SIO on this bus */
+ int lUdpfs = ( aFileName != NULL && strncmp ( aFileName, "udpfs", 5 ) == 0 );   /* the udpfs: network drive -- an iomanX device, read via fileXio like mass:/mmce: */
+ int lXio = ( aFileName != NULL && ( strncmp ( aFileName, "mass", 4 ) == 0 || strncmp ( aFileName, "smb", 3 ) == 0 || strncmp ( aFileName, "mmce", 4 ) == 0 ) ) || lUdpfs;   /* mmce: read via fileXio + STIO_Fill 4KB chunks -- mmce_fs_read does the whole request in ONE SIO2 shot ( no driver chunking ), the same large-read stall that hit MX4SIO on this bus */
+ int lRdChunk = lUdpfs ? UDPFS_RD_CHUNK : MX4SIO_RD_CHUNK;   /* per-device: udpfs must NOT inherit MX4SIO's 4 KiB SIO2 workaround ( see note at top ) */
  int lFD  = lXio ? fileXioOpen ( aFileName, O_RDONLY ) : fioOpen ( aFileName, O_RDONLY );
 #else
  int lFD = fioOpen ( aFileName, O_RDONLY );
@@ -1653,7 +1666,8 @@ FileContext* STIO_InitFileContext ( const char* aFileName, void* apUnused ) {
 
     (  ( STIOFilePrivate* )retVal -> m_pData  ) -> m_FD = lFD;
 #ifdef BDM
-    (  ( STIOFilePrivate* )retVal -> m_pData  ) -> m_fXio = lXio;
+    (  ( STIOFilePrivate* )retVal -> m_pData  ) -> m_fXio    = lXio;
+    (  ( STIOFilePrivate* )retVal -> m_pData  ) -> m_RdChunk = lRdChunk;
 #endif
 
     retVal -> Fill    = STIO_Fill;

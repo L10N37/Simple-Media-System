@@ -53,8 +53,8 @@ extern int g_CurDiscDVDV;   /* cached at disc mount: 1 = DVD-Video ( -> DVDVID )
 /* MX4SIO / ATA / iLink units are all mass: devices (m_DevID == 0) but each gets a
  * distinct browser icon. Compute the icon index ONLY at draw time -- m_DevID itself
  * MUST stay the real device id (0), because it is copied to g_CMedia and indexes the
- * 7-entry device-name / file-dir tables; a fake id there reads out of bounds and
- * crashes (NULL strcpy in SMS_FileDirInit). Icon slots: 7=MX4SIO, 8=ATA, 9=iLink. */
+ * device-name / file-dir tables; a fake id there reads out of bounds and crashes
+ * (NULL strcpy in SMS_FileDirInit). Icon slots: 7=MX4SIO, 8=ATA, 9=iLink, 10=MMCE. */
 static int _dev_icon_index ( _DevMenuItem* apItem ) {
 #ifdef BDM
  if ( apItem -> m_DevID == 0 ) {
@@ -62,9 +62,14 @@ static int _dev_icon_index ( _DevMenuItem* apItem ) {
   if ( g_Mx4sioMask & lBit ) return 7;
   if ( g_AtaMask    & lBit ) return 8;
   if ( g_IlinkMask  & lBit ) return 9;
-  if ( g_UdpbdMask  & lBit ) return 6;   /* udpbd network drive reuses the SMB / network icon */
  }  /* end if */
  if ( apItem -> m_DevID == 7 ) return 10;   /* MMCE ( mmce0:/mmce1: ) */
+/* udpfs is an iomanX device, NOT a BDM mass unit, so it has no mass bitmask to test --
+ * it is identified by its device id alone. It reuses the SMB / network icon ( 6 ): the
+ * two are mutually exclusive ( one EMAC3 NIC ), so they can never be on screen at once.
+ * This MUST be explicit: the `return apItem -> m_DevID` fallthrough below would map
+ * id 8 onto icon 8 = the ATA icon. */
+ if ( apItem -> m_DevID == 8 ) return 6;    /* udpfs: network drive */
 #endif
  /* Disc sub-type icons -- the device id alone can't tell audio-vs-data CD or
   * video-vs-data DVD. A WORKING audio CD is mounted as id 1 ( CDROM ) with a live
@@ -235,8 +240,12 @@ static int GUIDevMenu_HandleMount ( GUIDevMenu* apMenu, unsigned int aMount, u64
 
 #ifdef BDM
  /* MMCE ( GUI_MSG_MMCE = 0x90000 ) decodes to raw id 8 because its natural slot
-  * (0x80000) is taken by GUI_MSG_LOGIN; map it back to the real device id 7. */
- if ( lDevID == 8 ) lDevID = 7;
+  * (0x80000) is taken by GUI_MSG_LOGIN; map it back to the real device id 7.
+  * UDPFS ( GUI_MSG_UDPFS = 0xA0000 ) inherits that one-ahead shift -> raw 9 -> id 8.
+  * The `else` is load-bearing: as two independent ifs, udpfs's 9 -> 8 would fall
+  * straight into the 8 -> 7 line and land on MMCE's device id. */
+ if      ( lDevID == 9 ) lDevID = 8;
+ else if ( lDevID == 8 ) lDevID = 7;
 #endif
 
  if (  aMount & ( GUI_MSG_MOUNT_BIT >> 16 )  ) {
