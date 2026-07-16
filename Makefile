@@ -114,6 +114,14 @@ $(EE_BIN) : $(EE_OBJS) $(PS2SDK)/ee/startup/crt0.o
 
 rebuild: clean all
 
+# Self-extracting packed ELF ( ps2-packer, lzma stub ) built ALONGSIDE the plain ELF for
+# the release. bin/SMS.elf stays the canonical / fallback download; bin/SMS-packed.elf is
+# the same program compressed ~48% smaller ( 1.77MB -> ~0.9MB ) that decompresses itself
+# into RAM at boot. Depends on `all` so it packs the fully linked + stripped ELF.
+# ps2-packer ships in the ps2dev toolchain image ( /usr/local/ps2dev/bin ).
+pack: all
+	ps2-packer $(EE_BIN) $(EE_BIN_DIR)SMS-packed.elf
+
 clean:
 	@rm -f -r $(EE_BIN_DIR) $(EE_OBJ_DIR)
 

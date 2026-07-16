@@ -49,13 +49,14 @@ jobs:
     - name: Build (ps2dev v1.0 toolchain)
       run: |
         docker run --rm -v "$PWD":/src -w /src ps2dev/ps2dev:v1.0 \
-          sh -c 'apk add --no-cache build-base git zip && make all'
+          sh -c 'apk add --no-cache build-base git zip && make all pack'
 
     - name: Package
       run: |
         mkdir -p dist
-        cp bin/SMS.elf dist/Simple-Media-System.elf
-        ( cd dist && zip -9 "Simple-Media-System-${GITHUB_SHA::8}.zip" Simple-Media-System.elf )
+        cp bin/SMS.elf        dist/Simple-Media-System.elf
+        cp bin/SMS-packed.elf dist/Simple-Media-System-packed.elf   # self-extracting, ~half the size
+        ( cd dist && zip -9 "Simple-Media-System-${GITHUB_SHA::8}.zip" Simple-Media-System.elf Simple-Media-System-packed.elf )
         ls -la dist
 
     # Every build (push / PR / tag) leaves a downloadable artifact for that commit.
@@ -74,10 +75,10 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        printf 'Latest development build of Simple-Media-System -- auto-updated on every push to mx4sio.\n\nCommit: %s\nBuilt:  %s UTC\n\nDownload Simple-Media-System.elf (or the .zip) and flash / run it to test.\n' \
+        printf 'Latest development build of Simple-Media-System -- auto-updated on every push to mx4sio.\n\nCommit: %s\nBuilt:  %s UTC\n\nSimple-Media-System.elf         -- standard ELF.\nSimple-Media-System-packed.elf  -- same build, self-extracting ( ~half the size, decompresses at boot ).\n\nFlash / run either to test.\n' \
           "$GITHUB_SHA" "$(date -u +'%Y-%m-%d %H:%M')" > notes.md
         gh release delete rolling --yes --cleanup-tag 2>/dev/null || true
-        gh release create rolling dist/Simple-Media-System.elf dist/*.zip \
+        gh release create rolling dist/Simple-Media-System.elf dist/Simple-Media-System-packed.elf dist/*.zip \
           --prerelease --target "$GITHUB_SHA" \
           --title "Rolling build (latest mx4sio)" --notes-file notes.md
 
@@ -87,5 +88,5 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        gh release create "$GITHUB_REF_NAME" dist/Simple-Media-System.elf dist/*.zip \
+        gh release create "$GITHUB_REF_NAME" dist/Simple-Media-System.elf dist/Simple-Media-System-packed.elf dist/*.zip \
           --title "Simple-Media-System $GITHUB_REF_NAME" --generate-notes
