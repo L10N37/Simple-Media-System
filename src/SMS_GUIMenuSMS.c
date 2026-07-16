@@ -603,7 +603,12 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
  if ( g_IOPFlags & SMS_IOPF_DEV9_IS ) {
 
-  if (   !(  g_IOPFlags & ( SMS_IOPF_NET | SMS_IOPF_SMB | SMS_IOPF_UDPFS )  )   ) {   /* hide SMB/network start when udpfs owns the NIC */
+/* The accessor term covers the gap the flags can't: udpfs claims the NIC ( s_NetOwner )
+ * the moment its smap loads, BEFORE SMS_IOPF_UDPFS is set -- so a partially-failed
+ * Start UDPFS ( smap up, later module failed ) leaves the NIC owned with no flag to
+ * show for it, and this row could then only answer a bare "Error" ( SMS_IOPStartNet
+ * refuses an owned NIC ). Mirror of the same fix on the Start-UDPFS row. */
+  if (   !(  g_IOPFlags & ( SMS_IOPF_NET | SMS_IOPF_SMB | SMS_IOPF_UDPFS )  ) && !SMS_IOPNetOwnedByUDPFS ()   ) {   /* hide SMB/network start when udpfs owns the NIC */
    s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_NETWORK_NOW;
    s_DevMenu[   lSize ].Handler       = _startnet_handler;
   }  /* end if */

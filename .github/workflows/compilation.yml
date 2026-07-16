@@ -16,6 +16,17 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    # IRX ABI gate. IOP loadcore binds a client module to a library provider by NAME +
+    # MAJOR version only, then resolves every stub BY ORDINAL -- so a module built
+    # against the wrong dev9 minor loads *clean* and simply never transfers a byte
+    # (no error anywhere; this is exactly how the old smap_udpbd shipped dead). The
+    # committed dev9-importing blobs must stay bound to SMS's embedded dev9 v1.1.
+    # Assert on the .xz blobs -- the exact bytes the build embeds -- so a re-bound
+    # module committed only as .xz cannot slip a v1.9 binding past the gate.
+    - name: IRX ABI gate (dev9 v1.1 bindings)
+      run: |
+        python3 tools/irx_imports.py --assert dev9=1.1 irx/udpfs_smap.irx.xz irx/ata_bd.irx.xz
+
     # NOTE: we do NOT run the whole job inside the ps2dev container -- modern
     # GitHub Actions run their JS (checkout / upload) on Node, which the old
     # Alpine musl in ps2dev/ps2dev:v1.0 can't load. Check out on the host and run

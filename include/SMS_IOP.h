@@ -63,6 +63,7 @@ int  SMS_IOPStartDS34USB     ( int                                    );
 int  SMS_IOPStartDS34BT      ( int                                    );
 int  SMS_IOPStartUDPFS       ( int                                    );
 int  SMS_IOPNetOwnedBySMB    ( void                                   );
+int  SMS_IOPNetOwnedByUDPFS  ( void                                   );
 int  SMS_IOPStartHDD         ( int                                    );
 void SMS_IOPRefreshMass      ( void                                   );
 void SMS_IOPSetXLT           ( void                                   );

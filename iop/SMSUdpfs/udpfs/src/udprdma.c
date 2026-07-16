@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <thevent.h>
 #include <thbase.h>
+#include <thsemap.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -75,6 +76,7 @@ struct udprdma_socket {
 
     /* Synchronization */
     int event_flag;
+    int rx_mutex;   /* SMS: serializes _ist against the ioman-side arm/disarm/reset -- see _rx_lock */
 };
 
 /* Maximum number of sockets */
@@ -82,6 +84,19 @@ struct udprdma_socket {
 #define UDPRDMA_MAX_SOCKETS 2
 #endif
 static struct udprdma_socket sockets[UDPRDMA_MAX_SOCKETS];
+
+/* SMS: RX mutex. _ist runs on the SMAP RX thread and can SUSPEND mid-payload inside
+ * smap_fifo_read ( the dev9 dma lock it shares with ATA ). Without exclusion, the
+ * lower-priority ioman thread can then run a send-max-retries disarm, pop the stack
+ * frame the RX pointers aim at, or even complete a whole re-discovery -- and the
+ * resumed _ist writes stale rx state ( and the stale pointers' targets ) into the
+ * fresh session. Holding this across _ist's body forces every arm/disarm/reset -- and
+ * therefore the caller's return, which keeps its frame alive -- to wait for the
+ * in-flight packet to finish. Sections under the lock only ever block on dev9's dma
+ * lock, which ATA takes but never chains back to rx_mutex, so there is no cycle. NOT
+ * taken from _timeout_cb: that is a real ISR, and it touches no rx pointers. */
+static void _rx_lock(struct udprdma_socket *s)   { if (s->rx_mutex > 0) WaitSema(s->rx_mutex); }
+static void _rx_unlock(struct udprdma_socket *s) { if (s->rx_mutex > 0) SignalSema(s->rx_mutex); }
 
 
 /*
@@ -100,7 +115,7 @@ static unsigned int _timeout_cb(void *arg)
  * Reads packet header from SMAP FIFO via smap_fifo_read and sets event flags.
  * For DATA packets, transfers payload to receive buffer via smap_fifo_read (DMA for large).
  */
-static int _ist(udp_socket_t *udp_socket, void *arg, const uint8_t *hdr, uint16_t hdr_len)
+static int _ist_do(udp_socket_t *udp_socket, void *arg, const uint8_t *hdr, uint16_t hdr_len)
 {
     struct udprdma_socket *s = (struct udprdma_socket *)arg;
     const udprdma_pkt_disc_t *disc_pkt = (const udprdma_pkt_disc_t *)hdr;
@@ -350,6 +365,26 @@ static void _send_data_ll(struct udprdma_socket *s,
 }
 
 
+/* SMS: the registered SMAP RX handler. Holds the RX mutex across the WHOLE packet so
+ * that no arm / disarm / reset on the ioman side can mutate the rx pointers or state
+ * out from under an in-flight packet ( which the shared dev9 dma lock can suspend
+ * mid-payload ). The body never waits on the event flag or on rx_mutex, and its only
+ * blocking call ( smap_fifo_read -> dev9 dma lock ) is never taken by a holder of
+ * rx_mutex, so there is no lock cycle. */
+static int _ist(udp_socket_t *udp_socket, void *arg, const uint8_t *hdr, uint16_t hdr_len)
+{
+    struct udprdma_socket *s = (struct udprdma_socket *)arg;
+    int ret;
+
+    if (s == NULL)
+        return _ist_do(udp_socket, arg, hdr, hdr_len);
+
+    _rx_lock(s);
+    ret = _ist_do(udp_socket, arg, hdr, hdr_len);
+    _rx_unlock(s);
+    return ret;
+}
+
 /*
  * Public API
  */
@@ -358,6 +393,7 @@ udprdma_socket_t *udprdma_create(uint16_t port, uint16_t service_id)
 {
     struct udprdma_socket *s = NULL;
     iop_event_t evf_data;
+    iop_sema_t  sem_data;
     int i;
 
     /* Find free socket */
@@ -397,6 +433,20 @@ udprdma_socket_t *udprdma_create(uint16_t port, uint16_t service_id)
         return NULL;
     }
 
+    /* SMS: RX mutex (see _rx_lock) -- binary semaphore, initially free. */
+    sem_data.attr = 0;
+    sem_data.option = 0;
+    sem_data.initial = 1;
+    sem_data.max = 1;
+    s->rx_mutex = CreateSema(&sem_data);
+    if (s->rx_mutex <= 0) {
+        M_DEBUG("udprdma_create: CreateSema failed\n");
+        DeleteEventFlag(s->event_flag);
+        s->event_flag = 0;
+        s->udp_socket = NULL;
+        return NULL;
+    }
+
     /* Initialize packet headers */
     udp_packet_init((udp_packet_t *)&s->pkt_disc, IP_ADDR(255,255,255,255), s->port);
     udp_packet_init((udp_packet_t *)&s->pkt_data, IP_ADDR(255,255,255,255), s->port);
@@ -414,10 +464,14 @@ void udprdma_destroy(udprdma_socket_t *socket)
     if (socket->event_flag > 0) {
         DeleteEventFlag(socket->event_flag);
     }
+    if (socket->rx_mutex > 0) {
+        DeleteSema(socket->rx_mutex);
+    }
 
     /* Note: UDP socket cleanup not implemented in ministack */
     socket->udp_socket = NULL;
     socket->event_flag = 0;
+    socket->rx_mutex = 0;
     socket->state = STATE_INIT;
 }
 
@@ -450,7 +504,11 @@ int udprdma_discover(udprdma_socket_t *socket, uint32_t timeout_ms)
      *    EF_RX_FIN, so the next udprdma_recv would return INSTANTLY with rx_received==0
      *    and the caller would parse an unwritten reply buffer as a valid response.
      *
-     * Clearing the event flag with a 0 AND-mask drops every bit. */
+     * Clearing the event flag with a 0 AND-mask drops every bit.
+     *
+     * The whole reset is under rx_mutex so a late stale packet's _ist cannot interleave
+     * and half-resurrect the dead session between these stores. */
+    _rx_lock(socket);
     socket->rx_buffer        = NULL;   /* first: this is the ONLY gate _ist tests, so clearing it disarms us before anything else moves */
     socket->rx_hdr_buffer    = NULL;
     socket->rx_received      = 0;
@@ -469,6 +527,7 @@ int udprdma_discover(udprdma_socket_t *socket, uint32_t timeout_ms)
     socket->rx_seq_nr_expected = 0;
     if (socket->event_flag > 0)
         ClearEventFlag(socket->event_flag, 0);
+    _rx_unlock(socket);
 
     socket->state = STATE_DISCOVERING;
 
@@ -575,9 +634,12 @@ int udprdma_send(udprdma_socket_t *socket, const void *data, uint32_t size)
  * is left aimed at a frame that is about to pop. _ist gates only on rx_buffer != NULL,
  * so any late retransmit would then smap_fifo_read straight into dead stack. The reset
  * in udprdma_discover is not sufficient on its own: it only runs at the NEXT connect
- * attempt, and udpfs_read never calls _ensure_connected, so the window is unbounded. */
+ * attempt, and udpfs_read never calls _ensure_connected, so the window is unbounded.
+ * Under rx_mutex so it waits for any _ist still finishing the packet it gated on. */
+    _rx_lock(socket);
     socket->rx_buffer     = NULL;
     socket->rx_hdr_buffer = NULL;
+    _rx_unlock(socket);
     socket->state = STATE_DISCONNECTED;
     return UDPRDMA_ERR_NACK;
 }
@@ -633,8 +695,10 @@ int udprdma_send_ll(udprdma_socket_t *socket,
     }
 
     M_PRINTF("send_ll: max retries exceeded, disconnecting\n");
-    socket->rx_buffer     = NULL;   /* SMS: see the note in udprdma_send -- never leave a caller's stack frame armed in _ist */
+    _rx_lock(socket);   /* SMS: see the note in udprdma_send -- never leave a caller's stack frame armed in _ist */
+    socket->rx_buffer     = NULL;
     socket->rx_hdr_buffer = NULL;
+    _rx_unlock(socket);
     socket->state = STATE_DISCONNECTED;
     return UDPRDMA_ERR_NACK;
 }
@@ -673,9 +737,12 @@ int udprdma_recv(udprdma_socket_t *socket, void *buffer, uint32_t size, uint32_t
 
         if (evf_bits & EF_RX_FIN) {
             _send_ack(socket, 1);
-            int result = socket->rx_received;
+            int result;
+            _rx_lock(socket);   /* atomic vs an in-flight _ist for a duplicate/retransmit */
+            result = socket->rx_received;
             socket->rx_buffer = NULL;
             socket->rx_hdr_buffer = NULL;
+            _rx_unlock(socket);
             return result;
         }
 
@@ -692,8 +759,10 @@ int udprdma_recv(udprdma_socket_t *socket, void *buffer, uint32_t size, uint32_t
         if (evf_bits & EF_TIMEOUT) {
             M_PRINTF("recv: timeout, received=%d/%d\n",
                 socket->rx_received, socket->rx_buffer_size);
+            _rx_lock(socket);
             socket->rx_buffer = NULL;
             socket->rx_hdr_buffer = NULL;
+            _rx_unlock(socket);
             socket->state = STATE_DISCONNECTED;
             return UDPRDMA_ERR_TIMEOUT;
         }
@@ -715,17 +784,21 @@ uint32_t udprdma_get_peer_ip(udprdma_socket_t *socket)
 void udprdma_set_rx_buffer(udprdma_socket_t *socket, void *buffer, uint32_t size)
 {
     if (socket == NULL) return;
+    _rx_lock(socket);   /* atomic vs _ist: never expose a half-armed rx_buffer/size pair */
     socket->rx_buffer = buffer;
     socket->rx_buffer_size = size;
     socket->rx_received = 0;
     socket->rx_window_count = 0;
     socket->rx_nack_sent = 0;
+    _rx_unlock(socket);
 }
 
 void udprdma_set_rx_app_header(udprdma_socket_t *socket, void *hdr_buf, uint32_t hdr_size)
 {
     if (socket == NULL) return;
+    _rx_lock(socket);
     socket->rx_hdr_buffer = hdr_buf;
     socket->rx_hdr_size = hdr_size;
     socket->rx_hdr_received = 0;
+    _rx_unlock(socket);
 }

@@ -121,6 +121,17 @@ static int _recv_with_result(udprdma_socket_t *socket, const void *req, uint32_t
     if (result.result <= 0)
         return result.result;  /* 0 = EOF, negative = error */
 
+    /* Clamp the server-supplied logical count to what was actually DMA'd into the
+     * buffer ( ret, itself bounded to `size` by udprdma_recv's window math ). result.result
+     * is wire-controlled: a version-skewed or hostile server could report more than it
+     * sent, and returning that would violate the read() contract ( count > requested ),
+     * hand the EE a byte count larger than the buffer, and surface unwritten buffer bytes
+     * as file data. A well-behaved server always sends result.result <= ret, so the clamp
+     * only ever bites a misbehaving one. ( ret is the 4-byte-padded DMA count; the real
+     * logical size is <= ret, so this can only round a bad value DOWN to a safe bound. ) */
+    if (result.result > ret)
+        return ret;
+
     return result.result;  /* logical bytes read (not DMA-padded count) */
 }
 
@@ -756,7 +767,12 @@ int udpfs_core_bwrite(int32_t handle, uint64_t sector, const void *buffer, uint3
 int udpfs_core_get_sector_count(int32_t handle)
 {
     udpfs_msg_getstat_req_t req __attribute__((aligned(4)));
-    udpfs_msg_getstat_reply_t reply __attribute__((aligned(4)));
+    /* Zero-init for the same reason as _recv_with_result's `result`: a version-skewed
+     * server's undersized/oversized app header can leave this partly or wholly
+     * unwritten, and the fields below are read either way. Zeros fail the msg_type check
+     * cleanly instead of returning garbage. ( Not in the shipped UDPFS_IOMAN build --
+     * this is FEATURE_UDPFS_BD/FHI only -- but kept correct for parity. ) */
+    udpfs_msg_getstat_reply_t reply __attribute__((aligned(4))) = {0};
     int ret;
 
     M_DEBUG("udpfs_core_get_sector_count(handle=%d)\n", handle);

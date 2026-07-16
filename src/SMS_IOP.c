@@ -47,6 +47,14 @@ extern void* _gp;
 
 unsigned int g_IOPFlags;
 
+/* Which network personality owns the single EMAC3 NIC this boot: 0 = free, 1 = SMS
+ * SMB/host ( PS2SMAP + SMSTCPIP ), 2 = udpfs ( udpfs_smap, its own SMAP ). Both register
+ * the 'smap' library, so only the first to start may own it -- the other backs off ( no
+ * runtime swap without a full IOP reset ). In common scope, NOT under #ifdef BDM: the
+ * non-BDM SMS_IOPStartNet reads it, and the SMS_IOPNetOwnedBy* accessors expose it to
+ * the menu. Without BDM nothing ever SETS it, so it stays 0 ( "free" ) -- truthful. */
+static int s_NetOwner;
+
 #ifdef BDM
 unsigned int g_Mx4sioMask;
 unsigned int g_AtaMask;
@@ -116,11 +124,7 @@ static unsigned int s_MassAdded;
  * 2 = ATA-as-BDM ( ata_bd, which bundles its own atad ). Both register the same atad
  * IOP library, so only the first to start may own the bus -- the other backs off. */
 static int s_AtaBusOwner;
-/* Which network personality owns the single EMAC3 NIC this boot: 0 = free, 1 = SMS
- * SMB/host ( PS2SMAP + SMSTCPIP ), 2 = udpfs ( udpfs_smap, its own SMAP ). Both
- * register the 'smap' library, so only the first to start may own it -- the other
- * backs off ( no runtime swap without a full IOP reset ). */
-static int s_NetOwner;
+/* s_NetOwner is declared in common scope above ( SMS_IOPStartNet, non-BDM, reads it ). */
 /* MMCE units ( bit0=mmce0:, bit1=mmce1: ) already announced to the device strip,
  * so a re-probe doesn't append a duplicate ( same idea as s_MassAdded ). */
 static unsigned int s_MmceAdded;
@@ -502,6 +506,12 @@ int SMS_IOPStartMX4SIO ( int afStatus ) {
 
  int i, ret, before = 0;
 
+/* Idempotent, mirroring SMS_IOPStartMMCE: an mx4sio-card boot re-mounts the drive in
+ * config resolution AND may then hit AUTO_MX4SIO -- without this, the second call
+ * loaded a SECOND copy of mx4sio_bd onto the live SIO2 bus. The old double-load
+ * happened to survive on hardware, but it was never a defined thing to do. */
+ if (  g_IOPFlags & SMS_IOPF_MX4SIO  ) return g_IOPFlags & SMS_IOPF_MX4SIO;
+
 /* MMCE ( mmceman ) drives the SAME SIO2 port, and neither module can be unloaded, so
  * whoever binds it first owns it for the boot -- the same first-come-first-served rule
  * as s_AtaBusOwner / s_NetOwner. SMS_IOPStartMMCE already defers to MX4SIO; this is the
@@ -649,7 +659,8 @@ int SMS_IOPStartATA ( int afStatus ) {
  * SMS_IOPStartNet claims s_NetOwner BEFORE loading its modules ( deliberately -- the
  * claim must stand even if a later module fails, so udpfs never lands on a half-built
  * NIC ), which means SMS_IOPF_NET/SMB can be clear while the NIC is still spoken for. */
-int SMS_IOPNetOwnedBySMB ( void ) { return s_NetOwner == 1; }
+int SMS_IOPNetOwnedBySMB   ( void ) { return s_NetOwner == 1; }
+int SMS_IOPNetOwnedByUDPFS ( void ) { return s_NetOwner == 2; }
 
 int SMS_IOPStartUDPFS ( int afStatus ) {
 
@@ -856,6 +867,11 @@ int SMS_IOPStartILINK ( int afStatus ) { return 0; }
 int SMS_IOPStartATA   ( int afStatus ) { return 0; }
 int SMS_IOPStartMMCE  ( int afStatus ) { return 0; }
 int SMS_IOPStartUDPFS ( int afStatus ) { return 0; }
+/* s_NetOwner is a BDM-only concept, but these accessors are called from common menu
+ * code ( SMS_GUIMenuSMS.c's Start-Network / Start-UDPFS rows, outside its #ifdef BDM ).
+ * Without BDM there is no udpfs/SMB NIC ownership, so "never claimed" is truthful. */
+int SMS_IOPNetOwnedBySMB   ( void ) { return 0; }
+int SMS_IOPNetOwnedByUDPFS ( void ) { return 0; }
 #endif
 
 #ifdef BDM
@@ -1117,6 +1133,51 @@ void SMS_IOPInit ( void ) {
  char        lBuff[ 64 ];
  ee_thread_t lThreadParam;
 
+/* IPCONFIG.DAT ( mc0:-pinned ) is read HERE, ahead of config resolution -- it used to
+ * be read after it, but a boot from the UDPFS network drive needs this PS2's static IP
+ * before the drive can be brought back up to re-load SMS.cfg from it. Pure mc read:
+ * mcman/mcserv are up since SMS_IOPReset, and nothing between the two positions ever
+ * consumed g_pDefIP/g_pDefMask/g_pDefGW ( first consumer is the config-time udpfs
+ * start, then the auto-start section ). */
+ lFD = fioOpen ( g_pIPConf, O_RDONLY );
+
+ if ( lFD >= 0 ) {
+
+  memset (  lBuff, 0, sizeof ( lBuff )  );
+  i = fioRead (  lFD, lBuff, sizeof ( lBuff ) - 1  );
+  fioClose ( lFD );
+
+  if ( i > 0 ) {
+
+   char lChr;
+
+   lBuff[ i ] = '\x00';
+
+   for (  i = 0; (  ( lChr = lBuff[ i ] ) != '\0'  ); ++i  )
+
+    if (  lChr == ' ' || lChr == '\r' || lChr == '\n' ) lBuff[ i ] = '\x00';
+
+   strncpy ( g_pDefIP, lBuff, 15 );
+   i = strlen ( g_pDefIP ) + 1;
+   strncpy ( g_pDefMask, lBuff + i, 15 );
+   i += strlen ( g_pDefMask ) + 1;
+   strncpy ( g_pDefGW, lBuff + i, 15 );
+
+  }  /* end if */
+
+ }  /* end if */
+
+/* The DEV9 driver module ( index 1 -- SMS's dev9 v1.1 clone ) also loads ahead of
+ * config resolution: it sets SMS_IOPF_DEV9_IS, which both the config-time udpfs start
+ * AND the config-time SMS_IOPStartHDD gate on. ( The HDD gate is why a pfs/hdd boot's
+ * config re-load silently no-opped before this hoist: DEV9_IS was never set that
+ * early, so StartHDD returned 0 and the config stayed on defaults. ) ONLY index 1
+ * moves: index 0 ( AUDSRV ) must stay after SifLoadModule( LIBSD ) below, whose
+ * library it imports; index 2 ( POWEROFF ) keeps its original slot with it. The
+ * DEV9 keep-up/shutdown DECISION also stays below -- it reads m_NetworkFlags, which
+ * only means something after SMS_LoadConfig has run. */
+ _load_module ( 1, 1 );
+
 #ifdef BDM
 /* Booted from a filesystem device? SMS.cfg lives on THAT device ( the argv[0]
  * boot drive ), but SMS_LoadConfig already ran inside GUI_Initialize BEFORE any
@@ -1164,15 +1225,57 @@ void SMS_IOPInit ( void ) {
 
   } else if ( strncmp ( lpCfg, "pfs", 3 ) == 0 || strncmp ( lpCfg, "hdd", 3 ) == 0 ) {
 
-   SMS_IOPStartHDD ( 1 );                        /* internal HDD ( PFS ) */
+   int lHddFD;
+
+/* StartHDD loads atad/ps2hdd/ps2fs and now actually RUNS here ( the hoisted dev9 sets
+ * DEV9_IS, which it gates on -- before the hoist it silently returned 0 ). But it does
+ * NOT mount the boot PARTITION: nothing on the boot path issues PFS_IOCTL_MOUNT ( only
+ * the browser's interactive partition-open does ), and the partition name is not
+ * recoverable from a "pfs0:" path. So config-on-pfs cannot LOAD here. Probe it and, on
+ * the expected miss, degrade to the memory card exactly like the mass / udpfs / SMB
+ * paths -- the user's real card settings beat silent defaults. */
+   SMS_IOPStartHDD ( 1 );                        /* internal HDD ( PFS ) -- loads the driver, does NOT mount the boot partition */
+
+   lHddFD = fioOpen ( lpCfg, O_RDONLY );
+   if ( lHddFD >= 0 ) fioClose ( lHddFD );        /* partition somehow mounted + cfg present -> keep */
+   else lFSGone = 1;                              /* unmounted ( the normal case ) -> card fallback */
+
+  } else if ( strncmp ( lpCfg, "udpfs", 5 ) == 0 ) {
+
+/* Booted from the UDPFS network drive ( wLaunchELF-R3Z etc. -- argv[0] is
+ * "udpfs:/..." ). Bring the drive back up and keep SMS.cfg on it. IPCONFIG and the
+ * DEV9 module were hoisted above this block precisely so the start can succeed here;
+ * SMS_IOPStartUDPFS itself surfaces a staged, modal error if it can't ( no IP / no
+ * DEV9 / no server ), and every failure below degrades to the memory card via the
+ * same lFSGone path a phantom mass: uses -- the SMB-boot behaviour, so this can only
+ * ever ADD to what worked before.
+ * The probe is deliberately a WRITABILITY probe, not a root probe: a udpfs server
+ * can be started read-only, and pinning config to a read-only drive is the exact
+ * "every save errors, no card fallback" trap that keeps SMB excluded from CWD
+ * config. An existing SMS.cfg proves the drive ( reads work today; if the server is
+ * read-only, saves error but settings still LOAD -- strictly better than losing
+ * them ); no SMS.cfg -> create it empty, which both proves write access and gives
+ * SMS_LoadConfig below a well-defined miss ( short read -> keeps defaults ) until
+ * the first real save fills it. Creation failing for ANY reason -> card. */
+   int lCfgFD;
+
+   SMS_IOPStartUDPFS ( 1 );
+
+   lCfgFD = fioOpen ( lpCfg, O_RDONLY );
+   if ( lCfgFD >= 0 ) fioClose ( lCfgFD );
+   else {
+/* Deliberately NO O_TRUNC: this branch is only meant for a MISSING SMS.cfg, but if the
+ * O_RDONLY above failed transiently ( server hiccup between the two opens ) while a
+ * real config exists, a truncating probe would wipe the user's settings just to prove
+ * writability. O_CREAT alone proves exactly as much and cannot destroy anything. */
+    lCfgFD = fioOpen ( lpCfg, O_WRONLY | O_CREAT );
+    if ( lCfgFD >= 0 ) fioClose ( lCfgFD );
+    else lFSGone = 1;
+   }  /* end else */
 
   }  /* end else if */
 
-/* NOTE: a wLaunchELF-R3Z UDPFS boot does NOT come through here -- R3Z loads the
- * ioman variant, so argv[0] is "udpfs:/...", which SMS_ConfigSetCWD rejects outright
- * ( SMS_Config.c ) and routes to the FS/card fallback. That is deliberate and matches
- * how an SMB boot behaves: config lands on the memory card. */
-  if ( lFSGone ) {   /* phantom "mass:": degrade to the memory-card fallback, exactly like an SMB boot */
+  if ( lFSGone ) {   /* phantom "mass:" / unreachable udpfs: degrade to the memory-card fallback, exactly like an SMB boot */
    SMS_ConfigClearFS     ();
    _cfg_resolve_fallback ();
   }  /* end if */
@@ -1199,39 +1302,20 @@ void SMS_IOPInit ( void ) {
 
  SMS_IOPDVDVInit ();
 
- lFD = fioOpen ( g_pIPConf, O_RDONLY );
-
- if ( lFD >= 0 ) {
-
-  memset (  lBuff, 0, sizeof ( lBuff )  );
-  i = fioRead (  lFD, lBuff, sizeof ( lBuff ) - 1  );
-  fioClose ( lFD );
-
-  if ( i > 0 ) {
-
-   char lChr;
-
-   lBuff[ i ] = '\x00';
-
-   for (  i = 0; (  ( lChr = lBuff[ i ] ) != '\0'  ); ++i  )
-
-    if (  lChr == ' ' || lChr == '\r' || lChr == '\n' ) lBuff[ i ] = '\x00';
-
-   strncpy ( g_pDefIP, lBuff, 15 );
-   i = strlen ( g_pDefIP ) + 1;
-   strncpy ( g_pDefMask, lBuff + i, 15 );
-   i += strlen ( g_pDefMask ) + 1;
-   strncpy ( g_pDefGW, lBuff + i, 15 );
-
-  }  /* end if */
-
- }  /* end if */
-
- for ( i = 0; i < 3; ++i ) _load_module ( i, 1 );
+/* IPCONFIG read + the DEV9 module ( s_LoadParams index 1 ) were hoisted ABOVE the
+ * config-resolution block -- see the note there. AUDSRV stays here because it imports
+ * the LIBSD library loaded just above; POWEROFF keeps its original slot. */
+ _load_module ( 0, 1 );
+ _load_module ( 2, 1 );
 
  if ( g_IOPFlags & SMS_IOPF_DEV9_IS ) {
 #if NO_DEBUG
-  if (   !(  g_Config.m_NetworkFlags & ( SMS_DF_AUTO_HDD | SMS_DF_AUTO_NET | SMS_DF_AUTO_ATA | SMS_DF_AUTO_UDPFS )  )   )
+/* The !SMS_IOPF_DEV9 term: config resolution now runs BEFORE this point and may have
+ * legitimately powered DEV9 up ( a udpfs boot re-mounting its config drive, or an hdd
+ * boot mounting pfs ). Shutting DEV9 down here on the strength of the AUTO flags alone
+ * would kill the device the config was just loaded from, mid-boot. Once claimed, keep. */
+  if (   !( g_IOPFlags & SMS_IOPF_DEV9 ) &&
+         !(  g_Config.m_NetworkFlags & ( SMS_DF_AUTO_HDD | SMS_DF_AUTO_NET | SMS_DF_AUTO_ATA | SMS_DF_AUTO_UDPFS )  )   )
    SMS_IOCtl ( g_pDEV9X, DEV9CTLSHUTDOWN, NULL );
   else g_IOPFlags |= SMS_IOPF_DEV9;
 #else

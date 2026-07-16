@@ -61,8 +61,21 @@ def _ordinals(buf, off, magic):
     return sorted(ords_)
 
 
-def dump(path):
+def _read_module(path):
+    """Return the raw IRX bytes, transparently XZ-decompressing a .xz input.
+
+    The build embeds the .irx.xz blobs, not the plain .irx -- so the ABI gate must be
+    able to assert on the SHIPPED bytes. A gate that only ever saw the plain .irx could
+    be bypassed by committing a re-bound .xz alone (nothing regenerates the pair)."""
     buf = open(path, "rb").read()
+    if path.endswith(".xz") or buf[:6] == b"\xfd7zXZ\x00":
+        import lzma
+        buf = lzma.decompress(buf, format=lzma.FORMAT_XZ)
+    return buf
+
+
+def dump(path):
+    buf = _read_module(path)
     imports = _tables(buf, IMPORT_MAGIC)
     exports = _tables(buf, EXPORT_MAGIC)
     print("=== %s (%d bytes)" % (path, len(buf)))

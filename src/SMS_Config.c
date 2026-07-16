@@ -119,16 +119,22 @@ void SMS_ConfigSetCWD ( const char* apELFPath ) {
 
 /* CWD config only works for a boot device SMS can RE-MOUNT at config time ( the
  * lazy-load in SMS_IOPInit: "mass" = USB / MX4SIO / iLink, "mmce", "pfs" / "hdd"
- * = internal HDD ). A device SMS cannot re-establish after its IOP reset -- SMB
- * ( no stored share credentials; the share is usually read-only ), host:, cdrom
- * -- CANNOT hold config next to the ELF ( every SMS.cfg save/load there fails --
- * the "Error" on Save when running from OPL-over-SMB ). Rather than fall back to
- * the memory card, flag those for the FS fallback: SMS_IOPInit resolves an
- * attached, writable USB / MMCE device and keeps SMS.cfg on THAT ( mc0: only when
- * nothing else is attached ). Keeps config off the card, matching the CWD intent.
- * ( The SMB server list SMS.smb + IPCONFIG.DAT are still mc0:-pinned separately. ) */
- if (  strncmp ( apELFPath, "mass", 4 ) != 0 && strncmp ( apELFPath, "mmce", 4 ) != 0 &&
-       strncmp ( apELFPath, "pfs",  3 ) != 0 && strncmp ( apELFPath, "hdd",  3 ) != 0  ) { s_CfgFallback = 1; return; }
+ * = internal HDD, "udpfs" = the UDPFS network drive -- IPCONFIG + DEV9 are read /
+ * loaded ahead of config resolution precisely so udpfs can come back up there ).
+ * A device SMS cannot re-establish after its IOP reset -- SMB ( no stored share
+ * credentials; the share is usually read-only ), host:, cdrom -- CANNOT hold
+ * config next to the ELF ( every SMS.cfg save/load there fails -- the "Error" on
+ * Save when running from OPL-over-SMB ). Rather than fall back to the memory
+ * card, flag those for the FS fallback: SMS_IOPInit resolves an attached,
+ * writable USB / MMCE device and keeps SMS.cfg on THAT ( mc0: only when nothing
+ * else is attached ). Keeps config off the card, matching the CWD intent.
+ * ( The SMB server list SMS.smb + IPCONFIG.DAT are still mc0:-pinned separately.
+ *   udpfs differs from SMB on every count that excluded SMB: SMS ships the
+ *   driver, the server needs no credentials, and writability is PROBED at config
+ *   time with a card fallback if the server turns out read-only. ) */
+ if (  strncmp ( apELFPath, "mass", 4 ) != 0 && strncmp ( apELFPath, "mmce",  4 ) != 0 &&
+       strncmp ( apELFPath, "pfs",  3 ) != 0 && strncmp ( apELFPath, "hdd",   3 ) != 0 &&
+       strncmp ( apELFPath, "udpfs", 5 ) != 0  ) { s_CfgFallback = 1; return; }
 
  for ( i = 0; apELFPath[ i ] && i < ( int )sizeof ( s_pMC0SMC ) - 9; ++i )
   if ( apELFPath[ i ] == '/' || apELFPath[ i ] == ':' || apELFPath[ i ] == '\\' ) lLast = i;
