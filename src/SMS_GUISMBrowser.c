@@ -179,7 +179,16 @@ static void _kb_render ( const char* apTitle, int aRow, int aCol, int aLen, int 
  int  lGX  = lX + 16;
  int  i, lRow, lCol;
  u64* lpDMA;
- u64  lSel = 0x80FF8000UL;  /* fixed azure highlight: the palette selection colour (BrowserSCIdx) matched the panel (BrowserABCIdx) -- both default to white -- so the focus was invisible. */
+/* Focus highlight. The panel body is the BrowserABCIdx palette colour, which defaults to
+ * BLUE ( idx 10 -> g_Palette[ 9 ] = GS_SET_RGBAQ( 0x00, 0x00, 0xFF ) ), and the focus was
+ * a single azure LINESTRIP ( 0x80FF8000 = RGB 0,128,255, aRad<0 in GS_RenderRoundRect =
+ * outline, not fill ): a 1px near-blue hairline on a blue panel, so you could not tell
+ * which letter you were on. Replaced by a dark FILL + a 2px AMBER outline -- amber is the
+ * complement of blue, so it pops on the default theme. The glyph stays white because the
+ * font colour is a CLUT index ( GS_SET_TEX0 ) and cannot be recoloured per-key, which is
+ * exactly why the fill must be DARK rather than bright. Colours are 0xAABBGGRR. */
+ u64  lSelRing = 0x8000D0FFUL;  /* amber,     RGB( 255, 208, 0 ) -- the focus outline  */
+ u64  lSelFill = 0x80303030UL;  /* dark grey, RGB(  48,  48, 48 ) -- the focused cell  */
 
  GSContext_NewPacket ( 1, 0, GSPaintMethod_Init );
 
@@ -213,7 +222,9 @@ static void _kb_render ( const char* apTitle, int aRow, int aCol, int aLen, int 
   lCX = lX + 20 + GSFont_WidthEx ( s_KbBuf, aCurs, -2 );
   s_KbBuf[ aCurs ] = lSave;
   lpDMA = GSContext_NewPacket (  1, GS_RRT_PACKET_SIZE (), GSPaintMethod_Continue  );
-  GS_RenderRoundRect (  ( GSRoundRectPacket* )( lpDMA - 2 ), lCX, lY + 44, 2, 24, 0, 0x80FFFFFFUL  );
+/* amber caret, 3px: matches the key-focus ring so "where you are" is one colour, and it
+ * still contrasts hard against the dark ( 0x80303030 ) text box. */
+  GS_RenderRoundRect (  ( GSRoundRectPacket* )( lpDMA - 2 ), lCX, lY + 44, 3, 24, 0, lSelRing  );
  }
 
  /* key grid */
@@ -231,8 +242,18 @@ static void _kb_render ( const char* apTitle, int aRow, int aCol, int aLen, int 
    lKX = lGX + lCol * lCW;
 
    if ( lRow == aRow && lCol == aCol ) {
+/* The whole focused cell lights up, so it reads at TV distance:
+ *  1. a DARK FILL ( +rad = fill ) -- the white glyph is more legible on it than on the
+ *     blue panel, and the cell visibly changes state rather than gaining a hairline;
+ *  2. an AMBER OUTLINE ( -rad = linestrip ) on the SAME rect -- GS_RenderRoundRect
+ *     clamps both the same way so fill and outline corners align exactly;
+ *  3. a second outline 1px out, making the ring ~2px and readable on a CRT. */
     lpDMA = GSContext_NewPacket (  1, GS_RRT_PACKET_SIZE (), GSPaintMethod_Continue  );
-    GS_RenderRoundRect (  ( GSRoundRectPacket* )( lpDMA - 2 ), lKX - 2, lKY - 2, lCW - 2, lRH - 2, -8, lSel  );
+    GS_RenderRoundRect (  ( GSRoundRectPacket* )( lpDMA - 2 ), lKX - 2, lKY - 2, lCW - 2, lRH - 2,  8, lSelFill  );
+    lpDMA = GSContext_NewPacket (  1, GS_RRT_PACKET_SIZE (), GSPaintMethod_Continue  );
+    GS_RenderRoundRect (  ( GSRoundRectPacket* )( lpDMA - 2 ), lKX - 2, lKY - 2, lCW - 2, lRH - 2, -8, lSelRing  );
+    lpDMA = GSContext_NewPacket (  1, GS_RRT_PACKET_SIZE (), GSPaintMethod_Continue  );
+    GS_RenderRoundRect (  ( GSRoundRectPacket* )( lpDMA - 2 ), lKX - 3, lKY - 3, lCW,     lRH,     -8, lSelRing  );
    }  /* end if */
 
    s_KbCell[ 0 ]       = lCh;
@@ -256,8 +277,14 @@ static void _kb_render ( const char* apTitle, int aRow, int aCol, int aLen, int 
    int lAX = lX + 16 + i * ( lAW + 4 );
 
    if ( aRow == KB_ROWS && aCol == i ) {
+/* same dark fill + double amber outline as the key grid, so focus reads identically on
+ * the action row ( the unselected buttons keep their plain dark outline, below ). */
     lpDMA = GSContext_NewPacket (  1, GS_RRT_PACKET_SIZE (), GSPaintMethod_Continue  );
-    GS_RenderRoundRect (  ( GSRoundRectPacket* )( lpDMA - 2 ), lAX, lAY, lAW, 30, -8, lSel  );
+    GS_RenderRoundRect (  ( GSRoundRectPacket* )( lpDMA - 2 ), lAX, lAY, lAW, 30,  8, lSelFill  );
+    lpDMA = GSContext_NewPacket (  1, GS_RRT_PACKET_SIZE (), GSPaintMethod_Continue  );
+    GS_RenderRoundRect (  ( GSRoundRectPacket* )( lpDMA - 2 ), lAX, lAY, lAW, 30, -8, lSelRing  );
+    lpDMA = GSContext_NewPacket (  1, GS_RRT_PACKET_SIZE (), GSPaintMethod_Continue  );
+    GS_RenderRoundRect (  ( GSRoundRectPacket* )( lpDMA - 2 ), lAX - 1, lAY - 1, lAW + 2, 32, -8, lSelRing  );
    } else {
     lpDMA = GSContext_NewPacket (  1, GS_RRT_PACKET_SIZE (), GSPaintMethod_Continue  );
     GS_RenderRoundRect (  ( GSRoundRectPacket* )( lpDMA - 2 ), lAX, lAY, lAW, 30, -8, 0x80303030UL  );
