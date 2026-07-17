@@ -1,0 +1,320 @@
+==============================================================================
+  SMS.lng  --  translating Simple Media System
+==============================================================================
+
+WHAT THIS IS
+  SMS.lng is a plain-text language file, one UI string per line, in a FIXED
+  order. It is the same idea as a POPSLoader language file: hand SMS.lng to a
+  translator, they replace each English line with their language, done.
+
+HOW SMS USES IT
+  * On a memory-card boot SMS reads  mc0:/SMS/SMS.lng
+  * On a USB/HDD/network boot it reads  SMS.lng  next to the SMS.ELF (CWD)
+  * Or import it in-app: SMS menu -> Device settings -> "Update SMS.lng file"
+  * Then set  SMS menu -> Browser settings -> Language  to anything other than
+    "English" for the file to take effect.
+
+THE FIVE RULES (break any one and SMS silently ignores the WHOLE file and
+falls back to English -- there is no error message):
+  1. EXACTLY 269 lines. Do not add or remove a line. One English line in ->
+     one translated line out, same position.
+  2. NEVER leave a line blank. An empty line makes the parser stop early, the
+     line count no longer equals 269, and the entire file is rejected. If a
+     string should stay untranslated, copy the English text verbatim -- do not
+     blank it.
+  3. Keep every  %s  %d  %.1f  %02d  etc. EXACTLY as-is (same specifiers, same
+     order). They are replaced at runtime with filenames, numbers, sizes. 13
+     lines have these -- flagged HAS-FORMAT below.
+  4. Do NOT translate the two path lines (166, 167) -- flagged LOCKED-PATH.
+     They are boot-file paths, not text. Copy them verbatim.
+  5. Save as plain text. ASCII or the code page that matches SMS's Character
+     Set (Browser settings -> Character set: WinLatin1 / WinLatin2 / Cyrillic /
+     Greek). CRLF or LF line endings are both fine; UTF-8 is NOT -- SMS renders
+     single-byte encodings.
+
+TIP: keep lines about the same length as the English. The GUI has fixed widths;
+very long strings can overflow their box.
+
+INSTALLING A FINISHED TRANSLATION (from the legacy pack's own readme)
+  1. Rename your file to  SMS.lng   (case sensitive)
+  2. Copy it to  mc0:/SMS   (or next to SMS.ELF on USB/HDD)
+  3. Select / enable it in the SMS menu
+
+There are already 19 community translations in the repo at
+docs/downloads/SMS_lng09.rar (BG CA CZ DE EN ES FR HU ID IT NL PL PT PT-BR RU
+SE SK TR UA) -- every one is 269 lines and matches THIS build, so they load
+as-is and are the best reference for tone/length.
+
+==============================================================================
+  LINE-BY-LINE REFERENCE  (line# | flags | English)
+  The editable file SMS.lng has NO line numbers -- this is just a key.
+==============================================================================
+  0 | STR_AVAILAB | Available media:  
+  1 | STR_NONE    | none
+  2 | STR_INITIAL | Initializing SMS...
+  3 | STR_SAVING_ | Saving configuration...
+  4 | STR_LOADING | [HAS-FORMAT] Loading %s...
+  5 | STR_INITIAL | Initializing network...
+  6 | STR_LOCATIN | Locating USBD.IRX...
+  7 | STR_WAITING | Waiting for media (press 'start' for menu)...
+  8 | STR_READING | Reading disk...
+  9 | STR_ILLEGAL | Illegal disk (press 'cross' to continue)...
+ 10 | STR_READING | Reading media...
+ 11 | STR_DISPLAY | Display settings...
+ 12 | STR_DEVICE_ | Device settings...
+ 13 | STR_BROWSER | Browser settings...
+ 14 | STR_PLAYER_ | Player settings...
+ 15 | STR_HELP    | Help...
+ 16 | STR_SAVE_SE | Save settings
+ 17 | STR_SHUTDOW | Shutdown console
+ 18 | STR_EXIT_TO | Exit SMS
+ 19 | STR_TV_SYST | TV system
+ 20 | STR_PAL     | PAL
+ 21 | STR_NTSC    | NTSC
+ 22 | STR_AUTO    | auto
+ 23 | STR_CHARACT | Character set
+ 24 | STR_WINLATI | WinLatin1
+ 25 | STR_WINLATI | WinLatin2
+ 26 | STR_WINCYRI | WinCyrillic
+ 27 | STR_WINGREE | WinGreek
+ 28 | STR_DISPLAY | Display settings
+ 29 | STR_SMS_MEN | SMS Menu
+ 30 | STR_ADJUST_ | Adjust image left
+ 31 | STR_ADJUST_ | Adjust image right
+ 32 | STR_ADJUST_ | Adjust image up
+ 33 | STR_ADJUST_ | Adjust image down
+ 34 | STR_AUTOSTA | Autostart network
+ 35 | STR_AUTOSTA | Autostart USB
+ 36 | STR_AUTOSTA | Autostart HDD APA
+ 37 | STR_DEVICE_ | Device settings
+ 38 | STR_START_N | Start network support
+ 39 | STR_START_H | Start HDD support
+ 40 | STR_START_U | Start USB support
+ 41 | STR_EDIT_IP | Edit IPCONFIG.DAT...
+ 42 | STR_EDIT_IP | Edit IPCONFIG.DAT
+ 43 | STR_PS2_IP1 | IP Address (octet 1)
+ 44 | STR_PS2_IP2 | IP Address (octet 2)
+ 45 | STR_PS2_IP3 | IP Address (octet 3)
+ 46 | STR_PS2_IP4 | IP Address (octet 4)
+ 47 | STR_NETMASK | Net Mask (octet 1)
+ 48 | STR_NETMASK | Net Mask (octet 2)
+ 49 | STR_NETMASK | Net Mask (octet 3)
+ 50 | STR_NETMASK | Net Mask (octet 4)
+ 51 | STR_GATEWAY | Gateway Address (octet 1)
+ 52 | STR_GATEWAY | Gateway Address (octet 2)
+ 53 | STR_GATEWAY | Gateway Address (octet 3)
+ 54 | STR_GATEWAY | Gateway Address (octet 4)
+ 55 | STR_SAVE_IP | Save/Update IPCONFIG.DAT
+ 56 | STR_BROWSER | Browser settings
+ 57 | STR_USE_BAC | Use background image
+ 58 | STR_SORT_FS | Sort filesystem objects
+ 59 | STR_FILTER_ | Filter media files
+ 60 | STR_DISPLAY | Display HDL partitions
+ 61 | STR_HIDE_SY | Hide system partitions
+ 62 | STR_ACTIVE_ | Active border color
+ 63 | STR_INACTIV | Inactive border color
+ 64 | STR_TEXT_CL | Text color
+ 65 | STR_STATUS_ | Status line text color
+ 66 | STR_PLAYER_ | Player settings
+ 67 | STR_DEFAULT | Default volume
+ 68 | STR_SUBTITL | Subtitle alignment
+ 69 | STR_SUBTITL | Subtitle offset
+ 70 | STR_AUTOLOA | Autoload subtitles
+ 71 | STR_OPAQUE_ | Opaque subtitles
+ 72 | STR_SUBTITL | Subtitle color
+ 73 | STR_SUBTITL | Subtitle bold color
+ 74 | STR_SUBTITL | Subtitle italic color
+ 75 | STR_SUBTITL | Subtitle underline color
+ 76 | STR_AUTO_PO | Auto power-off
+ 77 | STR_SCROLLB | Scroll bar length
+ 78 | STR_SCROLLB | Scroll bar position
+ 79 | STR_DISPLAY | Display scroll bar time
+ 80 | STR_SCROLLB | Scroll bar color
+ 81 | STR_VOLUME_ | Volume bar color
+ 82 | STR_AUDIO_A | Audio animation display
+ 83 | STR_TOP     | top
+ 84 | STR_BOTTOM  | bottom
+ 85 | STR_OFF     | off
+ 86 | STR_CENTER  | center
+ 87 | STR_LEFT    | left
+ 88 | STR_MIN_FOR | [HAS-FORMAT] %d min
+ 89 | STR_PTS_FOR | [HAS-FORMAT] %d pts
+ 90 | STR_SUB_FON | Subtitle font width
+ 91 | STR_SUB_FON | Subtitle font height
+ 92 | STR_QUICK_H | Quick help
+ 93 | STR_SPACE   |  
+ 94 | STR_HELP_01 | At startup:
+ 95 | STR_HELP_02 | select+R1 - NTSC mode
+ 96 | STR_HELP_03 | select+R2 - PAL mode
+ 97 | STR_HELP_04 | Browser:
+ 98 | STR_HELP_05 | triangle - parent directory
+ 99 | STR_HELP_06 | left/right - device menu
+100 | STR_HELP_07 | up/down - navigate directory
+101 | STR_HELP_08 | cross - action
+102 | STR_HELP_09 | select+circle - power off
+103 | STR_HELP_10 | select+R1 - adjust image right
+104 | STR_HELP_11 | select+L1 - adjust image left
+105 | STR_HELP_12 | select+R2 - adjust image down
+106 | STR_HELP_13 | select+L2 - adjust image up
+107 | STR_HELP_14 | select+square - save settings
+108 | STR_HELP_15 | select+triangle - boot browser
+109 | STR_HELP_16 | L1+L2+R1+R2 - display about
+110 | STR_HELP_17 | Player:
+111 | STR_HELP_18 | up/down - adjust volume
+112 | STR_HELP_19 | right/left - FFWD/REW mode
+113 | STR_HELP_20 | cross - exit FFWD/REW mode
+114 | STR_HELP_21 | triangle - stop
+115 | STR_HELP_22 | select - pause/timeline
+116 | STR_HELP_23 | start - resume/menu
+117 | STR_HELP_24 | cross - OSD timer
+118 | STR_HELP_25 | rectangle - pan-scan mode
+119 | STR_HELP_26 | L1 - pan left
+120 | STR_HELP_27 | R1 - pan right
+121 | STR_HELP_28 | circle - V/A (S/V) sync mode
+122 | STR_HELP_29 | L2 - derease sync value
+123 | STR_HELP_30 | R2 - increase sync value
+124 | STR_HELP_31 | SMS menu:
+125 | STR_HELP_32 | cross/circle - action/next level
+126 | STR_HELP_33 | triangle - level up/exit menu
+127 | STR_ERROR   | Error (press 'cross' to continue)...
+128 | STR_SAVING_ | Saving IPCONFIG.DAT...
+129 | STR_SEL_BAR | Selection bar color
+130 | STR_ADVANCE | Advanced settings...
+131 | STR_DISPLAY | Display height
+132 | STR_APPLY_S | Apply settings
+133 | STR_ADVANCE | Advanced settings
+134 | STR_SAMPLE  | Sample
+135 | STR_DEFAULT | English
+136 | STR_USER_DE | user defined
+137 | STR_LANGUAG | Language
+138 | STR_LOADING | Loading indices...
+139 | STR_LOADING | Loading subtitles...
+140 | STR_SUB_ERR | [HAS-FORMAT] Subtitle: %s error (%d), press 'cross' to continue...
+141 | STR_FORMAT  | format
+142 | STR_SEQUENC | sequence
+143 | STR_BUFFERI | [HAS-FORMAT] Buffering %s file...
+144 | STR_DETECTI | Detecting file format...
+145 | STR_PAUSE   | Pause
+146 | STR_STOPPIN | Stopping
+147 | STR_DEFAULT | default
+148 | STR_VA      | V/A:
+149 | STR_SV      | S/V:
+150 | STR_PLAY    | Play
+151 | STR_FFWD    | FFwd
+152 | STR_REW     | Rew
+153 | STR_CURS    | Curs
+154 | STR_UNSUPPO | Unsupported file format (press 'cross' to continue)...
+155 | STR_REM     | Rem
+156 | STR_PLAYER_ | Player menu
+157 | STR_DISPLAY | Display
+158 | STR_LETTERB | letterbox
+159 | STR_PANSCAN | pan-scan 1
+160 | STR_PANSCAN | pan-scan 2
+161 | STR_PANSCAN | pan-scan 3
+162 | STR_FULLSCR | fullscreen
+163 | STR_DISPLAY | Display subtitles
+164 | STR_SELECT_ | Select subtitles
+165 | STR_BOOT_BR | boot browser
+166 | STR_EXEC0   | [LOCKED-PATH] mc0:/BOOT/BOOT.ELF
+167 | STR_EXEC1   | [LOCKED-PATH] mc0:/BEDATA-SYSTEM/BOOT.ELF
+168 | STR_EXIT_TO | Exit to
+169 | STR_SOUND_F | Sound FX
+170 | STR_SPDIF_D | S/PDIF - Dolby Digital/DTS
+171 | STR_MP3_SET | MP3 settings...
+172 | STR_RANDOMI | Randomize playlist
+173 | STR_REPEAT_ | Repeat mode
+174 | STR_AUDIO_S | Audio spectrum display
+175 | STR_COPY_TO | Copy to HDD
+176 | STR_COPYING | Copying
+177 | STR_KBS     | KB/s
+178 | STR_SELECT_ | Select action
+179 | STR_COLOR_R | Color resolution
+180 | STR_32_BIT  | 32 bit
+181 | STR_16_BIT  | 16 bit
+182 | STR_DTV_480 | DTV 480p
+183 | STR_CONTROL | Controller port 2
+184 | STR_GAMEPAD | gamepad
+185 | STR_REMOTE_ | remote control
+186 | STR_AC3_RAN | AC3 range level
+187 | STR_RIGHT   | right
+188 | STR_VESA_60 | VESA (60Hz)
+189 | STR_VESA_75 | VESA (75Hz)
+190 | STR_WIDESCR | widescreen
+191 | STR_WIDE_PA | wide pan-scan 1
+192 | STR_WIDE_PA | wide pan-scan 2
+193 | STR_NETWORK | Network protocol
+194 | STR_PS2DEV_ | ps2dev/host
+195 | STR_SMB_CIF | SMB/CIFS
+196 | STR_COMM_ER | Communication error (press 'cross' to continue)...
+197 | STR_PROT_NE | [HAS-FORMAT] Protocol negotiation error (%d) (press 'cross' to continue)...
+198 | STR_LOGIN_E | [HAS-FORMAT] Login error (%d) (press 'cross' to continue)...
+199 | STR_SUBTITL | Subtitles
+200 | STR_DISABLE | Disable CD/DVD
+201 | STR_DISPLAY | Display width
+202 | STR_READING | [HAS-FORMAT] Reading %s...
+203 | STR_OUT_OF_ | Error: out of memory
+204 | STR_CHECKIN | Checking free space...
+205 | STR_NOT_ENO | Error: not enough free space on HDD
+206 | STR_CREATIN | Creating directory tree...
+207 | STR_DELETE  | Delete
+208 | STR_DELETIN | Deleting...
+209 | STR_CDVD_SP | CD/DVD speed
+210 | STR_MEDIUM  | medium
+211 | STR_HIGH    | high
+212 | STR_LOW     | low
+213 | STR_DIRECTI | Directional buttons
+214 | STR_DTV_108 | DTV 1080i
+215 | STR_DTV_720 | DTV 720p
+216 | STR_OPERATI | Operating mode
+217 | STR_AUTONEG | auto-negotiation
+218 | STR_AUTOMAT | automatic
+219 | STR_MANUAL  | manual
+220 | STR_DUPLEX_ | Duplex mode
+221 | STR_FULL    | full
+222 | STR_HALF    | half
+223 | STR_STANDAR | Standard
+224 | STR_10_BASE | 10Base-T
+225 | STR_100_BAS | 100Base-TX
+226 | STR_NETWORK | Network settings...
+227 | STR_NETWORK | Network settings
+228 | STR_SYNC_PA | Synch. parameter 1 (video)
+229 | STR_SYNC_PA | Synch. parameter 2 (GUI)
+230 | STR_SMB_SER | SMB server...
+231 | STR_SMB_CLO | Terminating pending connection...
+232 | STR_UPDATE_ | Update SMS language
+233 | STR_UPDATE_ | Update SMS palette
+234 | STR_UPDATE_ | Update SMS
+235 | STR_UPDATE_ | Update SMB server list
+236 | STR_ADD_BAC | Add background image
+237 | STR_PROCESS | Processing...
+238 | STR_CREATIN | Creating SMS backup...
+239 | STR_PLAY_AL | Play all
+240 | STR_AUDIO   | Audio
+241 | STR_VIDEO   | Video
+242 | STR_MP3_PAR | Autodetection parameter
+243 | STR_SELECT_ | Start playback from
+244 | STR_CENTER_ | center-right
+245 | STR_USE_XH  | Use exception handler
+246 | STR_SUBTITL | Subtitle MBCS
+247 | STR_LOADING | Loading font...
+248 | STR_LOADING | [HAS-FORMAT] Loading ODML indices %d...
+249 | STR_FILE_SI | File size: 
+250 | STR_GB      | GB
+251 | STR_MB      | KB
+252 | STR_FMT_0   | [HAS-FORMAT] %d,%02d
+253 | STR_FMT_1   | [HAS-FORMAT] %d,%03d
+254 | STR_KbS     | Kb/s
+255 | STR_Hz      | Hz
+256 | STR_Ch      | ch
+257 | STR_AVAILAB | [HAS-FORMAT] Available memory: %.1fMB/%.2fMB
+258 | STR_RESUME  | [HAS-FORMAT] Resume playback from %s ? ('cross'='yes', 'triangle'='no')
+259 | STR_IMAGE_O | Image offset
+260 | STR_RESOLUT | Video resolution is too big (press 'cross' to continue)...
+261 | STR_SYNC_PA | Synch. parameter 3 (Audio)
+262 | STR_IMAGES  | Images
+263 | STR_UNSUPPO | Unsupported or corrupted image
+264 | STR_RESET_B | Reset button action
+265 | STR_POWER_O | power off
+266 | STR_EXIT    | exit
+267 | STR_PULLDOW | Video auto 2:2 pulldown
+268 | STR_DTV_576 | DTV 576p
