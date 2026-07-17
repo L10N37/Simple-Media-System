@@ -160,7 +160,14 @@ void SMS_HistorySave ( void ) {
   strcpy ( &lPath[ 5 ], s_pHistory );
  }  /* end else */
 
- lFD = fioOpen ( lPath, O_CREAT | O_WRONLY );
+/* O_TRUNC: the record stream is VARIABLE length -- entries are removed ( SMS_HistoryRemove
+ * -> SMS_ListRemove ) and popped at the HIST_SIZE cap, and each record is a 2-byte length +
+ * a path of that length + 8 bytes, so even a constant 32 entries changes byte size as paths
+ * differ. Without O_TRUNC a shorter save left the old file's tail in place, and SMS_HistoryLoad
+ * reads records until fioRead(&lSize,2) != 2 -- so it parsed that stale tail as a PHANTOM
+ * resume entry ( garbage path + garbage PTS ) instead of stopping. ( SMS_ListPushBackBuf
+ * callocs, so a short read is at least NUL-terminated and cannot over-read. ) */
+ lFD = fioOpen ( lPath, O_CREAT | O_WRONLY | O_TRUNC );
 
  if ( lFD >= 0 ) {
 

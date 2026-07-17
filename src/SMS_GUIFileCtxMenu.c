@@ -147,7 +147,12 @@ static int _copy_file_to_mc ( const char* apDst, const char* apSrc ) {
 
  if ( lFDSrc >= 0 ) {
 
-  int lFDDst = fioOpen ( apDst, O_CREAT | O_WRONLY );
+/* O_TRUNC: this is the import path ( skin / SMS.lng / SMS.pal / server list ), and it writes
+ * exactly lSize bytes of the SOURCE over whatever is already at apDst. Importing a SHORTER
+ * file over a longer one left the old tail behind, and the readers size themselves off the
+ * FILE ( fioLseek SEEK_END ) rather than the record -- SMS_LocaleInit and DrawSkin both do --
+ * so they read the stale tail back as real data and the imported asset came out corrupt. */
+  int lFDDst = fioOpen ( apDst, O_CREAT | O_WRONLY | O_TRUNC );
 
   if ( lFDDst >= 0 ) {
 

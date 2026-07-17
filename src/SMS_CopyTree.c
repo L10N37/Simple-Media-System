@@ -300,7 +300,11 @@ int SMS_CopyFile (
     ) {
 
  int   retVal = 0;
- int   lFD    = fioOpen ( apDst, O_CREAT | O_WRONLY );
+/* O_TRUNC: the browser's file copy streams the source sequentially from offset 0 -- there is
+ * no lseek on the destination and no append/resume semantics -- so copying a SHORTER file
+ * over an existing longer one at apDst left the old file's tail appended to the new content,
+ * silently producing a corrupt copy that is larger than its source. */
+ int   lFD    = fioOpen ( apDst, O_CREAT | O_WRONLY | O_TRUNC );
  void* lpBuf  = apBuf;
 #ifdef _CHECK_AUDIO
  SPUContext* lpSPU = SPU_InitContext (  2, 48000, SPU_Index2Volume ( 24 ), 1, 1  );
