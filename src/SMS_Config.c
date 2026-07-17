@@ -196,7 +196,10 @@ static void _load_font ( unsigned int anIndex ) {
 
   if ( lSize > 0 ) {
 
-   if ( lSize > lFontSize ) lpBuff = malloc ( lSize );
+   if ( lSize > lFontSize ) {
+    lpBuff = malloc ( lSize );
+    if ( !lpBuff ) { fioClose ( lFD ); return; }   /* oversized .mtf + alloc failed -> keep the embedded font, don't fioRead into NULL */
+   }  /* end if */
 
    fioLseek ( lFD, 0, SEEK_SET );
    fioRead ( lFD, lpBuff, lSize );

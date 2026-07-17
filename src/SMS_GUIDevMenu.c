@@ -514,7 +514,14 @@ SMBLoginInfo* _lookup_login_info ( void ) {
 
  }  /* end while */
 
- if ( !retVal ) retVal = ( SMBLoginInfo* )( unsigned int )lpNode -> m_Param;
+/* Fall back to the FIRST configured server ( list head ), not the walked-off lpNode:
+ * when m_SMBIP is set but matches no server, the loop above exits with lpNode == NULL,
+ * so the old `lpNode -> m_Param` NULL-deref'd ( froze on Refresh / SMB-select ). Also
+ * tolerate an empty list -> return NULL, which every caller already checks. */
+ if ( !retVal ) {
+  SMS_ListNode* lpHead = g_Config.m_pSMBList -> m_pHead;
+  if ( lpHead ) retVal = ( SMBLoginInfo* )( unsigned int )lpHead -> m_Param;
+ }  /* end if */
 
  return retVal;
 

@@ -186,7 +186,7 @@ static int _copy_file_to_mc ( const char* apDst, const char* apSrc ) {
 static int _do_sms_action ( const char* apDst ) {
 
  int  retVal = 0;
- char lBuf[ 32 ];
+ char lBuf[ 1024 ];   /* was [32]: apDst is a full "SMS/Skins/<name>" path ( _copy_bim_handler builds it in a 1024 buffer ), so a long .smi name overflowed the 32-byte stack buffer and smashed $ra */
 
  lBuf[ 0 ] = 'm';
  lBuf[ 1 ] = 'c';
