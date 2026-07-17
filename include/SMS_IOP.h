@@ -51,6 +51,10 @@ extern "C" {
 #endif  /* __cplusplus */
 
 void SMS_IOPReset            ( int                                    );
+/* DIAGNOSTIC: latch an "E<nn> <what>" breadcrumb on the GS ( EE-side only, so it
+ * survives SifExitRpc and the IOP reset ). Names the call ABOUT to run, so the last
+ * code left on screen is the one that blocked. See the note in SMS_IOP.c. */
+void SMS_ExitCrumb           ( int, const char*                       );
 void SMS_IOPInit             ( void                                   );
 void SMS_IOPSetSifCmdHandler (  void ( *apFunc ) ( void* ), int aCmd  );
 int  SMS_IOPStartNet         ( int                                    );

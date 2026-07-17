@@ -236,6 +236,41 @@ int SifExecDecompModuleBuffer(void *ptr, u32 size, u32 arg_len, const char *args
 	return ret;
 }
 
+/* ===== EXIT-PATH BREADCRUMBS ( DIAGNOSTIC ) ================================
+ * The udpfs exit hang has now survived TWO fixes ( 11891bd, ffe2e07 ) that were
+ * both aimed at SifIopReset and later, and real ps2sdk source has since ruled out
+ * everything BEFORE it -- SifExitIopHeap and SifLoadFileExit are pure EE-local
+ * memsets ( ps2sdk ee/kernel/src/iopheap.c:52, loadfile.c:63 ), SifInitRpc /
+ * SifExitRpc are EE-local, and the PFS umount is unreachable when g_PD < 0. So the
+ * wedge is at or after the reset and we have never known WHICH statement. Stop
+ * guessing and measure.
+ *
+ * Why this works where a debugger cannot: GUI_Status ( SMS_GUIDesktop.c:792 ) is
+ * 100% EE-side -- GSFont measuring, EE-heap realloc, DMA_Wait(VIF1), then a GIF
+ * packet. No SIF, no RPC, no IOP anywhere in it. So it still renders after
+ * SifExitRpc ( which only touches SIF0 ) AND after the IOP reboots, because the
+ * GS/GIF/VIF1/EE-heap are untouched by an IOP reset. It also flushes synchronously,
+ * so a crumb printed before statement N stays latched on screen forever if N never
+ * returns ( the clock timer is already dead by then, so nothing repaints over it ).
+ *
+ * Each crumb names the call ABOUT TO RUN => the last code on screen IS the blocking
+ * call. The border colour encodes the same number, as a backstop if text ever dies.
+ * Strings are kept short ( <= 18 chars, under "Loading boot browser" ) so the status
+ * line never reallocs mid-teardown. */
+void SMS_ExitCrumb ( int aN, const char* apWhat ) {
+
+ char lB[ 32 ];
+
+ sprintf ( lB, "E%02d %s", aN, apWhat );
+ GS_BGCOLOR() = ( unsigned int )( aN * 0x000A0A0A ) | 0x00000030;
+ GUI_Status ( lB );
+
+}  /* end SMS_ExitCrumb */
+
+/* only on the EXIT reset: the boot reset ( afExit == 0, from main.c ) runs before the
+ * GUI exists and must stay byte-identical. */
+#define CRUMB( n, s ) do { if ( afExit ) SMS_ExitCrumb ( ( n ), ( s ) ); } while ( 0 )
+
 void SMS_IOPReset ( int afExit ) {
 
  int i;
@@ -248,10 +283,14 @@ void SMS_IOPReset ( int afExit ) {
  * power strands that DMA and the thread spins forever. Removed. See the reset below. */
 
 #if NO_DEBUG
+ CRUMB (  4, "SifInitRpc 1" );
  SifInitRpc ( 0 );
+ CRUMB (  5, "SifExitIopHeap" );
  SifExitIopHeap ();
- SifLoadFileExit(); 
- SifExitRpc     (); 
+ CRUMB (  6, "SifLoadFileExit" );
+ SifLoadFileExit();
+ CRUMB (  7, "SifExitRpc" );
+ SifExitRpc     ();
 
 /* On an EXIT reset, use the EMPTY arg -- NOT s_pUDNL ("rom0:UDNL rom0:EELOADCNF"). This
  * is THE udpfs/network exit-hang fix. The UDNL variant runs a long IOP-kernel reload on
@@ -266,13 +305,18 @@ void SMS_IOPReset ( int afExit ) {
  * so ONLY the broken path changes: the boot reset ( afExit==0 ) and the already-working
  * non-network exits ( mc / USB / MX4SIO, DEV9 never powered ) keep s_pUDNL byte-identical;
  * only a DEV9-powered exit -- the one that hangs -- switches to the empty-arg reset. */
+ CRUMB (  8, "SifIopReset" );      /* spins if sceSifSetDma keeps failing        */
  while(!SifIopReset( ( afExit && ( g_IOPFlags & SMS_IOPF_DEV9 ) ) ? "" : s_pUDNL, 0)){};
 
  FlushCache(0);
  FlushCache(2);
 
+ CRUMB (  9, "SifIopSync" );       /* IOP never sets BOOTEND -> never reboots    */
  while (!SifIopSync()) {;}
 
+ CRUMB ( 10, "SifInitRpc 2" );     /* IOP rebooted but never signals RPCINIT --
+                                    * NEVER targeted by either shipped fix, and
+                                    * ffe2e07 could have moved the hang here    */
  SifInitRpc ( 0 );
 
  _slib_cur_exp_lib_list.tail = NULL;
@@ -294,8 +338,11 @@ void SMS_IOPReset ( int afExit ) {
  sbv_patch_enable_lmb           ();
  sbv_patch_disable_prefix_check ();
 
+ CRUMB ( 11, "RCX_Load" );
  RCX_Load  ();
+ CRUMB ( 12, "RCX_Start" );
  RCX_Start ();
+ CRUMB ( 13, "RCX_Open" );
  RCX_Open  ();
 
 #if 0
@@ -312,20 +359,29 @@ void SMS_IOPReset ( int afExit ) {
  sbv_patch_disable_prefix_check ();
  sbv_patch_enable_lmb           ();
 
+ CRUMB ( 14, "SMSUTILS" );
  SifExecModuleBuffer ( &g_DataBuffer[ SMS_SMSUTILS_OFFSET ], SMS_SMSUTILS_SIZE, 0, NULL, &i );
 
 #ifdef BDM
+ CRUMB ( 15, "iomanx" );
  SifExecDecompModuleBuffer ( &iomanx_irx, size_iomanx_irx, 0, NULL, &i );
+ CRUMB ( 16, "filexio" );
  SifExecDecompModuleBuffer ( &filexio_irx, size_filexio_irx, 0, NULL, &i );
+ CRUMB ( 17, "fileXioInit" );
  fileXioInit();
 
+ CRUMB ( 18, "bdm" );
  SifExecDecompModuleBuffer ( &bdm_irx, size_bdm_irx, 0, NULL, &i );
+ CRUMB ( 19, "bdmfs" );
  SifExecDecompModuleBuffer ( &bdmfs_fatfs_irx, size_bdmfs_fatfs_irx, 0, NULL, &i );
 
  if ( !afExit ) SifExecDecompModuleBuffer ( &sio2man_irx, size_sio2man_irx, 0, NULL, &i );
 
+ CRUMB ( 20, "mcman" );
  SifExecDecompModuleBuffer ( &mcman_irx, size_mcman_irx, 0, NULL, &i );
+ CRUMB ( 21, "mcserv" );
  SifExecDecompModuleBuffer ( &mcserv_irx, size_mcserv_irx, 0, NULL, &i );
+ CRUMB ( 22, "padman" );
  SifExecDecompModuleBuffer ( &padman_irx, size_padman_irx, 0, NULL, &i );
 #else
  static const char* lpModules[ 4 ] = { s_pSIO2MAN, s_pPADMAN, s_pMCMAN, s_pMCSERV };
@@ -335,12 +391,15 @@ void SMS_IOPReset ( int afExit ) {
  for ( i = 1 - afExit; i < 4; ++i ) SifLoadModule ( lpModules[ i ], 0, NULL );
 #endif
 
+ CRUMB ( 23, "BindRPC SMSU" );
  SIF_BindRPC ( &s_SMSUClt, SMSUTILS_RPC_ID );
 
  DisableIntc(INTC_TIM0);
  DisableIntc(INTC_TIM1);
 
 }  /* end SMS_IOPReset */
+
+#undef CRUMB
 
 int SMS_IOPStartNet ( int afStatus ) {
 

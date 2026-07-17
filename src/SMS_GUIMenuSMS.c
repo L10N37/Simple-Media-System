@@ -964,14 +964,23 @@ void _exit_handler ( GUIMenu* apMenu, int aDir ) {
  SPU_Shutdown     ();
 
  sprintf ( lBuffer, STR_LOADING.m_pStr, s_ExitTo[ lIdx ] -> m_pStr );
- GUI_Status ( lBuffer );
+ GUI_Status ( lBuffer );   /* the owner's known landmark: confirms this is the diag build */
 
- if ( g_PD >= 0 ) SMS_IOCtl ( g_pPFS, PFS_IOCTL_UMOUNT, NULL );
+/* DIAGNOSTIC breadcrumbs -- see the note above SMS_ExitCrumb in SMS_IOP.c. Each names the
+ * call ABOUT to run, so the last E-code left on screen is the one that wedges. E02 is
+ * inside the g_PD guard on purpose: if E02 never appears, the PFS umount is PROVEN to be
+ * skipped on a udpfs boot and that whole suspect is closed. */
+ SMS_ExitCrumb ( 1, "pfs umount?" );
+
+ if ( g_PD >= 0 ) {
+  SMS_ExitCrumb ( 2, "pfs umount" );
+  SMS_IOCtl ( g_pPFS, PFS_IOCTL_UMOUNT, NULL );
+ }  /* end if */
 
  if ( !lIdx ) {
-/* SMS_IOPReset quiesces DEV9 first when it is powered ( the exit-hang fix -- see the note
- * there ). Both this boot-browser exit and the exec-to-ELF exit below funnel through it. */
+  SMS_ExitCrumb ( 3, "IOPReset in" );
   SMS_IOPReset ( 1 );
+  SMS_ExitCrumb ( 24, "Exit(0)" );   /* reached => the wedge is in Exit(0)/ROM, not SMS */
 #ifndef EMBEDDED
   Exit ( 0 );
 #else
@@ -1685,7 +1694,10 @@ static void _saveipc_handler ( GUIMenu* apMenu, int aDir ) {
  int  lRes;
  char lBuf[ 64 ];
  char lDir[ 14 ];
+ char lDiag[ 48 ];
  int  lSts = 0;
+
+ lDiag[ 0 ] = '\x00';   /* empty => every stage succeeded, no GUI_Error at the end */
 
  GUI_Status ( STR_SAVING_IPCONFIG.m_pStr );
 
@@ -1745,35 +1757,50 @@ static void _saveipc_handler ( GUIMenu* apMenu, int aDir ) {
 
  /* libmc on the modern iomanX + mcman stack does NOT see fio-created dirs, so a
   * MC_GetDir precheck returns inconsistent status and would wrongly skip the write.
-  * Mirror SMS_SaveSMBInfo: fioMkdir unconditionally, accept 0 (created) or -4
-  * (EEXIST), then write via fio coherently with how SMS_IOP.c reads g_pIPConf at
-  * boot. The per-stage error strings below are TEMPORARY diagnostics (revert to
-  * STR_ERROR before release) to pinpoint any remaining udpfs save failure. */
- if ( lRes <= -2 ) GUI_Error ( "IPCONFIG: card not found" );   /* TEMP diag */
+  * Mirror SMS_SaveSMBInfo: fioMkdir, then write via fio coherently with how
+  * SMS_IOP.c reads g_pIPConf at boot.
+  *
+  * The messages below now carry the NUMERIC return ( TEMP diagnostics ). The owner
+  * reported only a paraphrase, "Saving IP error/failed", and these four stages are
+  * four different bugs -- the literal string collapses them to one in a single run. */
+ if ( lRes <= -2 ) sprintf ( lDiag, "IPCONFIG: no card (%d)", lRes );
  else {
 
-  int lMk = fioMkdir ( lDir );
+/* fioMkdir is BEST EFFORT. It used to abort the whole save unless it returned 0 or -4,
+  * on the assumption that -4 means EEXIST -- which is unverified against mcman ( libmc's
+  * error space has no EEXIST; -4 is sceMcResNotEmpty ). mc0:/SYS-CONF normally already
+  * exists ( Sony creates it ), so this always takes the already-exists branch on a real
+  * card. Let fioOpen be the arbiter instead: if the dir really is missing, the open fails
+  * and reports a real errno rather than a guess. */
+  fioMkdir ( lDir );
 
-  if ( lMk != 0 && lMk != -4 ) GUI_Error ( "IPCONFIG: mkdir failed" );   /* TEMP diag */
-  else {
+  {
+/* O_TRUNC: the sibling SMB save already does this ( SMS_Config.c:300 ). Without it,
+   * writing a shorter config ( "192.168.1.1" ) over a longer one ( "192.168.001.100" )
+   * left stale trailing bytes, and the boot parser ( SMS_IOP.c ) NUL-splits on whitespace
+   * so the remnant landed in the mask/gw fields. Silent corruption, not the reported
+   * error -- but a real defect on its own. */
+   int lFD = fioOpen ( g_pIPConf, O_CREAT | O_WRONLY | O_TRUNC );
 
-   int lFD = fioOpen ( g_pIPConf, O_CREAT | O_WRONLY );
-
-   if ( lFD < 0 ) GUI_Error ( "IPCONFIG: open failed" );   /* TEMP diag */
+   if ( lFD < 0 ) sprintf ( lDiag, "IPCONFIG: open %d", lFD );
    else {
 
-    i = strlen ( lBuf );
+    int lWr;
 
-    lSts = fioWrite ( lFD, lBuf, i ) == i;
+    i    = strlen ( lBuf );
+    lWr  = fioWrite ( lFD, lBuf, i );
+    lSts = ( lWr == i );
     fioClose ( lFD );
 
-    if ( !lSts ) GUI_Error ( "IPCONFIG: write failed" );   /* TEMP diag */
+    if ( !lSts ) sprintf ( lDiag, "IPCONFIG: write %d/%d", lWr, i );
 
    }  /* end else */
 
-  }  /* end else */
+  }
 
  }  /* end else */
+
+ if ( lDiag[ 0 ] ) GUI_Error ( lDiag );
 
  GUIMenuSMS_UpdateStatus ( apMenu );
 
