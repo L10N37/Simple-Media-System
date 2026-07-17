@@ -720,28 +720,55 @@ void SMS_LocaleInit ( void ) {
    lSize = fioLseek ( lF, 0, SEEK_END );
    if ( lSize > 0 ) {
     lpAlloc = ( unsigned char* )malloc ( lSize + 1 );
-    fioLseek ( lF, 0, SEEK_SET );
-    fioRead  ( lF, lpAlloc, lSize );
+    if ( lpAlloc ) {   /* an oversized .lng could fail the alloc -> don't fioRead into NULL */
+     fioLseek ( lF, 0, SEEK_SET );
+     fioRead  ( lF, lpAlloc, lSize );
+    }  /* end if */
    }  /* end if */
    fioClose ( lF );
   }  /* end if */
 
  }  /* end if */
 
- if ( !lpAlloc ) {   /* memory-card fallback ( unchanged libmc read ) */
+ if ( !lpAlloc ) {   /* memory-card fallback */
+#ifdef BDM
+/* fio, NOT libmc ( same fix as SMS_LoadPalette ): in BDM, MC_OpenS/MC_ReadS map to the
+ * raw async libmc calls, which cannot see the fio-created mc?:/SMS dir and silently read
+ * nothing -- so an imported SMS.lng never loaded on an mc boot. Read the SAME mc?:/SMS
+ * path the import ( SMS_GUIFileCtxMenu ) writes via fio. */
+  char lMC[ 5 + sizeof ( g_SMSLng ) ];
+  int  lF2;
 
-  int lFD = MC_OpenS ( g_MCSlot, 0, g_SMSLng, O_RDONLY );
+  lMC[ 0 ] = 'm'; lMC[ 1 ] = 'c'; lMC[ 2 ] = ( char )( '0' + g_MCSlot ); lMC[ 3 ] = ':'; lMC[ 4 ] = '/';
+  strcpy ( &lMC[ 5 ], g_SMSLng );   /* "mc0:/" + "SMS/SMS.lng" */
+
+  lF2 = fioOpen ( lMC, O_RDONLY );
+  if ( lF2 >= 0 ) {
+   lSize = fioLseek ( lF2, 0, SEEK_END );
+   if ( lSize > 0 ) {
+    lpAlloc = ( unsigned char* )malloc ( lSize + 1 );
+    if ( lpAlloc ) {
+     fioLseek ( lF2, 0, SEEK_SET );
+     fioRead  ( lF2, lpAlloc, lSize );
+    }  /* end if */
+   }  /* end if */
+   fioClose ( lF2 );
+  }  /* end if */
+#else
+  int lFD = MC_OpenS ( g_MCSlot, 0, g_SMSLng, O_RDONLY );   /* non-BDM: SYNCHRONOUS wrappers, real fd */
 
   if ( lFD >= 0 ) {
    lSize = MC_SeekS ( lFD, 0, SEEK_END );
    if ( lSize > 0 ) {
     lpAlloc = ( unsigned char* )malloc ( lSize + 1 );
-    MC_SeekS ( lFD, 0, SEEK_SET   );
-    MC_ReadS ( lFD, lpAlloc, lSize );
+    if ( lpAlloc ) {
+     MC_SeekS ( lFD, 0, SEEK_SET   );
+     MC_ReadS ( lFD, lpAlloc, lSize );
+    }  /* end if */
    }  /* end if */
    MC_CloseS ( lFD );
   }  /* end if */
-
+#endif
  }  /* end if */
 
  if ( lpAlloc && lSize > 0 ) {

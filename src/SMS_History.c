@@ -58,7 +58,20 @@ void SMS_HistoryLoad ( void ) {
 
  }  /* end if */
 
- lFD = MC_OpenS ( g_MCSlot, 0, s_pHistory, O_RDONLY );   /* memory-card fallback ( unchanged ) */
+ /* memory-card fallback */
+#ifdef BDM
+/* fio, NOT libmc ( same fix as config / palette / locale / skin ): SMS_HistorySave writes
+ * "mc?:/SMS/SMS.hst" via fio, but this fallback read it via the raw async libmc, which
+ * cannot see the fio-created mc?:/SMS dir -> every resume point was silently lost across
+ * an mc boot. Read the SAME path via fio, symmetric with the save. */
+ {
+  char lMC[ 5 + sizeof ( s_pHistory ) ];
+
+  lMC[ 0 ] = 'm'; lMC[ 1 ] = 'c'; lMC[ 2 ] = ( char )( '0' + g_MCSlot ); lMC[ 3 ] = ':'; lMC[ 4 ] = '/';
+  strcpy ( &lMC[ 5 ], s_pHistory );   /* "mc0:/" + "SMS/SMS.hst" */
+
+  lFD = fioOpen ( lMC, O_RDONLY );
+ }
 
  if ( lFD < 0 ) return;
 
@@ -67,14 +80,26 @@ void SMS_HistoryLoad ( void ) {
   unsigned short lSize;
   SMS_ListNode*  lpNode;
 
-#ifdef BDM
-  int x;
-  if (  MC_ReadS ( lFD, &lSize, 2 ) == 0  ) {
-   MC_Sync ( &x );
-  if ( x != 2 ) break;
+  if (  fioRead ( lFD, &lSize, 2 ) != 2  ) break;
+
+  lpNode = SMS_ListPushBackBuf ( s_pHst, lSize + 1 );
+  fioRead ( lFD, _STR( lpNode ),     lSize );
+  fioRead ( lFD, &lpNode -> m_Param, 8     );
+
+ }  /* end while */
+
+ fioClose ( lFD );
 #else
+ lFD = MC_OpenS ( g_MCSlot, 0, s_pHistory, O_RDONLY );   /* non-BDM: synchronous wrappers, real fd */
+
+ if ( lFD < 0 ) return;
+
+ while ( 1 ) {
+
+  unsigned short lSize;
+  SMS_ListNode*  lpNode;
+
   if (  MC_ReadS ( lFD, &lSize, 2 ) == 2  ) {
-#endif
    lpNode = SMS_ListPushBackBuf ( s_pHst, lSize + 1 );
    MC_ReadS (  lFD, _STR( lpNode ), lSize  );
    MC_ReadS (  lFD, &lpNode -> m_Param, 8  );
@@ -83,6 +108,7 @@ void SMS_HistoryLoad ( void ) {
  }  /* end while */
 
  MC_CloseS ( lFD );
+#endif
 
 }  /* end SMS_HistoryLoad */
 

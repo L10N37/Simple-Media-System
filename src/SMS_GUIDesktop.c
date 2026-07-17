@@ -186,12 +186,37 @@ static int DrawSkin ( void ) {
 
  }  /* end if */
 
- if ( !lpData ) {   /* memory-card boot, OR the CWD skin is absent -> libmc fallback ( keeps card skins ) */
+ if ( !lpData ) {   /* memory-card boot, OR the CWD skin is absent -> card fallback ( keeps card skins ) */
+#ifdef BDM
+/* fio, NOT libmc ( same fix as SMS_LoadPalette / SMS_LocaleInit ): in BDM the MC_* calls
+ * map to the raw async libmc, which cannot see the fio-created mc?:/SMS/Skins dir, so an
+ * in-app-imported skin never rendered on an mc boot. Read the FULL mc?:/SMS/Skins path
+ * via fio ( g_pSMSSkn+5 = "SMS/Skins", the same relative tail the libmc path used ). */
+  if (  snprintf ( lPath, sizeof( lPath ), "mc%c:/%s%s%s%s",
+                   ( char )( '0' + g_MCSlot ), g_pSMSSkn + 5, g_SlashStr,
+                   g_Config.m_SkinName, g_pSMI ) < ( int )sizeof( lPath )  ) {
 
+   lFD = fioOpen ( lPath, O_RDONLY );
+
+   if ( lFD >= 0 ) {
+    lSize = fioLseek ( lFD, 0, SEEK_END );
+    fioLseek ( lFD, 0, SEEK_SET );
+    if ( lSize > 0 ) {
+     lpData = malloc ( lSize );
+     if (  lpData && fioRead ( lFD, lpData, lSize ) != lSize  ) {
+      free ( lpData );
+      lpData = NULL;
+     }  /* end if */
+    }  /* end if */
+    fioClose ( lFD );
+   }  /* end if */
+
+  }  /* end if */
+#else
   if (  snprintf ( lPath, sizeof( lPath ), "%s%s%s%s",
                    g_pSMSSkn + 5, g_SlashStr, g_Config.m_SkinName, g_pSMI ) < ( int )sizeof( lPath )  ) {
 
-   lFD = MC_OpenS ( g_MCSlot, 0, lPath, O_RDONLY );
+   lFD = MC_OpenS ( g_MCSlot, 0, lPath, O_RDONLY );   /* non-BDM: SYNCHRONOUS wrappers, real fd */
 
    if ( lFD >= 0 ) {
     lSize = MC_SeekS ( lFD, 0, SEEK_END );
@@ -207,7 +232,7 @@ static int DrawSkin ( void ) {
    }  /* end if */
 
   }  /* end if */
-
+#endif
  }  /* end if */
 
  if ( lpData ) {
