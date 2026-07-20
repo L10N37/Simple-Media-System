@@ -1,3 +1,41 @@
+# Simple Media System — MX4SIO / Network Edition
+
+> A modernized fork of Eugene Plotnikov's **Simple Media System (SMS)** for the PlayStation 2 — adding first-class **MX4SIO (SD-over-SIO2)** playback, a real **UDPFS network drive**, DualShock 3/4 support, and a broad sweep of device, stability and quality-of-life work — while keeping the original player's speed and elegance intact.
+
+📖 **User manual & documentation:** https://nathanneurotic.github.io/Simple-Media-System/
+
+## What's new in this edition
+
+**Storage & playback**
+- **MX4SIO support** — play media straight off an SD card in the memory-card slot (MX4SIO / SIO2 adapter). This is the headline feature this fork was built for, and it's hardware-confirmed.
+- **UDPFS network drive** — stream from a PC over the LAN using the PS2-Servers UDPFSD protocol (the real folder-served UDPFS, not UDPBD). Booting from, playing over, and **cleanly exiting** a UDPFS session all work on hardware.
+- **More storage devices** — internal HDD (both PFS/APA and exFAT/BDM via `ata_bd`), i.LINK mass storage, and MMCE (SD2PSX / MemCard PRO), alongside classic USB and the memory card.
+
+**Controllers**
+- **DualShock 3 & DualShock 4** over USB and Bluetooth (with in-app pairing), driven off the USB bus so they never contend with MX4SIO on SIO2.
+
+**Interface & polish**
+- A built-in **on-screen keyboard** and full **SMB server editor** — no hand-made config files required.
+- UI **sound effects on by default** (opt-out preserved), a refreshed jellyfish theme, and HD display modes (480p / 576p / 720p / 1080i).
+- **Fully translatable UI** — every new feature's text now lives in the language table; **19 community translations** ship in [`docs/translation/`](docs/translation/), plus an English template and translator guide.
+- Settings that **follow the boot device** (config saved next to the ELF, memory card included), with a memory-card migration fallback.
+
+**Under the hood**
+- A hardened MX4SIO driver path, extensive memory-card save/load coherence fixes, container-parser bounds hardening, and a smaller ELF via XZ-compressed embedded assets.
+- Reproducible CI builds with rolling and tagged releases; a packed (ps2-packer) ELF alongside the standard one.
+
+## Credits & lineage
+
+This edition builds directly on the original **Simple Media System** by **Eugene Plotnikov** and the ps2dev / ps2homebrew community, and on the MX4SIO groundwork from KrahJohlito's SMS branch. All original code, authorship and licensing (Academic Free License) are retained unchanged. The complete original README is preserved in full below.
+
+---
+
+> ### 📜 Original project README
+>
+> Everything **below this line** is the original, unmodified README of Simple Media System, preserved in full as part of the project's history and out of respect for how well it was written. **Only the sections above reflect this fork's changes.**
+
+---
+
 # Simple Media System (SMS)
 
 Copyright 2001-2005, ps2dev - http://www.ps2dev.org
