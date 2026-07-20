@@ -948,9 +948,25 @@ void _exit_handler ( GUIMenu* apMenu, int aDir ) {
  }  /* end if */
 
  if ( !lIdx ) {
-  SMS_ExitCrumb ( 3, "IOPReset in" );
-  SMS_IOPReset ( 1 );
-  SMS_ExitCrumb ( 25, "Exit(0)" );   /* reached => the wedge is in Exit(0)/ROM, not SMS */
+
+/* E11 FIX ( measured on hw: with UDPFS/dev9 live the exit hangs at E11 -- the post-reset
+ * SifInitRpc's RPCINIT step, i.e. the IOP's SET_SREG never lands over SIF0 IOP->EE DMA ).
+ * On the boot-browser exit that in-place SMS_IOPReset(1) is DEAD WORK: nothing uses its SIF
+ * re-handshake or reloaded IOP modules before Exit(0), which returns to the PS2 browser --
+ * and the browser re-inits the IOP itself. wLaunchELF-R3Z's own PS2Browser exit is a bare
+ * Exit(0) with NO in-place reset ( refs/wLaunchELF_R3Z/src/main_actions.c:415 ) and it exits
+ * fine with the SAME udpfs/smap/dev9 stack live. So on a DEV9 exit, SKIP the reset and just
+ * Exit(0) -- the E11 site is then unreachable. Gated to DEV9: every non-network browser exit
+ * keeps the long-proven reset byte-identical. If E26 latches on hw, the wedge moved into the
+ * browser's own IOP reset ( -> the smap-RX-quiesce path is next ); if the browser appears,
+ * fixed. */
+  if ( g_IOPFlags & SMS_IOPF_DEV9 ) {
+   SMS_ExitCrumb ( 26, "Exit(0) noreset" );
+  } else {
+   SMS_ExitCrumb ( 3, "IOPReset in" );
+   SMS_IOPReset ( 1 );
+   SMS_ExitCrumb ( 25, "Exit(0)" );   /* reached => the wedge is in Exit(0)/ROM, not SMS */
+  }  /* end else */
 #ifndef EMBEDDED
   Exit ( 0 );
 #else
