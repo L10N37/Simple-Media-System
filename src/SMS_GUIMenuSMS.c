@@ -91,6 +91,7 @@ static void _starthdd_handler ( GUIMenu*, int );
 static void _refresh_handler  ( GUIMenu*, int );
 extern int  _smb_logon        ( void );   /* SMS_GUIDevMenu.c -- (re)connect SMB */
 extern int  g_SMBError;                   /* SMS_GUI.c -- last SMB logon result  */
+extern char g_SaveDiag[];                 /* SMS_Config.c -- TEMP: failing save stage */
 static void _editipc_handler  ( GUIMenu*, int );
 static void _cdvd_handler     ( GUIMenu*, int );
 static void _cdvd_spd_handler ( GUIMenu*, int );
@@ -900,7 +901,7 @@ void _save_handler ( GUIMenu* apMenu, int aDir ) {
 
  GUI_Status ( STR_SAVING_CONFIGURATION.m_pStr );
 
- if (  !SMS_SaveConfig ()  ) GUI_Error ( STR_ERROR.m_pStr );
+ if (  !SMS_SaveConfig ()  ) GUI_Error ( g_SaveDiag[ 0 ] ? g_SaveDiag : STR_ERROR.m_pStr );   /* TEMP diag: name the failing stage */
 
  if ( apMenu )
 

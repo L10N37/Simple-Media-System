@@ -62,6 +62,11 @@ static char s_pSMSCfg[] __attribute__(   (  section( ".data" ), aligned( 1 )  ) 
 static char s_pIcoSys[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "mc0:SMS/icon.sys";
 static char s_pSMSIcn[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "mc0:/SMS/SMS.icn";
 static char s_pMC0SMC[ 128 ] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "mc0:/SMS/SMS.cfg";
+
+/* TEMP DIAGNOSTIC: SMS_SaveConfig fills this with the exact failing stage so a "save Error"
+ * on hardware names WHICH step failed ( card / mkdir / open / write ) instead of a bare
+ * "Error". Read by _save_handler. Empty => success or nothing to report. */
+char g_SaveDiag[ 64 ] __attribute__(   (  section( ".bss" )  )   );
 static int  s_CfgOnFS __attribute__(   (  section( ".data" )  )   );   /* 1 = config is a plain filesystem file ( non-mc boot -> CWD ), not a memory-card save */
 static int  s_CfgFallback __attribute__(   (  section( ".data" )  )   );   /* 1 = non-re-mountable boot ( smb / host / cdrom ): resolve an attached FS device in SMS_IOPInit; mc0: only if none is found */
 char g_pBootDir[ 128 ] __attribute__(   (  section( ".bss" )  )   );   /* "<dev>/path/" of the ELF when launched from a non-mc device ( for CWD skins ); empty on mc boots */
@@ -609,6 +614,8 @@ int SMS_SaveConfig ( void ) {
  int retVal = 0;
  int lRes;
 
+ g_SaveDiag[ 0 ] = '\x00';   /* TEMP diag: cleared each save; filled below on the failing stage */
+
  if ( s_CfgOnFS ) {   /* non-mc boot: write settings next to the ELF, no memory-card save/icon */
 
   int lFD = fioOpen ( s_pMC0SMC, O_WRONLY | O_CREAT );
@@ -650,9 +657,11 @@ int SMS_SaveConfig ( void ) {
   }  /* end if */
 
   if ( lFD >= 0 ) {
-   if (  fioWrite (  lFD, &g_Config, sizeof ( g_Config )  ) == sizeof ( g_Config )  ) retVal = 1;
+   int lWr = fioWrite ( lFD, &g_Config, sizeof ( g_Config ) );
+   if ( lWr == ( int )sizeof ( g_Config ) ) retVal = 1;
+   else sprintf ( g_SaveDiag, "Save: CWD write %d %s", lWr, s_pMC0SMC );   /* TEMP diag */
    fioClose ( lFD );
-  }  /* end if */
+  } else sprintf ( g_SaveDiag, "Save: CWD open %d %s", lFD, s_pMC0SMC );   /* TEMP diag */
 
   return retVal;
 
@@ -741,15 +750,17 @@ int SMS_SaveConfig ( void ) {
 
    if ( lFD >= 0 ) {
 
-    if (  fioWrite (  lFD, &g_Config, sizeof ( g_Config )  ) == sizeof ( g_Config )  ) retVal = 1;
+    int lWr = fioWrite ( lFD, &g_Config, sizeof ( g_Config ) );
+    if ( lWr == ( int )sizeof ( g_Config ) ) retVal = 1;
+    else sprintf ( g_SaveDiag, "Save: mc write %d", lWr );   /* TEMP diag */
 
     fioClose ( lFD );
 
-   }  /* end if */
+   } else sprintf ( g_SaveDiag, "Save: mc open %d %s", lFD, s_pMC0SMC );   /* TEMP diag: config open */
 
-  }  /* end if */
+  } else sprintf ( g_SaveDiag, "Save: mkdir %d %s", lRes, g_pMC0SMS );   /* TEMP diag: mc?:/SMS mkdir */
 
- }  /* end if */
+ } else sprintf ( g_SaveDiag, "Save: no card (%d)", lRes );   /* TEMP diag: _mc_get_info said absent */
 
  return retVal;
 
