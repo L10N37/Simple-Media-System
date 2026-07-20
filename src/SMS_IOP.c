@@ -292,6 +292,25 @@ void SMS_IOPReset ( int afExit ) {
  CRUMB (  7, "SifExitRpc" );
  SifExitRpc     ();
 
+/* E10 FIX ( measured 2026-07-20: the exit hangs at E10, the FIRST SifInitRpc AFTER the
+ * reboot -- IOP rebooted, E08/E09 passed, but RPCINIT never comes ). The ONE code-verified
+ * structural difference from EVERY proven-working reference: R3Z ( init.c:1786 ), OPL
+ * ( system.c:192 ) and neutrino ( ee/loader/main.c:727 ) all make SifInitRpc(0) the LAST
+ * SIF call before SifIopReset -- they enter the reset with the SIF0 command channel LIVE.
+ * SMS uniquely entered it right after SifExitRpc(), whose sceSifExitCmd does
+ * DisableDmac(DMAC_SIF0) + RemoveDmacHandler ( ps2sdk sifcmd.c:285 ), so SIF0 was TORN DOWN
+ * across the dev9-active reboot window and the post-reset re-handshake at E10 never finished.
+ * Re-init here so SIF0 is armed going into the reset, matching all three references. The IOP
+ * is still alive at this point, so RPCINIT is already set and this returns immediately -- it
+ * only leaves SIF0's DMAC handler in place for the reboot. This is DIFFERENT from both prior
+ * failed fixes ( dev9 power-cut; empty-arg reset ), which never touched the pre-reset SIF
+ * state. NOT claimed as certain: if E10 still shows on hardware, the hang is still the
+ * post-reset SifInitRpc and the next build splits it into CMDINIT vs RPCINIT.
+ * Gated to the SAME condition as the empty-arg reset ( afExit && DEV9 ): only the hanging
+ * DEV9-exit path changes -- the boot reset ( afExit==0 ) and the already-working non-network
+ * exits stay byte-identical, so this cannot regress boot or a non-network exit. */
+ if (  afExit && ( g_IOPFlags & SMS_IOPF_DEV9 )  ) SifInitRpc ( 0 );
+
 /* On an EXIT reset, use the EMPTY arg -- NOT s_pUDNL ("rom0:UDNL rom0:EELOADCNF"). This
  * is THE udpfs/network exit-hang fix. The UDNL variant runs a long IOP-kernel reload on
  * the still-live IOP; when DEV9 is powered, the neutrino smap RX driver keeps DMAing
