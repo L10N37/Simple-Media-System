@@ -333,9 +333,22 @@ void SMS_IOPReset ( int afExit ) {
  CRUMB (  9, "SifIopSync" );       /* IOP never sets BOOTEND -> never reboots    */
  while (!SifIopSync()) {;}
 
- CRUMB ( 10, "SifInitRpc 2" );     /* IOP rebooted but never signals RPCINIT --
-                                    * NEVER targeted by either shipped fix, and
-                                    * ffe2e07 could have moved the hang here    */
+/* SPLIT of the old E10 ( "SifInitRpc 2" ), because Fix 1 did NOT cure it -- it still hangs
+ * at the post-reset SifInitRpc. That call contains TWO independent infinite spins and the
+ * single breadcrumb could not tell them apart:
+ *   SITE A = SifInitCmd()'s CMDINIT wait ( ps2sdk sifcmd.c: while(!(SMFLAG & CMDINIT)) ) --
+ *            waits on the IOP hardware raising CMDINIT. Hang here => the rebooted IOP never
+ *            comes up far enough to raise CMDINIT => the IOP BOOT itself is wedged ( points
+ *            at dev9/SPEED residual disturbing the reboot, NOT a SIF0 delivery problem ).
+ *   SITE B = SifInitRpc()'s RPCINIT wait ( sifrpc.c: while(!getSreg(RPCINIT)) ) -- CMDINIT
+ *            arrived but the IOP SIFRPC server never delivered SET_SREG over SIF0. Hang here
+ *            => a SIF0 delivery/ordering problem ( the Fix-1 class ).
+ * SifInitCmd() is idempotent ( if(sif0_id>=0) return ), so calling it here and then letting
+ * SifInitRpc() call it again is safe -- the 2nd call returns immediately. Whichever E-code
+ * ( E10 vs E11 ) latches on hardware tells us which spin, and therefore which fix. */
+ CRUMB ( 10, "SifInitCmd" );       /* SITE A: CMDINIT ( IOP boot wedged if it hangs here ) */
+ SifInitCmd ();
+ CRUMB ( 11, "SifInitRpc" );       /* SITE B: RPCINIT ( SIF0 delivery if it hangs here )   */
  SifInitRpc ( 0 );
 
  _slib_cur_exp_lib_list.tail = NULL;
@@ -357,11 +370,11 @@ void SMS_IOPReset ( int afExit ) {
  sbv_patch_enable_lmb           ();
  sbv_patch_disable_prefix_check ();
 
- CRUMB ( 11, "RCX_Load" );
+ CRUMB ( 12, "RCX_Load" );
  RCX_Load  ();
- CRUMB ( 12, "RCX_Start" );
+ CRUMB ( 13, "RCX_Start" );
  RCX_Start ();
- CRUMB ( 13, "RCX_Open" );
+ CRUMB ( 14, "RCX_Open" );
  RCX_Open  ();
 
 #if 0
@@ -378,29 +391,29 @@ void SMS_IOPReset ( int afExit ) {
  sbv_patch_disable_prefix_check ();
  sbv_patch_enable_lmb           ();
 
- CRUMB ( 14, "SMSUTILS" );
+ CRUMB ( 15, "SMSUTILS" );
  SifExecModuleBuffer ( &g_DataBuffer[ SMS_SMSUTILS_OFFSET ], SMS_SMSUTILS_SIZE, 0, NULL, &i );
 
 #ifdef BDM
- CRUMB ( 15, "iomanx" );
+ CRUMB ( 16, "iomanx" );
  SifExecDecompModuleBuffer ( &iomanx_irx, size_iomanx_irx, 0, NULL, &i );
- CRUMB ( 16, "filexio" );
+ CRUMB ( 17, "filexio" );
  SifExecDecompModuleBuffer ( &filexio_irx, size_filexio_irx, 0, NULL, &i );
- CRUMB ( 17, "fileXioInit" );
+ CRUMB ( 18, "fileXioInit" );
  fileXioInit();
 
- CRUMB ( 18, "bdm" );
+ CRUMB ( 19, "bdm" );
  SifExecDecompModuleBuffer ( &bdm_irx, size_bdm_irx, 0, NULL, &i );
- CRUMB ( 19, "bdmfs" );
+ CRUMB ( 20, "bdmfs" );
  SifExecDecompModuleBuffer ( &bdmfs_fatfs_irx, size_bdmfs_fatfs_irx, 0, NULL, &i );
 
  if ( !afExit ) SifExecDecompModuleBuffer ( &sio2man_irx, size_sio2man_irx, 0, NULL, &i );
 
- CRUMB ( 20, "mcman" );
+ CRUMB ( 21, "mcman" );
  SifExecDecompModuleBuffer ( &mcman_irx, size_mcman_irx, 0, NULL, &i );
- CRUMB ( 21, "mcserv" );
+ CRUMB ( 22, "mcserv" );
  SifExecDecompModuleBuffer ( &mcserv_irx, size_mcserv_irx, 0, NULL, &i );
- CRUMB ( 22, "padman" );
+ CRUMB ( 23, "padman" );
  SifExecDecompModuleBuffer ( &padman_irx, size_padman_irx, 0, NULL, &i );
 #else
  static const char* lpModules[ 4 ] = { s_pSIO2MAN, s_pPADMAN, s_pMCMAN, s_pMCSERV };
@@ -410,7 +423,7 @@ void SMS_IOPReset ( int afExit ) {
  for ( i = 1 - afExit; i < 4; ++i ) SifLoadModule ( lpModules[ i ], 0, NULL );
 #endif
 
- CRUMB ( 23, "BindRPC SMSU" );
+ CRUMB ( 24, "BindRPC SMSU" );
  SIF_BindRPC ( &s_SMSUClt, SMSUTILS_RPC_ID );
 
  DisableIntc(INTC_TIM0);

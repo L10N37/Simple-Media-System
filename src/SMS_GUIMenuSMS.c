@@ -949,7 +949,7 @@ void _exit_handler ( GUIMenu* apMenu, int aDir ) {
  if ( !lIdx ) {
   SMS_ExitCrumb ( 3, "IOPReset in" );
   SMS_IOPReset ( 1 );
-  SMS_ExitCrumb ( 24, "Exit(0)" );   /* reached => the wedge is in Exit(0)/ROM, not SMS */
+  SMS_ExitCrumb ( 25, "Exit(0)" );   /* reached => the wedge is in Exit(0)/ROM, not SMS */
 #ifndef EMBEDDED
   Exit ( 0 );
 #else
