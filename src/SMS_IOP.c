@@ -258,13 +258,15 @@ int SifExecDecompModuleBuffer(void *ptr, u32 size, u32 arg_len, const char *args
  * Strings are kept short ( <= 18 chars, under "Loading boot browser" ) so the status
  * line never reallocs mid-teardown. */
 void SMS_ExitCrumb ( int aN, const char* apWhat ) {
-
- char lB[ 32 ];
-
- sprintf ( lB, "E%02d %s", aN, apWhat );
- GS_BGCOLOR() = ( unsigned int )( aN * 0x000A0A0A ) | 0x00000030;
- GUI_Status ( lB );
-
+/* Exit-path diagnostic breadcrumbs -- DISABLED for release. They flashed "E<nn>" codes on
+ * every exit while we hunted the UDPFS exit hang; now that it is fixed + hw-confirmed, they
+ * are neutralised HERE ( one no-op ) rather than by ripping the ~25 CRUMB() calls out of the
+ * boot-critical SMS_IOPReset -- so the boot AND exit paths stay byte-identical to the
+ * hw-confirmed build, minus only the on-screen codes. The fix ( skip the dead reset on a
+ * dev9 browser exit ) and the reset internals are untouched. To re-enable for future
+ * debugging, restore the sprintf/GS_BGCOLOR/GUI_Status body. */
+ ( void )aN;
+ ( void )apWhat;
 }  /* end SMS_ExitCrumb */
 
 /* only on the EXIT reset: the boot reset ( afExit == 0, from main.c ) runs before the
