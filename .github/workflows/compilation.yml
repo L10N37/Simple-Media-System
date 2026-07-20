@@ -68,19 +68,19 @@ jobs:
         path: dist/Simple-Media-System.elf
 
     # --- Rolling pre-release: refreshed on EVERY push to the default branch ---
-    # A single "rolling" tag/release always holds the latest mx4sio build, so
+    # A single "rolling" tag/release always holds the latest master build, so
     # testers can just grab the newest ELF from the same URL.
     - name: Update rolling pre-release
-      if: github.event_name == 'push' && github.ref == 'refs/heads/mx4sio'
+      if: github.event_name == 'push' && github.ref == 'refs/heads/master'
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        printf 'Latest development build of Simple-Media-System -- auto-updated on every push to mx4sio.\n\nCommit: %s\nBuilt:  %s UTC\n\nSimple-Media-System.elf         -- standard ELF.\nSimple-Media-System-packed.elf  -- same build, self-extracting ( ~half the size, decompresses at boot ).\n\nFlash / run either to test.\n' \
+        printf 'Latest development build of Simple-Media-System -- auto-updated on every push to master.\n\nCommit: %s\nBuilt:  %s UTC\n\nSimple-Media-System.elf         -- standard ELF.\nSimple-Media-System-packed.elf  -- same build, self-extracting ( ~half the size, decompresses at boot ).\n\nFlash / run either to test.\n' \
           "$GITHUB_SHA" "$(date -u +'%Y-%m-%d %H:%M')" > notes.md
         gh release delete rolling --yes --cleanup-tag 2>/dev/null || true
         gh release create rolling dist/Simple-Media-System.elf dist/Simple-Media-System-packed.elf dist/*.zip \
           --prerelease --target "$GITHUB_SHA" \
-          --title "Rolling build (latest mx4sio)" --notes-file notes.md
+          --title "Rolling build (latest master)" --notes-file notes.md
 
     # --- Stable release: cut when you push a version tag (e.g. git tag v1.0) ---
     - name: Create stable release
