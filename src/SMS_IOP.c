@@ -1300,7 +1300,15 @@ void SMS_IOPInit ( void ) {
  * already up ) so a mount hang is a visible stall, NOT a black boot ( mounting
  * pre-GUI black-screened ). Display MODE still needs a reboot to switch ( GS
  * already inited ), but colours / auto-start / browser+player settings persist. */
- if ( SMS_ConfigOnFS () ) {
+ if (  SMS_ConfigOnFS () && strncmp ( SMS_ConfigPath (), "mc", 2 ) != 0  ) {
+/* mc boots are excluded on purpose. An mc-launched ELF now keeps its config in CWD
+ * ( s_CfgOnFS = 1 ), but UNLIKE the FS devices below, the memory card re-mounts EARLY
+ * ( MC_Init + mcman before GUI_Initialize ), so SMS_LoadConfig ALREADY read the CWD
+ * config in the early pass ( SMS_GUI.c ) -- there is nothing to mount and nothing to
+ * re-read here. Entering this block would call SMS_LoadConfig again, which resets
+ * g_Config to defaults before re-reading and would CLOBBER the boot-time video-mode
+ * override, so mc skips the whole late-mount + reload path exactly like a classic mc
+ * boot did. ( "mmce" starts with "mmc", so this "mc" test never catches an MMCE path. ) */
 
   const char* lpCfg   = SMS_ConfigPath ();   /* e.g. "mmce0:/APPS/SMS.cfg" */
   int         lFSGone = 0;                    /* 1 = argv[0] boot device unreachable after the IOP reset */
