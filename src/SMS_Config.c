@@ -139,7 +139,10 @@ void SMS_ConfigSetCWD ( const char* apELFPath ) {
  *   time with a card fallback if the server turns out read-only. ) */
  if (  strncmp ( apELFPath, "mass", 4 ) != 0 && strncmp ( apELFPath, "mmce",  4 ) != 0 &&
        strncmp ( apELFPath, "pfs",  3 ) != 0 && strncmp ( apELFPath, "hdd",   3 ) != 0 &&
-       strncmp ( apELFPath, "udpfs", 5 ) != 0  ) { s_CfgFallback = 1; return; }
+       strncmp ( apELFPath, "udpfs", 5 ) != 0 && strncmp ( apELFPath, "mc",   2 ) != 0  ) { s_CfgFallback = 1; return; }
+/* "mc" is re-mountable ( mcman/mcserv reload on every boot ), so an mc-launched ELF keeps
+ * its config next to the ELF via fio -- exactly like USB/HDD/UDPFS -- instead of the fragile
+ * fixed mc?:/SMS/ libmc+icon.sys save. IPCONFIG.DAT + the SMB list stay mc-pinned separately. */
 
  for ( i = 0; apELFPath[ i ] && i < ( int )sizeof ( s_pMC0SMC ) - 9; ++i )
   if ( apELFPath[ i ] == '/' || apELFPath[ i ] == ':' || apELFPath[ i ] == '\\' ) lLast = i;
@@ -559,6 +562,34 @@ int SMS_LoadConfig ( void  ) {
 
     if ( lLen == 892 ) retVal = 1;
 
+   }  /* end if */
+
+   fioClose ( lFD );
+
+  }  /* end if */
+
+ }  /* end if */
+
+/* Migration: pre-CWD-on-mc builds kept settings at the fixed mc?:/SMS/SMS.cfg. That path is
+ * now next to the ELF ( read above ); if the new location held nothing on an mc boot, fall
+ * back to the legacy fixed path so an existing config still loads. The next Save writes it to
+ * the new CWD location, completing the migration. One-shot -- costs a single fioOpen miss on
+ * fresh setups. */
+ if (  !retVal && g_pBootDir[ 0 ] == 'm' && g_pBootDir[ 1 ] == 'c'  ) {
+
+  char lOld[] = "mc0:/SMS/SMS.cfg";
+  int  lFD;
+
+  lOld[ 2 ] = ( char )( '0' + g_MCSlot );
+  lFD = fioOpen ( lOld, O_RDONLY );
+
+  if ( lFD >= 0 ) {
+
+   int lLen = fioRead ( lFD, &g_Config, 4 );
+
+   if ( lLen == 4 && g_Config.m_Version == 14 ) {
+    lLen = fioRead ( lFD, &g_Config.m_DisplayMode, 892 );
+    if ( lLen == 892 ) retVal = 1;
    }  /* end if */
 
    fioClose ( lFD );

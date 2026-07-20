@@ -50,6 +50,11 @@ int main ( int argc, char** argv ) {
   g_pExec1    [ 2 ] = lSlot;
   g_MCSlot          = lSlot - '0';
 
+/* Settings live next to the ELF ( CWD ) on an mc boot too -- same fio path as every other
+ * device -- instead of the fragile fixed mc?:/SMS/ libmc+icon.sys save. The slot patches
+ * above still pin IPCONFIG.DAT + the exec/skin paths to the boot card. */
+  SMS_ConfigSetCWD ( argv[ 0 ] );
+
  } else if ( argc > 0 ) SMS_ConfigSetCWD ( argv[ 0 ] );   /* non-mc boot -> settings in CWD ( next to the ELF ) */
 
  SMS_IOPReset ( 0 );
@@ -91,7 +96,12 @@ int main ( int argc, char** argv ) {
  * safe to re-init the GUI ( same call as returning from the player ) to apply the
  * saved mode. Guarded on != Default so an auto-mode boot skips the needless
  * re-init, and on SMS_ConfigOnFS so mc boot ( config already applied ) is untouched. */
- if (  SMS_ConfigOnFS () && g_Config.m_DisplayMode != GSVideoMode_Default  ) GUI_Initialize ( 0 );
+ if (  SMS_ConfigOnFS () && g_Config.m_DisplayMode != GSVideoMode_Default &&
+       !( g_pBootDir[ 0 ] == 'm' && g_pBootDir[ 1 ] == 'c' )  ) GUI_Initialize ( 0 );
+/* ^ the re-init applies the saved display mode for FS boots whose config loaded LATE ( the
+ * device mounts only in SMS_IOPInit, after the screen came up in the default mode ). An mc
+ * boot re-mounts early, so its config -- and the mode -- already applied inside the first
+ * GUI_Initialize; skip the redundant re-init to avoid a boot-time mode flash. */
 #endif
 
  GUI_Run ();
