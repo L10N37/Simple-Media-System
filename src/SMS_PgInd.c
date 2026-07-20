@@ -169,8 +169,16 @@ static void _pgind_thread ( void* apArg ) {
  int           lCX     = lDrawX + ( IND_SIZE >> 1 );
  int           lCY     = lDrawY + ( IND_SIZE >> 1 );
 
- int           lSendX  = ( lDrawX - IND_SIZE ) >> g_XShift;  /* bg grab region: UNCHANGED */
- int           lSendY  = lDrawY - IND_SIZE;
+/* bg grab/restore region: a 2*IND_SIZE square CENTERED on the icon's rotation centre
+ * ( lCX, lCY ). The old top-left ( lDrawX - IND_SIZE, lDrawY - IND_SIZE ) centred the box on
+ * ( lDrawX, lDrawY ), i.e. 16px up-left of lCX/lCY, so the box ended at the icon's unrotated
+ * right/bottom edge with NO margin. When the 32x32 icon rotates it reaches ~22.6px from the
+ * centre ( 16 * sqrt2 ), poking ~7px past the box on the right and bottom -- those pixels were
+ * never restored, leaving the "crumbs"/outline smears. Shifting the box right+down by
+ * IND_SIZE/2 centres it on lCX/lCY, covering the full rotated extent ( 64 >= 46 ) with margin.
+ * Same size, so s_Bitmap / lQWC are unchanged. */
+ int           lSendX  = ( lDrawX - ( IND_SIZE >> 1 ) ) >> g_XShift;
+ int           lSendY  = lDrawY - ( IND_SIZE >> 1 );
  int           lSendW  = ( IND_SIZE << 1 ) >> g_XShift;
  GSPixelFormat lPSM    = g_GSCtx.m_DrawCtx[ 0 ].m_FRAMEVal.PSM;
  unsigned int  lFBW    = g_GSCtx.m_DrawCtx[ 0 ].m_FRAMEVal.FBW;
