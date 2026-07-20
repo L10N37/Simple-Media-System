@@ -139,12 +139,20 @@ static _FileMenuItem* GUIFileMenu_RenderItem ( SMS_ListNode* apNode, int anY, in
 
  retVal = ( _FileMenuItem* )SMS_SyncMalloc (  sizeof ( _FileMenuItem )  );
 
- GUI_DrawIcon (
-  ( int )apNode -> m_Param + afDim, 8, anY, GUIcon_Browser,
-  UNCACHED_SEG( retVal -> m_IconPack )
- );
- retVal -> m_pTxtPack = GSContext_NewList (  GS_TXT_PACKET_SIZE( lLen )  );
- GSFont_RenderEx (  _STR( apNode ), lLen, 46, anY, retVal -> m_pTxtPack, -2, 0  );
+/* SDTV ( NTSC / PAL ) centres each row's icon + label between the row-frame edges, but the
+ * DTV / HDTV component modes ( 480p / 576p / 720p / 1080i -- m_GSCRTMode >= 0x50 ) render
+ * them ~2px high. Nudge both down 2px in those modes so they sit centred. Applies to the
+ * icon and the text identically, so they stay aligned. ( Nad, PS2 Scene graphics review. ) */
+ {
+  int lYd = ( GS_Params () -> m_GSCRTMode >= GSVideoMode_DTV_720x480P ) ? ( anY + 2 ) : anY;
+
+  GUI_DrawIcon (
+   ( int )apNode -> m_Param + afDim, 8, lYd, GUIcon_Browser,
+   UNCACHED_SEG( retVal -> m_IconPack )
+  );
+  retVal -> m_pTxtPack = GSContext_NewList (  GS_TXT_PACKET_SIZE( lLen )  );
+  GSFont_RenderEx (  _STR( apNode ), lLen, 46, lYd, retVal -> m_pTxtPack, -2, 0  );
+ }
 
  return retVal;
 
