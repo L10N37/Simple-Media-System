@@ -695,9 +695,9 @@ int SMS_IOPStartATA ( int afStatus ) {
 
  unsigned int lBefore;
  int          i, ret;
- static char  lP1[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "ATA: preparing bus (DEV9)...";
- static char  lP2[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "ATA: loading driver (ata_bd)...";
- static char  lP3[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "ATA: scanning drive (mounting exFAT)...";
+ char*        lP1 = STR_ATA_PREP_BUS.m_pStr;   /* now translatable ( .lng 288..290 ) */
+ char*        lP2 = STR_ATA_LOAD_DRV.m_pStr;
+ char*        lP3 = STR_ATA_SCAN.m_pStr;
 
  /* Internal HDD as a BDM ( massN: / exFAT ) device via ata_bd, which bundles atad
   * and probes the ATA bus itself. Mutually exclusive with SMS's PFS HDD ( same atad
@@ -747,15 +747,15 @@ int SMS_IOPStartUDPFS ( int afStatus ) {
  int         i, lTry;
  char        lArg[ 24 ];
  static char lUdpfs[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "udpfs:/";
- static char lP1[]    __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS: preparing network (DEV9)...";
- static char lP2[]    __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS: loading Ethernet driver...";
- static char lP3[]    __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS: starting IP stack...";
- static char lP4[]    __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS: discovering server...";
- static char lE1[]    __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS FAIL [NOIP]: set this PS2's static IP in Network Config first";
- static char lE2[]    __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS FAIL [SMAP]: Ethernet driver did not load";
- static char lE3[]    __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS FAIL [STACK]: IP stack did not load";
- static char lE4[]    __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS FAIL [DEV]: udpfs: device did not register";
- static char lE5[]    __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS FAIL [DISCOVERY]: no server answered -- check the UDPFS server is running on the same LAN, and that its \"Modulo\" mode is OFF";
+ char* lP1 = STR_UDPFS_PREP_NET.m_pStr;    /* now translatable ( .lng 279..287 ) */
+ char* lP2 = STR_UDPFS_LOAD_ETH.m_pStr;
+ char* lP3 = STR_UDPFS_START_IP.m_pStr;
+ char* lP4 = STR_UDPFS_DISCOVER.m_pStr;
+ char* lE1 = STR_UDPFS_FAIL_NOIP.m_pStr;
+ char* lE2 = STR_UDPFS_FAIL_SMAP.m_pStr;
+ char* lE3 = STR_UDPFS_FAIL_STACK.m_pStr;
+ char* lE4 = STR_UDPFS_FAIL_DEV.m_pStr;
+ char* lE5 = STR_UDPFS_FAIL_DISC.m_pStr;
  /* Per-module load state, mirroring wLaunchELF-R3Z's have_udpfs_* ( init.c:612 ). A
   * module that is already resident answers a second load with MODULE_NO_RESIDENT_END
   * ( its RegisterLibraryEntries fails ), which is NOT an error -- its library is still

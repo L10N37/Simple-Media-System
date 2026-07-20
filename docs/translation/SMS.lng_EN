@@ -5,9 +5,9 @@ Saving configuration...
 Loading %s...
 Initializing network...
 Locating USBD.IRX...
-Waiting for media (press 'start' for menu)...
+Waiting for media (press "start" for menu)...
 Reading disk...
-Illegal disk (press 'cross' to continue)...
+Illegal disk (press "cross" to continue)...
 Reading media...
 Display settings...
 Device settings...
@@ -20,7 +20,7 @@ Exit SMS
 TV system
 PAL
 NTSC
-auto
+Auto
 Character set
 WinLatin1
 WinLatin2
@@ -34,7 +34,7 @@ Adjust image up
 Adjust image down
 Autostart network
 Autostart USB
-Autostart HDD APA
+Autostart HDD
 Device settings
 Start network support
 Start HDD support
@@ -125,7 +125,7 @@ R2 - increase sync value
 SMS menu:
 cross/circle - action/next level
 triangle - level up/exit menu
-Error (press 'cross' to continue)...
+Error (press "cross" to continue)...
 Saving IPCONFIG.DAT...
 Selection bar color
 Advanced settings...
@@ -134,11 +134,11 @@ Apply settings
 Advanced settings
 Sample
 English
-user defined
+English (User)
 Language
 Loading indices...
 Loading subtitles...
-Subtitle: %s error (%d), press 'cross' to continue...
+Subtitle: %s error (%d), press "cross" to continue...
 format
 sequence
 Buffering %s file...
@@ -148,11 +148,11 @@ Stopping
 default
 V/A:
 S/V:
-Play
-FFwd
-Rew
+Play 
+FFwd 
+ Rev 
 Curs
-Unsupported file format (press 'cross' to continue)...
+Unsupported file format (press "cross" to continue)...
 Rem
 Player menu
 Display
@@ -165,7 +165,7 @@ Display subtitles
 Select subtitles
 boot browser
 mc0:/BOOT/BOOT.ELF
-mc0:/BEDATA-SYSTEM/BOOT.ELF
+mc0:/B?DATA-SYSTEM/BOOT.ELF
 Exit to
 Sound FX
 S/PDIF - Dolby Digital/DTS
@@ -180,7 +180,7 @@ Select action
 Color resolution
 32 bit
 16 bit
-DTV 480p
+DTV 480P
 Controller port 2
 gamepad
 remote control
@@ -194,9 +194,9 @@ wide pan-scan 2
 Network protocol
 ps2dev/host
 SMB/CIFS
-Communication error (press 'cross' to continue)...
-Protocol negotiation error (%d) (press 'cross' to continue)...
-Login error (%d) (press 'cross' to continue)...
+Communication error (press "cross" to continue)...
+Protocol negotiation error (%d) (press "cross" to continue)...
+Login error (%d) (press "cross" to continue)...
 Subtitles
 Disable CD/DVD
 Display width
@@ -212,8 +212,8 @@ medium
 high
 low
 Directional buttons
-DTV 1080i
-DTV 720p
+DTV 1080I
+DTV 720P
 Operating mode
 auto-negotiation
 automatic
@@ -250,8 +250,8 @@ Loading ODML indices %d...
 File size: 
 GB
 KB
-%d,%02d
-%d,%03d
+%d.%02d
+%d.%03d
 Kb/s
 Hz
 ch
@@ -259,7 +259,7 @@ Available memory: %.1fMB/%.2fMB
 Resume playback from %s ? ('cross'='yes', 'triangle'='no')
 Image offset
 Video resolution is too big (press 'cross' to continue)...
-Synch. parameter 3 (Audio)
+Synch. parameter 3 (audio)
 Images
 Unsupported or corrupted image
 Reset button action

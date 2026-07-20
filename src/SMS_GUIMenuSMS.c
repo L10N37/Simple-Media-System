@@ -204,55 +204,24 @@ static GUIMenuItem s_AdvDispMenu[] __attribute__(   (  section( ".data" )  )   )
  {                   0, &STR_APPLY_SETTINGS,     0, 0, _apply_handler,  0, 0 }
 };
 
-/* "Refresh connections" label -- a static SMString ( like the MX4SIO labels )
- * so no .lng files need touching. */
-static char     s_pRefreshConn[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Refresh connections";
-static SMString s_StrRefreshConn __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pRefreshConn ) - 1, s_pRefreshConn };
-
+/* The device-menu labels below ( MX4SIO / HDD BDM / i.LINK / MMCE / UDPFS start+autostart,
+ * Pair Bluetooth, Refresh connections ) are now in the translatable string table
+ * ( SMS_Locale, indices 269+ ) via STR_* macros -- no longer hardcoded here. */
 #ifdef BDM
-static char s_pAutoMX4SIO [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart MX4SIO";
-static char s_pStartMX4SIO[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start MX4SIO support";
-static SMString s_StrAutoMX4SIO  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoMX4SIO  ) - 1, s_pAutoMX4SIO  };
-static SMString s_StrStartMX4SIO __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartMX4SIO ) - 1, s_pStartMX4SIO };
-
-static char s_pAutoATA   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart HDD BDM";
-static char s_pStartATA  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start HDD BDM";
-static SMString s_StrAutoATA   __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoATA   ) - 1, s_pAutoATA   };
-static SMString s_StrStartATA  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartATA  ) - 1, s_pStartATA  };
-
-static char s_pAutoILINK [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart i.LINK";
-static char s_pStartILINK[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start i.LINK support";
-static SMString s_StrAutoILINK  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoILINK  ) - 1, s_pAutoILINK  };
-static SMString s_StrStartILINK __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartILINK ) - 1, s_pStartILINK };
-
-static char s_pAutoMMCE  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart MMCE";
-static char s_pStartMMCE [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start MMCE support";
-static SMString s_StrAutoMMCE  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoMMCE  ) - 1, s_pAutoMMCE  };
-static SMString s_StrStartMMCE __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartMMCE ) - 1, s_pStartMMCE };
-
-static char s_pStartUDPFS[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start UDPFS network drive";
-static SMString s_StrStartUDPFS __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pStartUDPFS ) - 1, s_pStartUDPFS };
-
-static char s_pAutoUDPFS[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart UDPFS";
-static SMString s_StrAutoUDPFS __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAutoUDPFS ) - 1, s_pAutoUDPFS };
-
-static char s_pPairBT[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Pair Bluetooth controller";
-static SMString s_StrPairBT __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pPairBT ) - 1, s_pPairBT };
-
 static GUIMenuItem s_DevMenu[ 28 ] __attribute__(   (  section( ".data" )  )   ) = {
  {                   0, &STR_NETWORK_SETTINGS,    0, 0, _network_handler,    0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_CONTROLLER_SLOT2,    0, 0, _cntslot_handler,    0, 0 },
  {                   0, &STR_AUTOSTART_NETWORK,   0, 0, _autonet_handler,    0, 0 },
  {                   0, &STR_AUTOSTART_USB,       0, 0, _autousb_handler,    0, 0 },
  {                   0, &STR_AUTOSTART_HDD,       0, 0, _autohdd_handler,    0, 0 },
- {                   0, &s_StrAutoATA,            0, 0, _autoata_handler,    0, 0 },
- {                   0, &s_StrAutoMX4SIO,         0, 0, _automx4sio_handler, 0, 0 },
- {                   0, &s_StrAutoILINK,          0, 0, _autoilink_handler,  0, 0 },
- {                   0, &s_StrAutoMMCE,           0, 0, _automce_handler,    0, 0 },
+ {                   0, &STR_AUTOSTART_HDD_BDM,            0, 0, _autoata_handler,    0, 0 },
+ {                   0, &STR_AUTOSTART_MX4SIO,         0, 0, _automx4sio_handler, 0, 0 },
+ {                   0, &STR_AUTOSTART_ILINK,          0, 0, _autoilink_handler,  0, 0 },
+ {                   0, &STR_AUTOSTART_MMCE,           0, 0, _automce_handler,    0, 0 },
  {                   0, &STR_DISABLE_CDVD,        0, 0, _cdvd_handler,       0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_CDVD_SPEED,          0, 0, _cdvd_spd_handler,   0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_DIRECTIONAL_BUTTONS, 0, 0, _dirbtn_handler,     0, 0 },
- {                   0, &s_StrAutoUDPFS,          0, 0, _autoudpfs_handler,  0, 0 }   /* row 12 */
+ {                   0, &STR_AUTOSTART_UDPFS,          0, 0, _autoudpfs_handler,  0, 0 }   /* row 12 */
 };
 #else
 static GUIMenuItem s_DevMenu[ 12 ] __attribute__(   (  section( ".data" )  )   ) = {
@@ -636,28 +605,28 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
  * the bus. */
  if (   !(  g_IOPFlags & ( SMS_IOPF_MX4SIO | SMS_IOPF_MMCE )  )   ) {
 
-  s_DevMenu[ ++lSize ].m_pOptionName = &s_StrStartMX4SIO;
+  s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_MX4SIO;
   s_DevMenu[   lSize ].Handler       = _startmx4sio_handler;
 
  }  /* end if */
 
  if (  !( g_IOPFlags & SMS_IOPF_ATA ) && ( g_IOPFlags & SMS_IOPF_DEV9_IS )  ) {
 
-  s_DevMenu[ ++lSize ].m_pOptionName = &s_StrStartATA;
+  s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_HDD_BDM;
   s_DevMenu[   lSize ].Handler       = _startata_handler;
 
  }  /* end if */
 
  if (  !( g_IOPFlags & SMS_IOPF_ILINK )  ) {
 
-  s_DevMenu[ ++lSize ].m_pOptionName = &s_StrStartILINK;
+  s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_ILINK;
   s_DevMenu[   lSize ].Handler       = _startilink_handler;
 
  }  /* end if */
 
  if (   !(  g_IOPFlags & ( SMS_IOPF_MMCE | SMS_IOPF_MX4SIO )  )   ) {   /* MX4SIO owns the same SIO2 bus -- see the note above */
 
-  s_DevMenu[ ++lSize ].m_pOptionName = &s_StrStartMMCE;
+  s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_MMCE;
   s_DevMenu[   lSize ].Handler       = _startmce_handler;
 
  }  /* end if */
@@ -675,20 +644,20 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
  if (  !( g_UdpfsFlags & 2 ) && ( g_IOPFlags & SMS_IOPF_DEV9_IS ) &&
        !( g_IOPFlags & ( SMS_IOPF_NET | SMS_IOPF_SMB ) ) && !SMS_IOPNetOwnedBySMB ()  ) {   /* Ethernet present + NIC genuinely free -> udpfs ( mutually exclusive with SMB ) */
 
-  s_DevMenu[ ++lSize ].m_pOptionName = &s_StrStartUDPFS;
+  s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_UDPFS;
   s_DevMenu[   lSize ].Handler       = _startudpfs_handler;
 
  }  /* end if */
 
  if (  g_IOPFlags & SMS_IOPF_DS34BT  ) {   /* Bluetooth driver up -> offer controller pairing */
 
-  s_DevMenu[ ++lSize ].m_pOptionName = &s_StrPairBT;
+  s_DevMenu[ ++lSize ].m_pOptionName = &STR_PAIR_BT;
   s_DevMenu[   lSize ].Handler       = _pairbt_handler;
 
  }  /* end if */
 #endif
 
- s_DevMenu[ ++lSize ].m_pOptionName = &s_StrRefreshConn;   /* re-probe / reconnect active devices */
+ s_DevMenu[ ++lSize ].m_pOptionName = &STR_REFRESH_CONN;   /* re-probe / reconnect active devices */
  s_DevMenu[   lSize ].Handler       = _refresh_handler;
 
  lpState -> m_pItems =

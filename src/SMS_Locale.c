@@ -345,6 +345,48 @@ static char s_pExit           [] __attribute__(   (  aligned( 1 ), section( ".da
 static char s_pPulldown22     [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   ) = "Video auto 2:2 pulldown";
 static char s_pDTV576P        [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   ) = "DTV 576p";
 
+/* English defaults for the appended new-feature strings ( indices 269..294 ). These used
+ * to live as hardcoded static labels in SMS_GUIMenuSMS.c / SMS_IOP.c / SMS_GUISMBrowser.c;
+ * moved here so they are translatable. Device/protocol proper-nouns ( MX4SIO, UDPFS,
+ * i.LINK, MMCE, HDD BDM ) are meant to survive translation verbatim. */
+static char s_pNLAutoMX4SIO [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart MX4SIO";
+static char s_pNLStartMX4SIO[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start MX4SIO support";
+static char s_pNLAutoHddBdm [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart HDD BDM";
+static char s_pNLStartHddBdm[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start HDD BDM";
+static char s_pNLAutoILink  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart i.LINK";
+static char s_pNLStartILink [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start i.LINK support";
+static char s_pNLAutoMMCE   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart MMCE";
+static char s_pNLStartMMCE  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start MMCE support";
+static char s_pNLStartUDPFS [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start UDPFS network drive";
+static char s_pNLAutoUDPFS  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart UDPFS";
+static char s_pNLUdpfsPrep  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS: preparing network (DEV9)...";
+static char s_pNLUdpfsEth   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS: loading Ethernet driver...";
+static char s_pNLUdpfsIP    [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS: starting IP stack...";
+static char s_pNLUdpfsDisc  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS: discovering server...";
+static char s_pNLUdpfsNoIP  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS FAIL [NOIP]: set this PS2's static IP in Network Config first";
+static char s_pNLUdpfsSmap  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS FAIL [SMAP]: Ethernet driver did not load";
+static char s_pNLUdpfsStack [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS FAIL [STACK]: IP stack did not load";
+static char s_pNLUdpfsDev   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS FAIL [DEV]: udpfs: device did not register";
+static char s_pNLUdpfsNoSrv [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "UDPFS FAIL [DISCOVERY]: no server answered -- check the UDPFS server is running on the same LAN, and that its \"Modulo\" mode is OFF";
+static char s_pNLAtaBus     [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "ATA: preparing bus (DEV9)...";
+static char s_pNLAtaDrv     [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "ATA: loading driver (ata_bd)...";
+static char s_pNLAtaScan    [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "ATA: scanning drive (mounting exFAT)...";
+static char s_pNLKbSpace    [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "SPACE";
+static char s_pNLKbDel      [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "DEL";
+static char s_pNLKbOK       [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "OK";
+static char s_pNLKbHelp     [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "X:type  O:back  []:space  /\\:done";
+static char s_pNLRefreshCon [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Refresh connections";
+static char s_pNLPairBT     [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Pair Bluetooth controller";
+static char s_pNLSmbAdd     [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Add server...";
+static char s_pNLSmbEdit    [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Edit server...";
+static char s_pNLSmbSrvName [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Server name";
+static char s_pNLSmbUser    [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Username";
+static char s_pNLSmbPass    [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Password";
+static char s_pNLSmbClient  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Client name";
+static char s_pNLSmbPort    [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Port";
+static char s_pNLSmbShare   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Share ( optional )";
+static char s_pNLSmbTitle   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "SMB server";
+
 static SMString s_SMStringDef[] __attribute__(   (  section( ".data" )  )   ) = {
  { sizeof ( s_pAvailableMedia  ) - 1, s_pAvailableMedia  },
  { sizeof ( s_pNone            ) - 1, s_pNone            },
@@ -614,7 +656,45 @@ static SMString s_SMStringDef[] __attribute__(   (  section( ".data" )  )   ) = 
  { sizeof ( s_pPowerOff        ) - 1, s_pPowerOff        },
  { sizeof ( s_pExit            ) - 1, s_pExit            },
  { sizeof ( s_pPulldown22      ) - 1, s_pPulldown22      },
- { sizeof ( s_pDTV576P         ) - 1, s_pDTV576P         }
+ { sizeof ( s_pDTV576P         ) - 1, s_pDTV576P         },
+ /* ---- 269..294: appended new-feature UI ( keep in the SAME order as SMS_Locale.h ) ---- */
+ { sizeof ( s_pNLAutoMX4SIO    ) - 1, s_pNLAutoMX4SIO    },   /* 269 */
+ { sizeof ( s_pNLStartMX4SIO   ) - 1, s_pNLStartMX4SIO   },   /* 270 */
+ { sizeof ( s_pNLAutoHddBdm    ) - 1, s_pNLAutoHddBdm    },   /* 271 */
+ { sizeof ( s_pNLStartHddBdm   ) - 1, s_pNLStartHddBdm   },   /* 272 */
+ { sizeof ( s_pNLAutoILink     ) - 1, s_pNLAutoILink     },   /* 273 */
+ { sizeof ( s_pNLStartILink    ) - 1, s_pNLStartILink    },   /* 274 */
+ { sizeof ( s_pNLAutoMMCE      ) - 1, s_pNLAutoMMCE      },   /* 275 */
+ { sizeof ( s_pNLStartMMCE     ) - 1, s_pNLStartMMCE     },   /* 276 */
+ { sizeof ( s_pNLStartUDPFS    ) - 1, s_pNLStartUDPFS    },   /* 277 */
+ { sizeof ( s_pNLAutoUDPFS     ) - 1, s_pNLAutoUDPFS     },   /* 278 */
+ { sizeof ( s_pNLUdpfsPrep     ) - 1, s_pNLUdpfsPrep     },   /* 279 */
+ { sizeof ( s_pNLUdpfsEth      ) - 1, s_pNLUdpfsEth      },   /* 280 */
+ { sizeof ( s_pNLUdpfsIP       ) - 1, s_pNLUdpfsIP       },   /* 281 */
+ { sizeof ( s_pNLUdpfsDisc     ) - 1, s_pNLUdpfsDisc     },   /* 282 */
+ { sizeof ( s_pNLUdpfsNoIP     ) - 1, s_pNLUdpfsNoIP     },   /* 283 */
+ { sizeof ( s_pNLUdpfsSmap     ) - 1, s_pNLUdpfsSmap     },   /* 284 */
+ { sizeof ( s_pNLUdpfsStack    ) - 1, s_pNLUdpfsStack    },   /* 285 */
+ { sizeof ( s_pNLUdpfsDev      ) - 1, s_pNLUdpfsDev      },   /* 286 */
+ { sizeof ( s_pNLUdpfsNoSrv    ) - 1, s_pNLUdpfsNoSrv    },   /* 287 */
+ { sizeof ( s_pNLAtaBus        ) - 1, s_pNLAtaBus        },   /* 288 */
+ { sizeof ( s_pNLAtaDrv        ) - 1, s_pNLAtaDrv        },   /* 289 */
+ { sizeof ( s_pNLAtaScan       ) - 1, s_pNLAtaScan       },   /* 290 */
+ { sizeof ( s_pNLKbSpace       ) - 1, s_pNLKbSpace       },   /* 291 */
+ { sizeof ( s_pNLKbDel         ) - 1, s_pNLKbDel         },   /* 292 */
+ { sizeof ( s_pNLKbOK          ) - 1, s_pNLKbOK          },   /* 293 */
+ { sizeof ( s_pNLKbHelp        ) - 1, s_pNLKbHelp        },   /* 294 */
+ { sizeof ( s_pNLRefreshCon    ) - 1, s_pNLRefreshCon    },   /* 295 */
+ { sizeof ( s_pNLPairBT        ) - 1, s_pNLPairBT        },   /* 296 */
+ { sizeof ( s_pNLSmbAdd        ) - 1, s_pNLSmbAdd        },   /* 297 */
+ { sizeof ( s_pNLSmbEdit       ) - 1, s_pNLSmbEdit       },   /* 298 */
+ { sizeof ( s_pNLSmbSrvName    ) - 1, s_pNLSmbSrvName    },   /* 299 */
+ { sizeof ( s_pNLSmbUser       ) - 1, s_pNLSmbUser       },   /* 300 */
+ { sizeof ( s_pNLSmbPass       ) - 1, s_pNLSmbPass       },   /* 301 */
+ { sizeof ( s_pNLSmbClient     ) - 1, s_pNLSmbClient     },   /* 302 */
+ { sizeof ( s_pNLSmbPort       ) - 1, s_pNLSmbPort       },   /* 303 */
+ { sizeof ( s_pNLSmbShare      ) - 1, s_pNLSmbShare      },   /* 304 */
+ { sizeof ( s_pNLSmbTitle      ) - 1, s_pNLSmbTitle      }    /* 305 */
 };
 
 static unsigned char s_XLTLatin1[ 256 ] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = {

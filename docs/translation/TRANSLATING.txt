@@ -16,21 +16,28 @@ HOW SMS USES IT
 
 THE FIVE RULES (break any one and SMS silently ignores the WHOLE file and
 falls back to English -- there is no error message):
-  1. EXACTLY 269 lines. Do not add or remove a line. One English line in ->
+  1. EXACTLY 306 lines. Do not add or remove a line. One English line in ->
      one translated line out, same position.
   2. NEVER leave a line blank. An empty line makes the parser stop early, the
-     line count no longer equals 269, and the entire file is rejected. If a
+     line count no longer equals 306, and the entire file is rejected. If a
      string should stay untranslated, copy the English text verbatim -- do not
      blank it.
   3. Keep every  %s  %d  %.1f  %02d  etc. EXACTLY as-is (same specifiers, same
-     order). They are replaced at runtime with filenames, numbers, sizes. 13
-     lines have these -- flagged HAS-FORMAT below.
+     order). They are replaced at runtime with filenames, numbers, sizes.
+     Lines flagged HAS-FORMAT below have these.
   4. Do NOT translate the two path lines (166, 167) -- flagged LOCKED-PATH.
      They are boot-file paths, not text. Copy them verbatim.
   5. Save as plain text. ASCII or the code page that matches SMS's Character
      Set (Browser settings -> Character set: WinLatin1 / WinLatin2 / Cyrillic /
      Greek). CRLF or LF line endings are both fine; UTF-8 is NOT -- SMS renders
      single-byte encodings.
+
+NEW IN THIS BUILD: lines 269..305 were added for UI that used to be English-only
+(device menu: MX4SIO / HDD BDM / i.LINK / MMCE / UDPFS start+autostart; the UDPFS
+and ATA start/error messages; the on-screen keyboard; the SMB server editor). In
+the shipped community packs these 37 tail lines are still ENGLISH placeholders --
+that is where translation is now needed. Keep device/protocol proper-nouns
+(MX4SIO, UDPFS, i.LINK, MMCE, HDD BDM) verbatim; translate the words around them.
 
 TIP: keep lines about the same length as the English. The GUI has fixed widths;
 very long strings can overflow their box.
@@ -40,10 +47,11 @@ INSTALLING A FINISHED TRANSLATION (from the legacy pack's own readme)
   2. Copy it to  mc0:/SMS   (or next to SMS.ELF on USB/HDD)
   3. Select / enable it in the SMS menu
 
-There are already 19 community translations in the repo at
-docs/downloads/SMS_lng09.rar (BG CA CZ DE EN ES FR HU ID IT NL PL PT PT-BR RU
-SE SK TR UA) -- every one is 269 lines and matches THIS build, so they load
-as-is and are the best reference for tone/length.
+The 19 community translations in docs/translation/ (BG CA CZ DE EN ES FR HU ID IT
+NL PL PT PT-BR RU SE SK TR UA) were extended to 306 lines to match THIS build, so
+they load as-is (new-feature lines show English until translated). They are the
+best reference for tone/length. (TR had a pre-existing duplicate line that was
+removed to realign it.)
 
 ==============================================================================
   LINE-BY-LINE REFERENCE  (line# | flags | English)
@@ -318,3 +326,40 @@ as-is and are the best reference for tone/length.
 266 | STR_EXIT    | exit
 267 | STR_PULLDOW | Video auto 2:2 pulldown
 268 | STR_DTV_576 | DTV 576p
+269 | STR_AUTOSTA | Autostart MX4SIO
+270 | STR_START_M | Start MX4SIO support
+271 | STR_AUTOSTA | Autostart HDD BDM
+272 | STR_START_H | Start HDD BDM
+273 | STR_AUTOSTA | Autostart i.LINK
+274 | STR_START_I | Start i.LINK support
+275 | STR_AUTOSTA | Autostart MMCE
+276 | STR_START_M | Start MMCE support
+277 | STR_START_U | Start UDPFS network drive
+278 | STR_AUTOSTA | Autostart UDPFS
+279 | STR_UDPFS_P | UDPFS: preparing network (DEV9)...
+280 | STR_UDPFS_L | UDPFS: loading Ethernet driver...
+281 | STR_UDPFS_S | UDPFS: starting IP stack...
+282 | STR_UDPFS_D | UDPFS: discovering server...
+283 | STR_UDPFS_F | UDPFS FAIL [NOIP]: set this PS2's static IP in Network Config first
+284 | STR_UDPFS_F | UDPFS FAIL [SMAP]: Ethernet driver did not load
+285 | STR_UDPFS_F | UDPFS FAIL [STACK]: IP stack did not load
+286 | STR_UDPFS_F | UDPFS FAIL [DEV]: udpfs: device did not register
+287 | STR_UDPFS_F | UDPFS FAIL [DISCOVERY]: no server answered -- check the UDPFS server is running on the same LAN, and that its "Modulo" mode is OFF
+288 | STR_ATA_PRE | ATA: preparing bus (DEV9)...
+289 | STR_ATA_LOA | ATA: loading driver (ata_bd)...
+290 | STR_ATA_SCA | ATA: scanning drive (mounting exFAT)...
+291 | STR_KB_SPAC | SPACE
+292 | STR_KB_DEL  | DEL
+293 | STR_KB_OK   | OK
+294 | STR_KB_HELP | X:type  O:back  []:space  /\:done
+295 | STR_REFRESH | Refresh connections
+296 | STR_PAIR_BT | Pair Bluetooth controller
+297 | STR_SMB_ADD | Add server...
+298 | STR_SMB_EDI | Edit server...
+299 | STR_SMB_SER | Server name
+300 | STR_SMB_USE | Username
+301 | STR_SMB_PAS | Password
+302 | STR_SMB_CLI | Client name
+303 | STR_SMB_POR | Port
+304 | STR_SMB_SHA | Share ( optional )
+305 | STR_SMB_EDI | SMB server

@@ -290,6 +290,48 @@ typedef struct SMString {
 #define STR_EXIT                 SMS_STRING( 266 )
 #define STR_PULLDOWN22           SMS_STRING( 267 )
 #define STR_DTV_576P             SMS_STRING( 268 )
+/* --- appended at the END ( indices 269+ ) so the original 0..268 keep their slots and
+ *     every existing SMS.lng translation stays aligned. New-feature UI that used to be
+ *     hardcoded English ( device menu labels, UDPFS / ATA start+error messages, the
+ *     on-screen keyboard ) is now translatable. Any pack must grow to match the new count
+ *     ( see docs/translation ); the tail lines default to English until translated. --- */
+#define STR_AUTOSTART_MX4SIO     SMS_STRING( 269 )
+#define STR_START_MX4SIO         SMS_STRING( 270 )
+#define STR_AUTOSTART_HDD_BDM    SMS_STRING( 271 )
+#define STR_START_HDD_BDM        SMS_STRING( 272 )
+#define STR_AUTOSTART_ILINK      SMS_STRING( 273 )
+#define STR_START_ILINK          SMS_STRING( 274 )
+#define STR_AUTOSTART_MMCE       SMS_STRING( 275 )
+#define STR_START_MMCE           SMS_STRING( 276 )
+#define STR_START_UDPFS          SMS_STRING( 277 )
+#define STR_AUTOSTART_UDPFS      SMS_STRING( 278 )
+#define STR_UDPFS_PREP_NET       SMS_STRING( 279 )
+#define STR_UDPFS_LOAD_ETH       SMS_STRING( 280 )
+#define STR_UDPFS_START_IP       SMS_STRING( 281 )
+#define STR_UDPFS_DISCOVER       SMS_STRING( 282 )
+#define STR_UDPFS_FAIL_NOIP      SMS_STRING( 283 )
+#define STR_UDPFS_FAIL_SMAP      SMS_STRING( 284 )
+#define STR_UDPFS_FAIL_STACK     SMS_STRING( 285 )
+#define STR_UDPFS_FAIL_DEV       SMS_STRING( 286 )
+#define STR_UDPFS_FAIL_DISC      SMS_STRING( 287 )
+#define STR_ATA_PREP_BUS         SMS_STRING( 288 )
+#define STR_ATA_LOAD_DRV         SMS_STRING( 289 )
+#define STR_ATA_SCAN             SMS_STRING( 290 )
+#define STR_KB_SPACE             SMS_STRING( 291 )
+#define STR_KB_DEL               SMS_STRING( 292 )
+#define STR_KB_OK                SMS_STRING( 293 )
+#define STR_KB_HELP              SMS_STRING( 294 )
+#define STR_REFRESH_CONN         SMS_STRING( 295 )
+#define STR_PAIR_BT              SMS_STRING( 296 )
+#define STR_SMB_ADD_SERVER       SMS_STRING( 297 )
+#define STR_SMB_EDIT_SERVER      SMS_STRING( 298 )
+#define STR_SMB_SERVER_NAME      SMS_STRING( 299 )
+#define STR_SMB_USER_NAME        SMS_STRING( 300 )
+#define STR_SMB_PASSWORD         SMS_STRING( 301 )
+#define STR_SMB_CLIENT_NAME      SMS_STRING( 302 )
+#define STR_SMB_PORT             SMS_STRING( 303 )
+#define STR_SMB_SHARE            SMS_STRING( 304 )
+#define STR_SMB_EDIT_TITLE       SMS_STRING( 305 )
 
 extern SMString g_SMString  [] __attribute__(   (  section( ".bss" )  )   );
 extern char     g_EmptyStr  [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   );

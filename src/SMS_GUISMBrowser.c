@@ -65,25 +65,8 @@ extern void SMS_SaveSMBInfo ( void );
 void        _smb_menu   ( GUIMenu* apMenu );
 static void _smb_reopen ( GUIMenu* apMenu );
 
-static char s_pAddServer  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Add server...";
-static char s_pEditServer [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Edit server...";
-static char s_pServerName [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Server name";
-static char s_pUserName   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Username";
-static char s_pPassword   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Password";
-static char s_pClientName [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Client name";
-static char s_pPort       [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Port";
-static char s_pShare      [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Share ( optional )";
-static char s_pEditTitle  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "SMB server";
-
-static SMString s_StrAddServer  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pAddServer  ) - 1, s_pAddServer  };
-static SMString s_StrEditServer __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pEditServer ) - 1, s_pEditServer };
-static SMString s_StrServerName __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pServerName ) - 1, s_pServerName };
-static SMString s_StrUserName   __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pUserName   ) - 1, s_pUserName   };
-static SMString s_StrPassword   __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pPassword   ) - 1, s_pPassword   };
-static SMString s_StrClientName __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pClientName ) - 1, s_pClientName };
-static SMString s_StrPort       __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pPort       ) - 1, s_pPort       };
-static SMString s_StrShare      __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pShare      ) - 1, s_pShare      };
-static SMString s_StrEditTitle  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pEditTitle  ) - 1, s_pEditTitle  };
+/* The SMB server-editor field labels are now in the translatable string table
+ * ( SMS_Locale, STR_SMB_* at indices 297+ ) -- no longer hardcoded here. */
 
 /* working copy of the record being added / edited */
 static SMBLoginInfo s_AddInfo  __attribute__(   (  section( ".bss" )  )   );
@@ -128,17 +111,8 @@ static SMString s_StrValShare  __attribute__(   (  section( ".data" )  )   ) = {
 
 extern int ( *GUI_ReadButtons ) ( void );
 
-/* static labels for the keyboard ( not in the .lng table -- mirrors the
- * s_StrAutoMX4SIO static-label pattern in SMS_GUIMenuSMS.c ) */
-static char s_pKbSpace [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "SPACE";
-static char s_pKbDel   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "DEL";
-static char s_pKbOK    [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "OK";
-static char s_pKbHelp  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "X:type  O:back  []:space  /\\:done";
-
-static SMString s_StrKbSpace __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pKbSpace ) - 1, s_pKbSpace };
-static SMString s_StrKbDel   __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pKbDel   ) - 1, s_pKbDel   };
-static SMString s_StrKbOK    __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pKbOK    ) - 1, s_pKbOK    };
-static SMString s_StrKbHelp  __attribute__(   (  section( ".data" )  )   ) = { sizeof ( s_pKbHelp  ) - 1, s_pKbHelp  };
+/* The on-screen keyboard labels ( SPACE / DEL / OK / help ) are now in the translatable
+ * string table ( SMS_Locale, STR_KB_* at indices 291..294 ) -- no longer hardcoded. */
 
 /* The character grid. Every printable key the SMB login fields need is here at
  * once -- both cases, digits and the common symbols ( . _ - / @ : etc. ). The
@@ -270,7 +244,7 @@ static void _kb_render ( const char* apTitle, int aRow, int aCol, int aLen, int 
  {
   int      lAY  = lGY + KB_ROWS * lRH + 6;
   int      lAW  = ( lW - 48 ) / KB_ACT_COUNT;
-  SMString* lpAct[ KB_ACT_COUNT ] = { &s_StrKbSpace, &s_StrKbDel, &s_StrKbOK };
+  SMString* lpAct[ KB_ACT_COUNT ] = { &STR_KB_SPACE, &STR_KB_DEL, &STR_KB_OK };
 
   for ( i = 0; i < KB_ACT_COUNT; ++i ) {
 
@@ -302,8 +276,8 @@ static void _kb_render ( const char* apTitle, int aRow, int aCol, int aLen, int 
 
   /* help line */
   g_GSCtx.m_TextColor = 2;
-  lpDMA = GSContext_NewPacket (  1, GS_TXT_PACKET_SIZE( s_StrKbHelp.m_Len ), GSPaintMethod_Continue  );
-  GSFont_RenderEx ( s_StrKbHelp.m_pStr, s_StrKbHelp.m_Len, lX + 16, lY + lH - 28, lpDMA, -2, 0 );
+  lpDMA = GSContext_NewPacket (  1, GS_TXT_PACKET_SIZE( STR_KB_HELP.m_Len ), GSPaintMethod_Continue  );
+  GSFont_RenderEx ( STR_KB_HELP.m_pStr, STR_KB_HELP.m_Len, lX + 16, lY + lH - 28, lpDMA, -2, 0 );
 
  }
 
@@ -475,7 +449,7 @@ static void _addip4_handler ( GUIMenu* apMenu, int aDir ) { _addip_roll ( apMenu
 
 static void _addname_handler ( GUIMenu* apMenu, int aDir ) {
 
- GUI_TextInput (  s_AddInfo.m_ServerName, sizeof ( s_AddInfo.m_ServerName ), s_pServerName  );
+ GUI_TextInput (  s_AddInfo.m_ServerName, sizeof ( s_AddInfo.m_ServerName ), STR_SMB_SERVER_NAME.m_pStr  );
  s_StrValName.m_Len = strlen ( s_AddInfo.m_ServerName );
 
  GUIMenuSMS_UpdateStatus ( apMenu );
@@ -485,7 +459,7 @@ static void _addname_handler ( GUIMenu* apMenu, int aDir ) {
 
 static void _adduser_handler ( GUIMenu* apMenu, int aDir ) {
 
- GUI_TextInput (  s_AddInfo.m_UserName, sizeof ( s_AddInfo.m_UserName ), s_pUserName  );
+ GUI_TextInput (  s_AddInfo.m_UserName, sizeof ( s_AddInfo.m_UserName ), STR_SMB_USER_NAME.m_pStr  );
  s_StrValUser.m_Len = strlen ( s_AddInfo.m_UserName );
 
  GUIMenuSMS_UpdateStatus ( apMenu );
@@ -495,7 +469,7 @@ static void _adduser_handler ( GUIMenu* apMenu, int aDir ) {
 
 static void _addpass_handler ( GUIMenu* apMenu, int aDir ) {
 
- GUI_TextInput (  s_AddInfo.m_Password, sizeof ( s_AddInfo.m_Password ), s_pPassword  );
+ GUI_TextInput (  s_AddInfo.m_Password, sizeof ( s_AddInfo.m_Password ), STR_SMB_PASSWORD.m_pStr  );
  s_StrValPass.m_Len = strlen ( s_AddInfo.m_Password );
 
  GUIMenuSMS_UpdateStatus ( apMenu );
@@ -505,7 +479,7 @@ static void _addpass_handler ( GUIMenu* apMenu, int aDir ) {
 
 static void _addclient_handler ( GUIMenu* apMenu, int aDir ) {
 
- GUI_TextInput (  s_AddInfo.m_ClientName, sizeof ( s_AddInfo.m_ClientName ), s_pClientName  );
+ GUI_TextInput (  s_AddInfo.m_ClientName, sizeof ( s_AddInfo.m_ClientName ), STR_SMB_CLIENT_NAME.m_pStr  );
  s_StrValClient.m_Len = strlen ( s_AddInfo.m_ClientName );
 
  GUIMenuSMS_UpdateStatus ( apMenu );
@@ -517,7 +491,7 @@ static void _addport_handler ( GUIMenu* apMenu, int aDir ) {
 
  /* TCP port for the direct-TCP smbman connection ( default 1445 for the
   * PS2-Servers SMB1 host; 445 for a normal SMB server, 139 for NetBIOS ). */
- GUI_TextInput (  s_AddPort, sizeof ( s_AddPort ), s_pPort  );
+ GUI_TextInput (  s_AddPort, sizeof ( s_AddPort ), STR_SMB_PORT.m_pStr  );
 
  if ( !s_AddPort[ 0 ] ) strcpy ( s_AddPort, "1445" );
 
@@ -532,7 +506,7 @@ static void _addshare_handler ( GUIMenu* apMenu, int aDir ) {
 
  /* Optional: pre-set the share to open. Left empty, the browser lists the
   * server's shares ( GETSHARELIST ) and the user picks one. */
- GUI_TextInput (  s_AddInfo.m_Share, sizeof ( s_AddInfo.m_Share ), s_pShare  );
+ GUI_TextInput (  s_AddInfo.m_Share, sizeof ( s_AddInfo.m_Share ), STR_SMB_SHARE.m_pStr  );
  s_StrValShare.m_Len = strlen ( s_AddInfo.m_Share );
 
  GUIMenuSMS_UpdateStatus ( apMenu );
@@ -622,12 +596,12 @@ static GUIMenuItem s_AddMenu[ 12 ] __attribute__(   (  section( ".data" )  )   )
  { MENU_ITEM_TYPE_TEXT, &STR_PS2_IP2,      0, 0, _addip2_handler,   0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_PS2_IP3,      0, 0, _addip3_handler,   0, 0 },
  { MENU_ITEM_TYPE_TEXT, &STR_PS2_IP4,      0, 0, _addip4_handler,   0, 0 },
- { MENU_ITEM_TYPE_TEXT, &s_StrServerName,  0, 0, _addname_handler,  0, 0 },
- { MENU_ITEM_TYPE_TEXT, &s_StrUserName,    0, 0, _adduser_handler,  0, 0 },
- { MENU_ITEM_TYPE_TEXT, &s_StrPassword,    0, 0, _addpass_handler,  0, 0 },
- { MENU_ITEM_TYPE_TEXT, &s_StrClientName,  0, 0, _addclient_handler,0, 0 },
- { MENU_ITEM_TYPE_TEXT, &s_StrPort,        0, 0, _addport_handler,  0, 0 },
- { MENU_ITEM_TYPE_TEXT, &s_StrShare,       0, 0, _addshare_handler, 0, 0 },
+ { MENU_ITEM_TYPE_TEXT, &STR_SMB_SERVER_NAME,  0, 0, _addname_handler,  0, 0 },
+ { MENU_ITEM_TYPE_TEXT, &STR_SMB_USER_NAME,    0, 0, _adduser_handler,  0, 0 },
+ { MENU_ITEM_TYPE_TEXT, &STR_SMB_PASSWORD,    0, 0, _addpass_handler,  0, 0 },
+ { MENU_ITEM_TYPE_TEXT, &STR_SMB_CLIENT_NAME,  0, 0, _addclient_handler,0, 0 },
+ { MENU_ITEM_TYPE_TEXT, &STR_SMB_PORT,        0, 0, _addport_handler,  0, 0 },
+ { MENU_ITEM_TYPE_TEXT, &STR_SMB_SHARE,       0, 0, _addshare_handler, 0, 0 },
  { 0,                   &STR_SAVE_SETTINGS,0, 0, _addsave_handler,  0, 0 }
 };
 
@@ -701,7 +675,7 @@ static void _smb_addedit_form ( GUIMenu* apMenu, SMS_ListNode* apNode ) {
  lpState -> m_pFirst =
  lpState -> m_pCurr  = s_AddMenu;
  lpState -> m_pLast  = &s_AddMenu[ 10 ];
- lpState -> m_pTitle = &s_StrEditTitle;
+ lpState -> m_pTitle = &STR_SMB_EDIT_TITLE;
 
  GUIMenuSMS_UpdateStatus ( apMenu );
  apMenu -> Redraw ( apMenu );
@@ -881,13 +855,13 @@ void _smb_menu ( GUIMenu* apMenu ) {
 
  if ( lnItems && !lFound ) lpInfo -> m_pItems -> m_IconRight = GUICON_ON;
 
- lpInfo -> m_pItems[ i   ].m_pOptionName = &s_StrAddServer;
+ lpInfo -> m_pItems[ i   ].m_pOptionName = &STR_SMB_ADD_SERVER;
  lpInfo -> m_pItems[ i   ].m_IconRight   = GUICON_FOLDER;
  lpInfo -> m_pItems[ i++ ].Handler       = _smb_add_handler;
 
  if ( lnItems ) {
 
-  lpInfo -> m_pItems[ i   ].m_pOptionName = &s_StrEditServer;
+  lpInfo -> m_pItems[ i   ].m_pOptionName = &STR_SMB_EDIT_SERVER;
   lpInfo -> m_pItems[ i++ ].Handler       = _smb_edit_handler;
 
   lpInfo -> m_pItems[ i   ].m_pOptionName = &STR_DELETE;
