@@ -463,7 +463,7 @@ int SMS_LoadConfig ( void  ) {
  g_Config.m_BrowserABCIdx    = 10;  /* active accent: blue (match inactive; graphics wants the file-view frame to stay blue when browsing, not flip to white) */
  g_Config.m_BrowserIBCIdx    = 10;  /* inactive panels / info bar / spectrum: blue  ( idx 10 -> g_Palette[9]  = 0,0,FF )  ( was red 13 ) -> jellyfish theme */
  g_Config.m_BrowserTxtIdx    = 16;  /* browser text: white ( was yellow 15 ) */
- g_Config.m_BrowserFlags     = SMS_BF_SDFX;  /* UI sound effects ON out of the box -- the interface feels alive; user can toggle it off ( Browser menu ) and the choice persists once saved. This is the no-saved-config default only: the config read below overwrites m_BrowserFlags with the user's saved value when one exists. */
+ g_Config.m_BrowserFlags     = SMS_BF_SDFX | SMS_BF_SORT | SMS_BF_AVIF;  /* out-of-the-box defaults: UI sound effects ON ( the interface feels alive ), plus "Sort filesystem objects" and "Filter media files" ON -- a media player should land on a tidy, media-only listing by default ( Nad ). All three are user-toggleable ( Browser menu ) and persist once saved. This is the no-saved-config default only: the config read below overwrites m_BrowserFlags with the user's saved value when one exists. */
  g_Config.m_NetworkFlags     = 0;  /* no-settings default: auto-start NO device (clean boot); user enables HDD/USB/MX4SIO/net from the menu, persisted once saved */
  g_Config.m_PlayerVolume     = 12;
  g_Config.m_PlayerAC3RL      =  6;
@@ -472,13 +472,13 @@ int SMS_LoadConfig ( void  ) {
  g_Config.m_PlayerFlags      = SMS_PF_SUBS | SMS_PF_ANIM | SMS_PF_TIME;
  g_Config.m_PlayerSCNIdx     = 15;
  g_Config.m_PlayerSCBIdx     = 16;
- g_Config.m_PlayerSCIIdx     = 11;
- g_Config.m_PlayerSCUIdx     = 10;
+ g_Config.m_PlayerSCIIdx     = 16;  /* subtitle ITALIC: green -> white ( Nad ) */
+ g_Config.m_PlayerSCUIdx     = 16;  /* subtitle UNDERLINE: blue -> white ( Nad ) */
  g_Config.m_BrowserSCIdx     = 12;  /* selection highlight: cyan ( idx 12 -> g_Palette[11] = 0,FF,FF ) bright, pops ( was white 16 ) -> jellyfish theme */
  g_Config.m_BrowserSBCIdx    = 16;  /* text secondary / shadow: white */
  g_Config.m_PlayerSubOffset  = 32;
- g_Config.m_PlayerVBCIdx     = 11;
- g_Config.m_PlayerSBCIdx     = 11;
+ g_Config.m_PlayerVBCIdx     = 16;  /* VOLUME BAR: green -> white ( Nad ) */
+ g_Config.m_PlayerSBCIdx     = 16;  /* SCROLLBAR: green -> white ( Nad ) */
  g_Config.m_ScrollBarNum     = 32;
  g_Config.m_ScrollBarPos     = SMScrollBarPos_Bottom;
  g_Config.m_PlayerBrightness = 12;

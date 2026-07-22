@@ -116,7 +116,7 @@ static char s_pAutoNet        [] __attribute__(   (  aligned( 1 ), section( ".da
 static char s_pAutoUSB        [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   ) = "Autostart USB";
 static char s_pAutoHDD        [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   ) = "Autostart HDD APA";
 static char s_pStartNet       [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   ) = "Start network support";
-static char s_pStartHDD       [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   ) = "Start HDD support";
+static char s_pStartHDD       [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   ) = "Start HDD APA support";
 static char s_pStartUSB       [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   ) = "Start USB support";
 static char s_pEditIPConfig   [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   ) = "Edit IPCONFIG.DAT...";
 static char s_pEditIPConfig1  [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   ) = "Edit IPCONFIG.DAT";
@@ -352,7 +352,7 @@ static char s_pDTV576P        [] __attribute__(   (  aligned( 1 ), section( ".da
 static char s_pNLAutoMX4SIO [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart MX4SIO";
 static char s_pNLStartMX4SIO[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start MX4SIO support";
 static char s_pNLAutoHddBdm [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart HDD BDM";
-static char s_pNLStartHddBdm[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start HDD BDM";
+static char s_pNLStartHddBdm[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start HDD BDM support";
 static char s_pNLAutoILink  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart i.LINK";
 static char s_pNLStartILink [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start i.LINK support";
 static char s_pNLAutoMMCE   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart MMCE";
