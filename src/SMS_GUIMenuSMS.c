@@ -1016,6 +1016,19 @@ void _exit_handler ( GUIMenu* apMenu, int aDir ) {
 #endif  /* EMBEDDED */
 
  } else {
+/* ⚠ NOT COVERED BY THE E11 FIX ABOVE. This is the non-default "Exit to -> EXEC0/EXEC1"
+ * setting ( Browser settings, STR_EXIT_TO; default is 0 = boot browser, so reaching here
+ * takes a deliberate user change that then persists in m_BrowserFlags ). SMS_EExec runs
+ * SMS_IOPReset( 1 ) via inline asm ( SMS_EE.c:628 ) and so is still exposed to the same
+ * hang -- and on a no-dev9 boot it takes the LONG s_pUDNL kernel-reload arm with none of
+ * the dev9 mitigations, which is the worst variant.
+ *
+ * The boot-browser remedy does NOT transplant here: that reset is dead work before Exit(0),
+ * whereas this one is real work -- ExecPS2 needs a freshly reset IOP to land in. A correct
+ * fix means quiescing the bus masters ( usbd/OHCI, smap ) before the reset, which is
+ * boot/exit-critical surgery; the tree also already records the empty-arg reset as a
+ * measured FAILED fix for the dev9 case ( see SMS_IOP.c ). Deliberately deferred, not
+ * overlooked. Users hitting a freeze on exit should leave "Exit to" at its default. */
 #ifdef EMBEDDED
   SifExitRpc ();
 #endif  /* EMBEDDED */

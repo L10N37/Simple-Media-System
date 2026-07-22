@@ -277,14 +277,25 @@ void SMS_IOPReset ( int afExit ) {
 
  int i;
 
-/* ⚠ afExit IS NOW ALWAYS 0. The only caller left is the boot reset in main.c; the "Exit SMS"
- * handler no longer resets the IOP at all ( see the E11 FIX note in SMS_GUIMenuSMS.c -- the
- * reset was dead work before Exit(0) and hung whenever a bus-mastering IOP module was still
- * live: measured with smap, then again with usbd ). Everything below gated on `afExit` --
- * the CRUMB macro, the pre-reset SifInitRpc, and the empty-arg-vs-s_pUDNL choice -- is
- * therefore INERT. It is deliberately left in place rather than ripped out: this is the
- * boot path, the dead branches cost nothing, and the history is worth keeping if the exit
- * behaviour is ever revisited. Do not read the afExit branches as live exit behaviour. */
+/* ⚠ TWO CALLERS, and the afExit branches below ARE LIVE:
+ *     src/main.c:60      SMS_IOPReset ( 0 )  -- the boot reset.
+ *     src/SMS_EE.c:628   "jal SMS_IOPReset" with "addiu $a0, $zero, 1" in the delay slot,
+ *                        i.e. afExit = 1, from SMS_EExec -- the "Exit to -> EXEC0/EXEC1"
+ *                        path. It is INLINE ASM, so it does NOT match a grep for
+ *                        "SMS_IOPReset (" -- an earlier revision of this very comment
+ *                        claimed "afExit is always 0" for exactly that reason. It is not.
+ *
+ * What DID change: the default "Exit SMS" -> boot browser path ( lIdx == 0 ) no longer
+ * calls this function at all -- see the E11 FIX note in SMS_GUIMenuSMS.c. There the reset
+ * was dead work before Exit(0) and hung whenever a bus-mastering IOP module was still live
+ * ( measured with smap, then again with usbd ). So the afExit-gated code below -- the CRUMB
+ * macro, the pre-reset SifInitRpc, the empty-arg-vs-s_pUDNL choice -- is now reached ONLY
+ * via SMS_EExec, which is a non-default setting the user must deliberately select.
+ *
+ * That exec path is still exposed to the same hang and CANNOT take the same remedy: it
+ * needs a freshly reset IOP to ExecPS2 into, so the reset there is real work, not dead
+ * work. On a no-dev9 boot it takes the long s_pUDNL arm with none of the dev9 mitigations.
+ * Deliberately left as-is: no safe minimal fix exists and this is boot/exit-critical code. */
 
 /* EXIT-HANG NOTE ( the "hangs on Loading boot browser" after UDPFS/network ): the fix is
  * the reset ARGUMENT below, NOT a DEV9 shutdown here. A previous version power-cut DEV9
