@@ -249,7 +249,7 @@ static void GUIFileMenu_Render ( GUIObject* apObj, int aCtx ) {
 
   }  /* end if */
 
-  SMS_InitBitBlt ( s_BitBltPack, 9, 59, g_GSCtx.m_Height - 59 - 36 );   /* starts below the device bar's Y=56..58 selection arrow */
+  SMS_InitBitBlt ( s_BitBltPack, 9, 59, g_GSCtx.m_Height - 59 - 36 );   /* starts below the device bar's Y=54..57 selection arrow */
 
  }  /* end if */
 
@@ -302,7 +302,7 @@ static void _redraw ( GUIFileMenu* apMenu, int afAll ) {
  if ( !afAll ) {
 
   /* The partial scroll redraw only repaints the list panel (s_BitBltPack       */
-  /* backdrop restore + list, Y = 58 .. m_Height-36). The GUI is single-        */
+  /* backdrop restore + list, Y = 59 .. m_Height-36). The GUI is single-        */
   /* buffered, so the bottom bar below that (status/path text + the async       */
   /* clock, Y >= m_Height-36) is never touched here -- any corruption of it is  */
   /* STICKY and accumulates across a long scroll. So we must also repaint the   */

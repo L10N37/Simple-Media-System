@@ -102,8 +102,24 @@ static void GUIDevMenu_RenderSelRect ( GUIDevMenu* apMenu, _DevMenuItem* apActiv
 
 /* Selection marker ( per graphics, item 25 ): the rounded highlight frames are
  * replaced by a small white arrow -- an 8x3 upward-pointing triangle with its tip
- * at Y = 56, centred under the device icon the user is choosing. m_pActRect was
- * initialized to a GS no-op at allocation and is no longer drawn to. */
+ * at Y = 54, centred under the device icon the user is choosing. m_pActRect was
+ * initialized to a GS no-op at allocation and is no longer drawn to.
+ *
+ * ⚠ KEEP THE ARROW WHOLLY ABOVE LOGICAL ROW 58. There is no arrow-specific erase:
+ * the old arrow vanishes only because the device strip's own background restore
+ * blit below -- GS_L2P( 0, 0, LWidth, 59 ), i.e. rows 0..58 -- happens to cover it.
+ * Anything at row 59+ is instead inside the FILE LIST's restore band ( see
+ * SMS_GUIFileMenu.c, SMS_InitBitBlt at Y = 59 ), which leaves two artefacts:
+ * the previous arrow's uncovered rows survive as a stray sliver under the
+ * device you just moved off, and a file-list repaint clips rows off the live one.
+ * A stray row is then baked in permanently by the desktop shadow re-capture
+ * ( GS_StoreImage in SMS_GUIDesktop.c ) on the next full rebuild, e.g. returning
+ * from the player -- which is why a ghost could end up under the WRONG device.
+ *
+ * The margin is not merely cosmetic: GS_L2P scales by the PAR and truncates
+ * ( vftoi0 ), while GS_XYZ scales by the SAME PAR keeping 1/16-pel ( vftoi4 ), so
+ * the erase rect rounds DOWN while the vertex does not. At PAL's 1.0667 that
+ * costs most of a row on its own. 54..57 clears both traps in every video mode. */
  u64* lpDMA = apMenu -> m_pSelRect;
  int  lCX   = apSelected -> m_XOffset + 24;   /* centre of the 48px device icon */
 
@@ -115,9 +131,9 @@ static void GUIDevMenu_RenderSelRect ( GUIDevMenu* apMenu, _DevMenuItem* apActiv
               ( GIFTAG_REGS_XYZ2  << 16 ) | ( GIFTAG_REGS_NOP   << 20 );
  lpDMA[ 2 ] = GS_SET_PRIM( GS_PRIM_PRIM_TRIANGLE, 0, 0, 0, 1, 1, 0, 0, 0 );
  lpDMA[ 3 ] = GS_SET_RGBAQ( 0xFF, 0xFF, 0xFF, 0x80, 0x00 );
- lpDMA[ 4 ] = GS_XYZ( lCX,     56, 0 );   /* tip                 */
- lpDMA[ 5 ] = GS_XYZ( lCX - 4, 59, 0 );   /* base left           */
- lpDMA[ 6 ] = GS_XYZ( lCX + 4, 59, 0 );   /* base right          */
+ lpDMA[ 4 ] = GS_XYZ( lCX,     54, 0 );   /* tip                 */
+ lpDMA[ 5 ] = GS_XYZ( lCX - 4, 57, 0 );   /* base left           */
+ lpDMA[ 6 ] = GS_XYZ( lCX + 4, 57, 0 );   /* base right          */
  lpDMA[ 7 ] = 0UL;
 
 }  /* end GUIDevMenu_RenderSelRect */
@@ -163,7 +179,7 @@ static void GUIDevMenu_Render ( GUIObject* apObj, int aCtx ) {
 
   if ( lpMenu -> m_pActRect && lpMenu -> m_pActive ) GUIDevMenu_RenderSelRect (  lpMenu, ( _DevMenuItem* )( unsigned int )lpMenu -> m_pActive -> m_Param, ( _DevMenuItem* )( unsigned int )lpMenu -> m_pSelected -> m_Param  );
 
-  lXYXY = GS_L2P ( 0, 0, g_GSCtx.m_LWidth, 59 );   /* rows 0..58: panel + the Y=56..58 selection arrow */
+  lXYXY = GS_L2P ( 0, 0, g_GSCtx.m_LWidth, 59 );   /* rows 0..58: panel + the Y=54..57 selection arrow */
   lX = ( lXYXY >>  0 ) & 0xFFFF;
   lY = ( lXYXY >> 16 ) & 0xFFFF;
   lW = ( lXYXY >> 32 ) & 0xFFFF;
