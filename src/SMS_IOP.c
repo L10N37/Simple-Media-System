@@ -331,7 +331,12 @@ void SMS_IOPReset ( int afExit ) {
  * Gated to the SAME condition as the empty-arg reset ( afExit && DEV9 ): only the hanging
  * DEV9-exit path changes -- the boot reset ( afExit==0 ) and the already-working non-network
  * exits stay byte-identical, so this cannot regress boot or a non-network exit. */
- if (  afExit && ( g_IOPFlags & SMS_IOPF_DEV9 )  ) SifInitRpc ( 0 );
+/* NOW UNGATED ON DEV9 ( was afExit && DEV9 ). The only path that still reaches this
+ * function with afExit==1 is SMS_EExec ( Exit to -> EXEC0/EXEC1 ), and it hangs for the
+ * SAME reason on ANY bus-mastering module, not just smap -- usbd/OHCI included. Arming
+ * SIF0 going into the reset is exactly as valid there as it was for dev9. The boot reset
+ * ( afExit==0 ) is untouched, so this cannot regress boot. */
+ if ( afExit ) SifInitRpc ( 0 );
 
 /* On an EXIT reset, use the EMPTY arg -- NOT s_pUDNL ("rom0:UDNL rom0:EELOADCNF"). This
  * is THE udpfs/network exit-hang fix. The UDNL variant runs a long IOP-kernel reload on
@@ -347,7 +352,16 @@ void SMS_IOPReset ( int afExit ) {
  * non-network exits ( mc / USB / MX4SIO, DEV9 never powered ) keep s_pUDNL byte-identical;
  * only a DEV9-powered exit -- the one that hangs -- switches to the empty-arg reset. */
  CRUMB (  8, "SifIopReset" );      /* spins if sceSifSetDma keeps failing        */
- while(!SifIopReset( ( afExit && ( g_IOPFlags & SMS_IOPF_DEV9 ) ) ? "" : s_pUDNL, 0)){};
+/* NOW UNGATED ON DEV9 ( was afExit && DEV9 ). s_pUDNL is the LONG "rom0:UDNL rom0:EELOADCNF"
+ * kernel reload, and its length IS the vulnerability: any IOP module still DMAing into IOP
+ * RAM during it corrupts the reload, so the IOP never reaches BOOTEND. That was measured
+ * with smap, but usbd/OHCI DMAs on its own too ( periodic SOF / interrupt endpoints ), so a
+ * no-dev9 exec exit was taking the LONGEST window with NONE of the mitigations -- the worst
+ * possible combination. The empty-arg reset is the short, tolerant reboot every other
+ * loader uses with live bus masters ( OPL system.c, wLaunchELF-R3Z, NHDDL, neutrino ).
+ * Nothing is lost: SMS re-loads its own IOP modules right below, and SMS_EExec then calls
+ * SMS_IOPStartUSB itself. Boot ( afExit==0 ) keeps s_pUDNL byte-identical. */
+ while(  !SifIopReset( afExit ? "" : s_pUDNL, 0 )  ){};
 
  FlushCache(0);
  FlushCache(2);

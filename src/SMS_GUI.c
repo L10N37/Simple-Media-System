@@ -370,7 +370,18 @@ static int _gui_thread ( void* apParam ) {
 
   SleepThread ();
 
-  if ( s_GUIFlags & GUIF_DEV_CHECK ) {
+/* The !( s_Event & GUI_MSG_MOUNT_MASK ) term: only ONE device event may be in flight.
+ * The device id is a VALUE in the 0x1F0000 field ( USB 0x01, HDD 0x03, SMB 0x07, MMCE 0x09 ),
+ * NOT a set of independent bits -- but every arm below merges into s_Event with |=. Two
+ * device events pending at once therefore OR their ids together and silently produce a
+ * DIFFERENT device: MMCE|USB = 0x09 ( the USB mount is swallowed and reported as MMCE ),
+ * HDD|USB = 0x03, and MMCE|HDD = 0x0B which is no device at all. The unit nibble at bit 56
+ * collides the same way, so mmce0 + mmce1 arriving together resolve to a single mmce1.
+ * The LOGIN arm just below is worse still -- it assigns with = and would drop a pending
+ * event outright. Holding off is lossless: each arm clears its source flag ONLY when it
+ * actually posts, so a deferred device stays queued in s_DevFlags / g_MmceFlags /
+ * g_UdpfsFlags, and the drain in GUI_WaitMessage wakes this thread to post it next. */
+  if (   ( s_GUIFlags & GUIF_DEV_CHECK ) && !( s_Event & GUI_MSG_MOUNT_MASK )   ) {
 
    DiskType lDiskType;
 
@@ -861,6 +872,11 @@ u64           GUI_WaitEvent ( void ) {
 
    retVal   = s_Event & ( GUI_MSG_MOUNT_MASK | 0x0F00000000000000L );
    s_Event &= ~( GUI_MSG_MOUNT_MASK | 0x0F00000000000000L );
+/* The device-event slot is now free. Kick the device thread so anything it deferred to
+ * avoid OR-merging two ids ( see the guard in the device-check block ) posts immediately
+ * instead of waiting for the next connect/disconnect wakeup. Harmless if it is awake --
+ * the kernel just counts the wakeup and the next SleepThread returns at once. */
+   if ( s_GUIThreadID > 0 ) WakeupThread ( s_GUIThreadID );
 
   } else if ( s_pMsgQueue -> m_Size ) {
 

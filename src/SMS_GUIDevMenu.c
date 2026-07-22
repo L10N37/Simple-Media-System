@@ -385,7 +385,11 @@ static int GUIDevMenu_HandleMount ( GUIDevMenu* apMenu, unsigned int aMount, u64
 
    if ( lpItem -> m_DevID == lDevID ) {
 
-    if (   lDevID == 0 && lpItem -> m_UnitID != (  ( aMsg >> 56 ) & 15  )   ) goto next;
+/* MMCE ( 7 ) carries a unit digit just like mass ( 0 ) -- mmce0:/mmce1: -- so it must be
+ * unit-matched here too. The mount side already does this ( see the lDevID == 0 || lDevID == 7
+ * test above ); only the REMOVE side was left mass-only, so unmounting mmce1: matched the
+ * first MMCE node in the list and could tear down mmce0: instead. */
+    if (   ( lDevID == 0 || lDevID == 7 ) && lpItem -> m_UnitID != (  ( aMsg >> 56 ) & 15  )   ) goto next;
 
     SMS_ListNode* lpCurNode = lpNode -> m_pNext;
 

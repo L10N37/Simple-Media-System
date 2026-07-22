@@ -609,14 +609,28 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
  * explain WHY. Both rows carry the reciprocal test so the menu always reflects who owns
  * the bus. ( So "Start MMCE" is absent whenever MX4SIO already owns SIO2 -- and whenever
  * MMCE is itself already up, e.g. an MMCE boot -- which is by design, not a missing row. ) */
- if (   !(  g_IOPFlags & ( SMS_IOPF_MX4SIO | SMS_IOPF_MMCE )  )   ) {
+/* ALWAYS EMITTED ( both of them ). These two used to be hidden whenever EITHER was up,
+ * which is how "there is no Start MMCE option" gets reported: an MMCE that is already
+ * running takes its own row away, and so does an MX4SIO that has taken the bus. A row
+ * that silently vanishes is indistinguishable from a build that forgot to include it,
+ * and it leaves no way to see WHY the device is unavailable.
+ * Safe to always offer: both starters are idempotent and self-guarding --
+ * SMS_IOPStartMX4SIO returns success immediately if MX4SIO is already up and refuses
+ * cleanly if MMCE holds SIO2 ( SMS_IOP.c ), and SMS_IOPStartMMCE mirrors it exactly. So
+ * pressing an already-started device is a harmless no-op, and pressing the one whose bus
+ * the sibling owns reports an error -- which is the honest answer, and strictly more
+ * informative than the row not being there at all.
+ * Deliberately NOT setting m_IconRight here: dynamic rows shift index as devices appear
+ * and disappear, so a state icon written now would go stale on whatever row later lands
+ * on this slot -- the same index-locking trap as the static block above. */
+ if ( 1 ) {
 
   s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_MX4SIO;
   s_DevMenu[   lSize ].Handler       = _startmx4sio_handler;
 
  }  /* end if */
 
- if (   !(  g_IOPFlags & ( SMS_IOPF_MMCE | SMS_IOPF_MX4SIO )  )   ) {   /* MX4SIO owns the same SIO2 bus -- see the note above */
+ if ( 1 ) {   /* see the note above -- shown even when MX4SIO owns the shared SIO2 bus */
 
   s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_MMCE;
   s_DevMenu[   lSize ].Handler       = _startmce_handler;
