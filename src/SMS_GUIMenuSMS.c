@@ -973,24 +973,38 @@ void _exit_handler ( GUIMenu* apMenu, int aDir ) {
 
  if ( !lIdx ) {
 
-/* E11 FIX ( measured on hw: with UDPFS/dev9 live the exit hangs at E11 -- the post-reset
- * SifInitRpc's RPCINIT step, i.e. the IOP's SET_SREG never lands over SIF0 IOP->EE DMA ).
- * On the boot-browser exit that in-place SMS_IOPReset(1) is DEAD WORK: nothing uses its SIF
- * re-handshake or reloaded IOP modules before Exit(0), which returns to the PS2 browser --
- * and the browser re-inits the IOP itself. wLaunchELF-R3Z's own PS2Browser exit is a bare
- * Exit(0) with NO in-place reset ( refs/wLaunchELF_R3Z/src/main_actions.c:415 ) and it exits
- * fine with the SAME udpfs/smap/dev9 stack live. So on a DEV9 exit, SKIP the reset and just
- * Exit(0) -- the E11 site is then unreachable. Gated to DEV9: every non-network browser exit
- * keeps the long-proven reset byte-identical. If E26 latches on hw, the wedge moved into the
- * browser's own IOP reset ( -> the smap-RX-quiesce path is next ); if the browser appears,
- * fixed. */
-  if ( g_IOPFlags & SMS_IOPF_DEV9 ) {
-   SMS_ExitCrumb ( 26, "Exit(0) noreset" );
-  } else {
-   SMS_ExitCrumb ( 3, "IOPReset in" );
-   SMS_IOPReset ( 1 );
-   SMS_ExitCrumb ( 25, "Exit(0)" );   /* reached => the wedge is in Exit(0)/ROM, not SMS */
-  }  /* end else */
+/* E11 FIX -- now UNCONDITIONAL. On the boot-browser exit the in-place SMS_IOPReset(1) is
+ * DEAD WORK: nothing uses its SIF re-handshake or its reloaded IOP modules before Exit(0),
+ * which returns to the PS2 browser -- and the browser re-inits the IOP itself.
+ * wLaunchELF-R3Z's PS2Browser exit is likewise a bare Exit(0) with NO in-place reset
+ * ( refs/wLaunchELF_R3Z/src/main_actions.c:415 ).
+ *
+ * WHY IT IS NO LONGER GATED ON DEV9. The first cut of this fix only skipped the reset when
+ * dev9 was up, because a live smap was the only DMA source we had MEASURED hanging it, and
+ * leaving every other exit byte-identical was the conservative call. A second hardware
+ * report then landed with NO dev9 at all -- booted from USB with MMCE also mounted -- and it
+ * hung in exactly the same place ( E11 = the post-reset SifInitRpc ). That closes the
+ * question: the hazard was never network-specific.
+ *
+ * The mechanism is spelled out at the SifIopReset call in SMS_IOP.c: a non-dev9 exit reset
+ * passes s_pUDNL, the LONG "rom0:UDNL rom0:EELOADCNF" IOP-kernel reload, and ANY IOP module
+ * still DMAing into IOP RAM during that reload corrupts it, so the IOP never reaches
+ * BOOTEND / never raises RPCINIT and the EE spins forever. That argument was written about
+ * smap's inbound-frame RX, but nothing in it is specific to a NIC -- usbd/OHCI is a periodic
+ * DMA engine too ( SOF + interrupt-endpoint processing runs on its own, whether or not SMS
+ * asked for anything ), and so is any other bus master we leave hot. Gating on dev9 just
+ * meant the next hot module found the same trap.
+ *
+ * Skipping the reset removes the trap for every device instead of one. The risk of doing it
+ * everywhere is low and already evidenced: the dev9 path proved on hardware that a bare
+ * Exit(0) survives handing the browser an IOP with a live DMA-driving module ( smap ), which
+ * is the strictly harder case than a quiescent one. Devices are not left dirty either -- the
+ * PFS umount above still runs, and the browser resets the IOP from ROM regardless.
+ *
+ * If a hang is ever reported here again, re-enable the breadcrumbs ( one no-op line in
+ * SMS_ExitCrumb, SMS_IOP.c ): E26 latching now means the wedge is inside the browser's own
+ * IOP reset rather than anything SMS does. */
+  SMS_ExitCrumb ( 26, "Exit(0) noreset" );
 #ifndef EMBEDDED
   Exit ( 0 );
 #else

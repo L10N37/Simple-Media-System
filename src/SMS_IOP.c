@@ -277,6 +277,15 @@ void SMS_IOPReset ( int afExit ) {
 
  int i;
 
+/* ⚠ afExit IS NOW ALWAYS 0. The only caller left is the boot reset in main.c; the "Exit SMS"
+ * handler no longer resets the IOP at all ( see the E11 FIX note in SMS_GUIMenuSMS.c -- the
+ * reset was dead work before Exit(0) and hung whenever a bus-mastering IOP module was still
+ * live: measured with smap, then again with usbd ). Everything below gated on `afExit` --
+ * the CRUMB macro, the pre-reset SifInitRpc, and the empty-arg-vs-s_pUDNL choice -- is
+ * therefore INERT. It is deliberately left in place rather than ripped out: this is the
+ * boot path, the dead branches cost nothing, and the history is worth keeping if the exit
+ * behaviour is ever revisited. Do not read the afExit branches as live exit behaviour. */
+
 /* EXIT-HANG NOTE ( the "hangs on Loading boot browser" after UDPFS/network ): the fix is
  * the reset ARGUMENT below, NOT a DEV9 shutdown here. A previous version power-cut DEV9
  * ( DEV9CTLSHUTDOWN ) at this point -- that was WRONG and made it worse: dev9Shutdown cuts
