@@ -28,6 +28,7 @@
 extern SMS_Player s_Player;
 
 extern void** SMS_OpenMediaFile ( const char*, int );
+extern char   g_LastPlayed[];   /* SMS_GUIFileMenu.c -- basename of the track now playing */
 
 static void _start_player   ( FileContext*, FileContext*, SubtitleFormat );
 static void _start_playlist ( SMS_List*                                  );
@@ -101,8 +102,64 @@ void _start_player ( FileContext* apFileCtx, FileContext* apSubCtx, SubtitleForm
 
  } else {
 
-  lpPlayer -> Play    ( lpPlayer );
+/* CONTINUOUS PLAYBACK ( requested: "listen to the songs without having to tap them one by one" ).
+ * SMS could already do this, but ONLY via the file context menu -> Play all -> Audio, which
+ * builds a filtered folder list and runs it through _start_playlist. Picking a single track
+ * played exactly that track and dropped back to the browser -- so the feature existed and was
+ * simply undiscoverable. Playing one song now continues into the rest of the folder, which is
+ * what every music player does.
+ *
+ * Deliberately mirrors _start_playlist's loop instead of inventing a second playback path:
+ * Play() ALREADY returns SMS_FLAGS_USER_STOP ( SMS_Player.c ), i.e. it distinguishes "the
+ * track ended" from "the user stopped it" -- this call site was just discarding the return.
+ * So the rule is: advance on a natural end, stop dead on a user stop ( BACK / STOP must still
+ * mean back to the browser, never "play the next one" ).
+ *
+ * AUDIO ONLY, by design -- the current row must itself be GUICON_MP3. Auto-advancing videos
+ * would be a surprise, and the next file after a video is usually unrelated.
+ * SMS_OpenMediaFile rewrites g_LastPlayed each time, so the loop walks forward naturally and
+ * cannot revisit a track. Every exit path falls through to the same GUI_Initialize( 0 ), so
+ * the browser is restored exactly as before whichever way the loop ends. */
+  int lfUserStop = lpPlayer -> Play ( lpPlayer );
+
   lpPlayer -> Destroy ( lpPlayer );
+
+  while ( !lfUserStop ) {
+
+   SMS_ListNode* lpNode;
+   void**        lpParam;
+
+   if ( !g_pFileList ) break;
+
+   lpNode = SMS_ListFindI ( g_pFileList, g_LastPlayed );
+
+   if (  !lpNode || ( int )lpNode -> m_Param != GUICON_MP3  ) break;   /* audio only */
+
+   do {
+    lpNode = lpNode -> m_pNext;
+   } while (  lpNode && ( int )lpNode -> m_Param != GUICON_MP3  );
+
+   if ( !lpNode ) break;   /* last track in the folder */
+
+   GUI_Initialize ( -1 );
+
+   lpParam = SMS_OpenMediaFile (  _STR( lpNode ), SMS_FA_FLAGS_AVI  );
+
+   if ( !lpParam ) break;
+
+   lpPlayer = SMS_InitPlayer (
+    ( FileContext* )lpParam[ 0 ], ( FileContext* )lpParam[ 1 ], ( SubtitleFormat )lpParam[ 2 ]
+   );
+
+   free ( lpParam );
+
+   if ( !lpPlayer ) break;
+
+   lfUserStop = lpPlayer -> Play ( lpPlayer );
+
+   lpPlayer -> Destroy ( lpPlayer );
+
+  }  /* end while */
 
   GUI_Initialize ( 0 );
 

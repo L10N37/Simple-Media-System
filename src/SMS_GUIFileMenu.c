@@ -428,6 +428,14 @@ static void _make_path ( char* apBuff, char** appPathEnd, const char* apName ) {
 
 }  /* end _make_path */
 
+/* Basename of the file most recently handed to the player. Continuous playback needs to know
+ * WHERE in the current listing the playing track sits so it can find the one after it, and the
+ * player itself only ever receives a FileContext -- it has no idea which browser row produced
+ * it. Recorded here, at the single choke point every play request already goes through, rather
+ * than threading a node pointer through the GUI message payload ( which is a packed u64 with
+ * no room left ). Basename, matching what g_pFileList stores, so SMS_ListFindI can locate it. */
+char g_LastPlayed[ 256 ] __attribute__(   (  section( ".bss" )  )   );
+
 void** SMS_OpenMediaFile ( const char* apName, int aFlags ) {
 
  char         lPath[ 1024 ];
@@ -438,6 +446,9 @@ void** SMS_OpenMediaFile ( const char* apName, int aFlags ) {
  SMS_PgIndStart ();
 
  _make_path ( lPath, &lpPathEnd, apName );
+
+ strncpy (  g_LastPlayed, apName, sizeof ( g_LastPlayed ) - 1  );
+ g_LastPlayed[  sizeof ( g_LastPlayed ) - 1  ] = '\0';
 
  if ( g_CMedia == 1 && g_pCDDACtx )
 
