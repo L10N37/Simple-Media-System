@@ -1721,7 +1721,23 @@ void File_Skip ( FileContext* apFileCtx, unsigned int aCount ) {
  unsigned int lnRem    = aCount % 512;
  unsigned int i;
 
- for ( i = 0; i < lnBlocks; ++i ) apFileCtx -> Read ( apFileCtx, g_SMSounds, 512 );
+/* STOP AT EOF. This is a read LOOP, not a seek, and it used to run the loop to completion no
+ * matter what Read returned -- so a caller that computed a bogus count made SMS grind through
+ * millions of device reads with no way out and no error. That is a hang, not a slow load: at
+ * 512 bytes a pass, a count of 0xFFFFFFF8 is ~8.4 million reads over whatever device the file
+ * lives on ( USB / MX4SIO / network ).
+ * It is easy to compute such a count. Container parsers routinely do
+ *   File_Skip ( ctx, atomSize - headerLen )
+ * on sizes taken straight from the file, and a truncated or malformed atom underflows that
+ * subtraction into a huge unsigned value -- reachable from ordinary probing of an untrusted
+ * file, not just a crafted one.
+ * Checking Read's return fixes the whole class at once rather than one caller at a time:
+ * a legitimate skip is byte-for-byte unchanged ( every Read returns what was asked ), while a
+ * runaway skip now stops at end-of-file instead of hanging the browser. Callers already treat
+ * File_Skip as best-effort and none inspect a result, so failing short is safe here. */
+ for ( i = 0; i < lnBlocks; ++i )
+
+  if (  apFileCtx -> Read ( apFileCtx, g_SMSounds, 512 ) != 512  ) return;
 
  if ( lnRem ) apFileCtx -> Read ( apFileCtx, g_SMSounds, lnRem );
 

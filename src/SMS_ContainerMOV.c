@@ -129,7 +129,13 @@ static int _mov_read_ftyp ( MOVContext* apCtx, FileContext* apFileCtx, MOVAtom* 
  uint32_t lType = File_GetUInt ( apFileCtx );
  if (  lType != SMS_MKTAG( 'q', 't', ' ', ' ' )  ) apCtx -> m_fISOM = 1;
  File_GetUInt ( apFileCtx );
- File_Skip (  apFileCtx, ( uint32_t )( apAtom -> m_Size - 8 )  );
+/* m_Size is already the DECLARED size minus the 8-byte atom header, and the two File_GetUInt
+ * calls above have just consumed 8 more bytes of it -- so a short or truncated ftyp ( declared
+ * 8..15 ) makes this subtraction underflow to a value near 4 GB. The probe only checks that the
+ * 'ftyp' TAG is present, never its size, so any file with those four bytes at offset 4 reaches
+ * here. File_Skip now stops at EOF so this can no longer hang, but skipping the right amount
+ * keeps the atom dispatcher byte-synced instead of desynced-then-truncated. */
+ if (  apAtom -> m_Size >= 8  ) File_Skip (  apFileCtx, ( uint32_t )( apAtom -> m_Size - 8 )  );
  return 0;
 }  /* end _mov_read_ftyp */
 
@@ -775,7 +781,14 @@ static void _mov_build_index ( SMS_Container* apCont, MOVStream* apMyStm, SMS_St
     } else {
      lChunkDuration += apMyStm -> m_pStts[ lSTTSIdx ].m_Duration * lnChunkSamples;
      lnChunkSamples -= apMyStm -> m_pStts[ lSTTSIdx ].m_Count;
+/* Bail once the stts table is exhausted. Neither term is guaranteed to advance: a malformed
+ * entry with m_Count == 0 subtracts nothing, and on the LAST entry the index is pinned too --
+ * so the loop condition could never change and this span hung forever with no I/O at all
+ * ( a dead freeze, not a slow load, and nothing on screen to explain it ). A well-formed file
+ * consumes lnChunkSamples exactly, so this only fires on a broken table, where stopping is the
+ * only correct move. */
      if ( lSTTSIdx + 1 < apMyStm -> m_nStts ) ++lSTTSIdx;
+     else break;
     }  /* end else */
    }  /* end while */
    lCurDTS += lChunkDuration / apMyStm -> m_TimeRate;
