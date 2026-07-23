@@ -41,6 +41,11 @@ struct SMS_ListNode;
 #define SMS_CONTAINER_MPEG_PS 8
 #define SMS_CONTAINER_JPG     9
 #define SMS_CONTAINER_M3U    10
+/* MOV/MP4 ( ISO-BMFF ) keeping the VIDEO track. SMS_CONTAINER_M4A above reads the very same
+ * file format but swaps in an hdlr handler that FREES every video track, because it exists to
+ * serve .m4a audio. Both must stay: .m4a keeps the audio-only reader, .mp4 now uses this one.
+ * MUST match the index of SMS_GetContainerMOV in s_CCreator[] ( SMS_Container.c ). */
+#define SMS_CONTAINER_MOV    11
 
 #define SMS_CONT_FLAGS_SEEKABLE 0x00000001
 

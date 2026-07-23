@@ -385,6 +385,11 @@ static int _mov_read_stts ( MOVContext* apCtx, FileContext* apFileCtx, MOVAtom* 
   lpMyStm -> m_nStts    = lnEntries;
   lpMyStm -> m_pStts    = ( MOVStts* )malloc ( lnEntries * sizeof ( MOVStts )  );
   lpMyStm -> m_TimeRate = 0;
+  if ( !lpMyStm -> m_pStts ) {   /* 32MB heap: a large ( or bogus ) entry count can fail */
+   lpMyStm -> m_nStts = 0;
+   File_Skip (  apFileCtx, ( uint32_t )apAtom -> m_Size  );
+   return 0;
+  }  /* end if */
   for ( i = 0; i < lnEntries; ++i ) {
    int lSampleCount    = _read_int_be ( apFileCtx );
    int lSampleDuration = _read_int_be ( apFileCtx );
@@ -394,6 +399,31 @@ static int _mov_read_stts ( MOVContext* apCtx, FileContext* apFileCtx, MOVAtom* 
    lDuration  += ( int64_t )lSampleDuration * lSampleCount;
   }  /* end for */
   if ( lDuration ) lpStm -> m_Duration = lDuration;
+
+/* FRAME RATE -- required, not cosmetic. m_FrameRate / m_FrameRateBase were set in exactly ONE
+ * place in the whole tree ( SMS_ContainerAVI.c, the AVI header reader ), and this demuxer never
+ * touched them. Its codec context is calloc'd, so both stayed 0 and MPEG4_Init computed
+ * ( float )0 / ( float )0 -- which is then rounded and written into COP0 $11, the Compare
+ * register, to drive the CPU timer handler. Harmless while .mp4 went to the audio-only reader
+ * and no video decoder ever started; the moment video is kept ( below ) it becomes a garbage
+ * value in a timer control register, so this has to land FIRST.
+ * ISO-BMFF states frame duration rather than a rate: fps = media timescale / per-sample delta,
+ * which is exactly the numerator/denominator pair AVI supplies as rate/scale ( 30000/1001 and
+ * friends ), so the existing contract is reused unchanged rather than a new convention added.
+ * Entry 0 is the right delta: constant-frame-rate files have exactly one stts entry, and for
+ * variable ones the first is the dominant delta -- and this pair only sets the decoder's
+ * nominal rate, while actual presentation timing still comes from the per-sample DTS the index
+ * builds. m_TimeScale is read from mdhd, which precedes stbl/stts inside the same trak, so it
+ * is always populated by the time we get here. Audio streams are untouched. */
+  if ( lpStm -> m_pCodec -> m_Type == SMS_CodecTypeVideo &&
+       lnEntries                                        &&
+       lpMyStm -> m_pStts[ 0 ].m_Duration > 0            &&
+       lpMyStm -> m_TimeScale            > 0
+  ) {
+   lpStm -> m_pCodec -> m_FrameRate     = lpMyStm -> m_TimeScale;
+   lpStm -> m_pCodec -> m_FrameRateBase = lpMyStm -> m_pStts[ 0 ].m_Duration;
+  }  /* end if */
+
  } else File_Skip (  apFileCtx, ( uint32_t )apAtom -> m_Size  );
  return 0;
 }  /* end _mov_read_stts */

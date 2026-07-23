@@ -139,9 +139,18 @@ int SMS_ContID ( const char* apName ) {
    retVal = SMS_CONTAINER_OGG;
   else if (  !stricmp ( lpExt, s_pWMA )  )
    retVal = SMS_CONTAINER_ASF;
-  else if (  !stricmp ( lpExt, s_pM4A ) ||
-             !stricmp ( lpExt, s_pMP4 )
-       ) retVal = SMS_CONTAINER_M4A;
+/* .mp4 and .m4a are the SAME file format ( ISO-BMFF ) but want different readers, so they no
+ * longer share one id. .m4a keeps SMS_CONTAINER_M4A, whose hdlr handler deletes video tracks --
+ * correct for an audio file and it also skips building a video index for nothing. .mp4 goes to
+ * SMS_CONTAINER_MOV, which keeps the video track so 'mp4v' ( MPEG-4 Part 2 ) actually reaches
+ * the decoder SMS already has. Sending .mp4 to the audio-only reader is why an mp4 used to open
+ * as a soundtrack with the music visualiser and no error.
+ * This is only the container hint: SMS_GetContainer still probes, so an .mp4 that really is
+ * audio-only falls through to the M4A reader on its own. */
+  else if (  !stricmp ( lpExt, s_pM4A )  )
+   retVal = SMS_CONTAINER_M4A;
+  else if (  !stricmp ( lpExt, s_pMP4 )  )
+   retVal = SMS_CONTAINER_MOV;
   else if (  !stricmp ( lpExt, s_pAAC )  )
    retVal = SMS_CONTAINER_AAC;
   else if (  !stricmp ( lpExt, s_pAC3 )  )
@@ -181,8 +190,15 @@ int SMS_FileID ( const char* apName ) {
 
   const char* lpExt = apName + lLen - 4;
 
+/* .mp4 moved here from the audio group. It was classed as GUICON_MP3 back when .mp4 could only
+ * ever play as a soundtrack, and that classification drives three separate things: the browser
+ * icon, which of the Play-all filters ( Audio / Video ) the file lands in, and -- since
+ * continuous playback was added -- whether finishing it auto-advances to the next file. Leaving
+ * an mp4 marked as audio now would give a video a music icon and, worse, chain-play videos like
+ * a song queue. .m4a deliberately stays in the audio group; it is the audio-only sibling. */
   if (       !stricmp ( lpExt, s_pAVI  ) ||
-             !stricmp ( lpExt, s_pMPG  )
+             !stricmp ( lpExt, s_pMPG  ) ||
+             !stricmp ( lpExt, s_pMP4  )
   )
    retVal = GUICON_AVI;
   else if (  !stricmp ( lpExt, s_pMP3 ) ||
@@ -192,7 +208,6 @@ int SMS_FileID ( const char* apName ) {
              !stricmp ( lpExt, s_pWMA ) ||
              !stricmp ( lpExt, s_pM4A ) ||
              !stricmp ( lpExt, s_pAAC ) ||
-             !stricmp ( lpExt, s_pMP4 ) ||
              !stricmp ( lpExt, s_pAC3 )
        )
    retVal = GUICON_MP3;

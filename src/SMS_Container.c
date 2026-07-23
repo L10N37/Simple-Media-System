@@ -41,6 +41,8 @@ static const ContainerCreator s_CCreator[] = {
  SMS_GetContainerMPEG_PS,
  SMS_GetContainerJPG,
  SMS_GetContainerM3U,
+ SMS_GetContainerMOV,   /* index 11 -- MUST equal SMS_CONTAINER_MOV. Was absent entirely, so
+                         * the video-preserving ISO-BMFF demuxer was compiled-in dead code. */
  NULL
 };
 
