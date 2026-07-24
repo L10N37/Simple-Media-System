@@ -519,6 +519,29 @@ static int _mov_read_ctts ( MOVContext* apCtx, FileContext* apFileCtx, MOVAtom* 
  return 0;
 }  /* end _mov_read_ctts */
 
+static int _mov_read_stss ( MOVContext* apCtx, FileContext* apFileCtx, MOVAtom* apAtom ) {
+ SMS_Stream* lpStm = apCtx -> m_pBase -> m_pStm[ apCtx -> m_pBase -> m_nStm - 1 ];
+ if ( lpStm ) {
+  MOVStream*   lpMyStm = ( MOVStream* )lpStm -> m_pCtx;
+  unsigned int i, lnEntries;
+  File_Skip ( apFileCtx, 4 );
+  lnEntries = _read_int_be ( apFileCtx );
+  if (  lnEntries >= UINT_MAX / sizeof ( int )  ) return -1;
+  lpMyStm -> m_nKeyFrames = lnEntries;
+  lpMyStm -> m_pKeyFrames = ( int* )malloc (  lnEntries * sizeof ( int )  );
+/* Same paranoia as _mov_read_stts: a bogus entry count can make a 32MB heap fail the
+ * malloc. Falling back to m_nKeyFrames == 0 is safe -- ISO-BMFF says that without stss
+ * EVERY sample is a sync sample, which is exactly how _mov_build_index treats it. */
+  if ( !lpMyStm -> m_pKeyFrames ) {
+   lpMyStm -> m_nKeyFrames = 0;
+   File_Skip (  apFileCtx, 4 * lnEntries  );
+   return 0;
+  }  /* end if */
+  for ( i = 0; i < lnEntries; ++i ) lpMyStm -> m_pKeyFrames[ i ] = _read_int_be ( apFileCtx );
+ } else File_Skip (  apFileCtx, ( uint32_t )apAtom -> m_Size  );
+ return 0;
+}  /* end _mov_read_stss */
+
 static int _mov_read_mdat ( MOVContext* apCtx, FileContext* apFileCtx, MOVAtom* apAtom ) {
  if ( apAtom -> m_Size == 0 ) return 0;
  apCtx -> m_pMDAT = ( MOVMDat* )realloc ( apCtx -> m_pMDAT, ( apCtx -> m_nMDAT + 1 ) * sizeof ( *apCtx -> m_pMDAT )  );
@@ -627,6 +650,7 @@ static MOVParseEntry s_MOVParseTbl[] = {
  { SMS_MKTAG( 's', 't', 's', 'd' ), _mov_read_stsd },
  { SMS_MKTAG( 'e', 's', 'd', 's' ), _mov_read_esds },
  { SMS_MKTAG( 's', 't', 't', 's' ), _mov_read_stts },
+ { SMS_MKTAG( 's', 't', 's', 's' ), _mov_read_stss },
  { SMS_MKTAG( 'w', 'a', 'v', 'e' ), _mov_read_wave },
  { SMS_MKTAG( 's', 't', 's', 'c' ), _mov_read_stsc },
  { SMS_MKTAG( 'c', 't', 't', 's' ), _mov_read_ctts },
@@ -691,8 +715,8 @@ static int _mov_read_dflt ( MOVContext* apCtx, FileContext* apFileCtx, MOVAtom* 
               lpIt -> m_Func == _mov_read_hdlr || lpIt -> m_Func == _mov_read_hdlr_m4a ||
               lpIt -> m_Func == _mov_read_stsd || lpIt -> m_Func == _mov_read_esds     ||
               lpIt -> m_Func == _mov_read_stts || lpIt -> m_Func == _mov_read_stsc     ||
-              lpIt -> m_Func == _mov_read_stsz || lpIt -> m_Func == _mov_read_stco     ||
-              lpIt -> m_Func == _mov_read_ctts )  )
+              lpIt -> m_Func == _mov_read_stss || lpIt -> m_Func == _mov_read_stsz     ||
+              lpIt -> m_Func == _mov_read_stco || lpIt -> m_Func == _mov_read_ctts )  )
    File_Skip (  apFileCtx, ( uint32_t )lAtom.m_Size  );
   else {
    uint32_t lStartPos = apFileCtx -> m_CurPos;
@@ -746,6 +770,13 @@ static void _mov_build_index ( SMS_Container* apCont, MOVStream* apMyStm, SMS_St
    ) ++lSTSCIdx;
    for (  j = 0; j < ( unsigned int )apMyStm -> m_pSample2Chunk[ lSTSCIdx ].m_Count; ++j ) {
     if ( lCurSample >= apMyStm -> m_nSamples ) return;
+/* A stss entry the cursor has already passed can never match again ( entry beyond the
+ * indexed samples in a truncated file, or non-monotonic garbage in a crafted one ) and
+ * would pin lSTSSIdx, mis-flagging every later sample as non-key. Well-formed tables are
+ * strictly increasing, so on real files this loop does nothing. */
+    while (  lSTSSIdx + 1 < apMyStm -> m_nKeyFrames &&
+             lCurSample + 1 > ( unsigned int )apMyStm -> m_pKeyFrames[ lSTSSIdx ]
+    ) ++lSTSSIdx;
     lKeyFrame = !apMyStm -> m_nKeyFrames || lCurSample + 1 == ( unsigned int )apMyStm -> m_pKeyFrames[ lSTSSIdx ];
     if ( lKeyFrame ) {
      if ( lSTSSIdx + 1 < apMyStm -> m_nKeyFrames ) ++lSTSSIdx;
@@ -756,11 +787,15 @@ static void _mov_build_index ( SMS_Container* apCont, MOVStream* apMyStm, SMS_St
     lCurDTS    += apMyStm -> m_pStts[ lSTTSIdx ].m_Duration / apMyStm -> m_TimeRate;
     lSTTSample += 1;
     lCurSample += 1;;
-    if ( lSTSSIdx + 1  < apMyStm -> m_nStts &&
+/* This advance walked lSTSSIdx -- the KEYFRAME cursor -- instead of lSTTSIdx. Harmless while
+ * stss was never parsed ( lSTSSIdx was always 0 and unused ), but with a real stss table every
+ * stts segment boundary would knock the keyframe walk out of sync, and lSTTSIdx never moved,
+ * so DTS deltas after the first stts segment were wrong as well. */
+    if ( lSTTSIdx + 1  < apMyStm -> m_nStts &&
          lSTTSample   == ( unsigned int )apMyStm -> m_pStts[ lSTTSIdx ].m_Count
     ) {
      lSTTSample = 0;
-     lSTSSIdx  += 1;;
+     lSTTSIdx  += 1;
     }  /* end if */
    }  /* end for */
   }  /* end for */
@@ -879,6 +914,14 @@ static int _mov_read_header ( SMS_Container* apCont ) {
 
   _mov_build_index ( apCont, lpMyStm, lpStm );
 
+/* _ReadPacket bounds the sample cursor with m_nSamples but indexes m_pIdx with it, and the
+ * seek repositions that same cursor -- so a file whose tables declare more samples than the
+ * chunks really contain ( truncated download ) would walk off the end of the index. Clamp
+ * to what was actually indexed. For the per-chunk audio path below this is also the more
+ * correct bound: there m_CurSample counts index entries ( chunks ), not samples. */
+  if (  lpMyStm -> m_nSamples > ( unsigned int )lpMyStm -> m_nIdx  )
+   lpMyStm -> m_nSamples = lpMyStm -> m_nIdx;
+
   _free ( lpMyStm -> m_pChunkOffsets );
   _free ( lpMyStm -> m_pSample2Chunk );
   _free ( lpMyStm -> m_pSampleSize   );
@@ -984,6 +1027,159 @@ static int _ReadPacket ( SMS_Container* apCont, int* apIdx ) {
 
 }  /* end _ReadPacket */
 
+static unsigned int _mov_locate_sample ( MOVIndex* apIdx, int anIdx, uint32_t aDTS ) {
+
+ unsigned int lA, lB, lM;
+ uint32_t     lDTS;
+
+ lA = 0;
+ lB = anIdx - 1;
+
+ while ( lA <= lB ) {
+
+  lM   = ( lA + lB ) >> 1;
+  lDTS = apIdx[ lM ].m_DTS;
+
+  if ( lDTS == aDTS || !lM )
+
+   goto found;
+
+  else if ( lDTS > aDTS )
+
+   lB = lM - 1;
+
+  else lA = lM + 1;
+
+ }  /* end while */
+
+ lM = lA;
+
+ if ( lM > 0 ) --lM;
+found:
+ return lM;
+
+}  /* end _mov_locate_sample */
+
+static void _mov_sync_ctime ( MOVStream* apMyStm ) {
+
+ unsigned int i, lCovered;
+
+/* _ReadPacket walks the ctts table linearly alongside the sample cursor, so a seek that
+ * moves m_CurSample must replay this walk up to the same sample or every PTS from here on
+ * is garbage. No ctts ( no B-frames ) means PTS == DTS and there is nothing to replay.
+ * m_nCtts == 0 with m_pCtts still allocated happens when _mov_read_ctts bailed on a
+ * negative duration -- same nothing-to-replay case. */
+ if ( !apMyStm -> m_pCtts || !apMyStm -> m_nCtts ) return;
+
+ lCovered = 0;
+
+ for ( i = 0; i < apMyStm -> m_nCtts; ++i ) {
+
+  if (  lCovered + ( unsigned int )apMyStm -> m_pCtts[ i ].m_Count > apMyStm -> m_CurSample  ) {
+
+   apMyStm -> m_Sample2CTimeIdx    = i;
+   apMyStm -> m_Sample2CTimeSample = apMyStm -> m_CurSample - lCovered;
+   return;
+
+  }  /* end if */
+
+  lCovered += apMyStm -> m_pCtts[ i ].m_Count;
+
+ }  /* end for */
+
+/* The cursor sits past every ctts entry ( truncated table ): pin to the last one rather
+ * than letting _ReadPacket index off the end. */
+ apMyStm -> m_Sample2CTimeIdx    = apMyStm -> m_nCtts - 1;
+ apMyStm -> m_Sample2CTimeSample = 0;
+
+}  /* end _mov_sync_ctime */
+
+static int _Seek ( SMS_Container* apCont, int anIdx, int aDir, uint32_t aPos ) {
+
+ SMS_Stream*  lpStm;
+ MOVStream*   lpMyStm;
+ FileContext* lpFileCtx = apCont -> m_pFileCtx;
+ int64_t      lTime;
+ uint32_t     lSample, lEnd, lPos, i;
+
+ if (  anIdx < 0 || anIdx >= ( int )apCont -> m_nStm  ) return 0;
+
+ lpStm   = apCont -> m_pStm[ anIdx ];
+ lpMyStm = ( MOVStream* )lpStm -> m_pCtx;
+
+ if (  !lpMyStm -> m_nIdx || !lpMyStm -> m_pIdx  ) return 0;
+
+/* CONTRACT -- mirrors _Seek in SMS_ContainerAVI.c, which every caller was written against.
+ * aPos is the target timestamp in the INDEXED ( video ) stream's time-base units: callers
+ * ( PlayerControl_Scroll / PlayerControl_ScrollBar for FF-REW and the scrollbar, _sms_play
+ * for resume-from-history ) rescale wall time with lpStm -> m_TimeBase, and the index DTS
+ * is stored in those very units by _mov_build_index, so the two compare directly. aDir is
+ * +1 forward / -1 backward and picks which side of aPos the keyframe is taken from; return
+ * is 1 on success, 0 when the target is out of range. The packet ring buffers are NOT
+ * flushed here: every caller drains and resets them around the seek ( _init_queues /
+ * InitQueues ), exactly as with AVI. aDir == 0 never comes from the video seek paths --
+ * treat it as backward instead of walking "in direction 0" forever. */
+ if ( !aDir ) aDir = -1;
+
+/* Same range check AVI does ( target past the last frame fails ). */
+ if (  aPos > lpMyStm -> m_pIdx[ lpMyStm -> m_nIdx - 1 ].m_DTS  ) return 0;
+
+ lSample = _mov_locate_sample ( lpMyStm -> m_pIdx, lpMyStm -> m_nIdx, aPos );
+ lEnd    = aDir > 0 ? ( uint32_t )lpMyStm -> m_nIdx : 0;
+
+ while (  lSample != lEnd && !lpMyStm -> m_pIdx[ lSample ].m_Flags  ) lSample += aDir;
+
+ if (  lSample == ( uint32_t )lpMyStm -> m_nIdx  ) return 0;
+
+/* The keyframe's timestamp in the neutral SMS_TIME_BASE units _ReadPacket uses to pick the
+ * lowest-DTS stream. The other streams' cursors are placed on that same instant so the
+ * interleave resumes consistently -- audio typically lands a few frames BEFORE the video
+ * keyframe, which is exactly what the decoders expect after a seek. */
+ lTime = SMS_Rescale (
+  lpMyStm -> m_pIdx[ lSample ].m_DTS * lpMyStm -> m_TimeRate,
+  SMS_TIME_BASE, lpMyStm -> m_TimeScale
+ );
+
+ lpMyStm -> m_CurSample = lSample;
+ _mov_sync_ctime ( lpMyStm );
+
+ lPos = lpMyStm -> m_pIdx[ lSample ].m_Pos;
+
+ for ( i = 0; i < apCont -> m_nStm; ++i ) {
+
+  MOVStream* lpMyCurStm;
+
+  if ( i == ( uint32_t )anIdx ) continue;
+
+  lpMyCurStm = ( MOVStream* )apCont -> m_pStm[ i ] -> m_pCtx;
+
+  if (  !lpMyCurStm -> m_nIdx  ) continue;
+
+  lSample = _mov_locate_sample (
+   lpMyCurStm -> m_pIdx, lpMyCurStm -> m_nIdx,
+   ( uint32_t )SMS_Rescale (  lTime, lpMyCurStm -> m_TimeScale, SMS_TIME_BASE * ( int64_t )lpMyCurStm -> m_TimeRate  )
+  );
+
+  lpMyCurStm -> m_CurSample = lSample;
+  _mov_sync_ctime ( lpMyCurStm );
+
+  if (  lpMyCurStm -> m_pIdx[ lSample ].m_Pos < lPos  ) lPos = lpMyCurStm -> m_pIdx[ lSample ].m_Pos;
+
+ }  /* end for */
+
+/* The scrollbar restarts file streaming at m_CurPos right after this returns, so leave the
+ * file on the earliest sample ANY stream will read, not on the video keyframe. _ReadPacket
+ * re-seeks per sample anyway, but starting the streamer here keeps the buffer ahead full. */
+ if (  lPos < lpFileCtx -> m_Size  ) {
+
+  lpFileCtx -> Seek ( lpFileCtx, lPos );
+
+  return 1;
+
+ } else return 0;
+
+}  /* end _Seek */
+
 static int _GetContainerMOV ( SMS_Container* apCont, const MOVParseEntry* apParseTbl ) {
 
  int          retVal    = 0;
@@ -1000,8 +1196,31 @@ static int _GetContainerMOV ( SMS_Container* apCont, const MOVParseEntry* apPars
 
   if (  _mov_read_header ( apCont )  ) {
 
+   int i;
+
    apCont -> m_pName    = g_pMOV;
    apCont -> ReadPacket = _ReadPacket;
+
+/* FF/REW and the scrollbar reach Seek only through SMS_CONT_FLAGS_SEEKABLE, so gate both on
+ * a video stream with a built index. This function is shared with the M4A reader, but there
+ * _mov_read_hdlr_m4a has already freed every video track ( and an audio-only .mp4 simply has
+ * none ) -- those must NOT become seekable, because the audio-only player path ( _FFwd_A /
+ * _Rew_A in SMS_Player.c ) passes a LIST NODE POINTER as the seek position, which a
+ * timestamp seek would chase into the weeds. With no video there is no keyframe to land on
+ * anyway, so such files keep the old inert behavior. */
+   for (  i = 0; i < ( int )apCont -> m_nStm; ++i  ) {
+
+    SMS_Stream* lpStm = apCont -> m_pStm[ i ];
+
+    if (  lpStm -> m_pCodec -> m_Type == SMS_CodecTypeVideo &&
+          (  ( MOVStream* )lpStm -> m_pCtx  ) -> m_nIdx > 0
+    ) {
+     apCont -> Seek     = _Seek;
+     apCont -> m_Flags |= SMS_CONT_FLAGS_SEEKABLE;
+     break;
+    }  /* end if */
+
+   }  /* end for */
 
    retVal = 1;
 
