@@ -332,6 +332,8 @@ typedef struct SMString {
 #define STR_SMB_PORT             SMS_STRING( 303 )
 #define STR_SMB_SHARE            SMS_STRING( 304 )
 #define STR_SMB_EDIT_TITLE       SMS_STRING( 305 )
+#define STR_START_SMB            SMS_STRING( 306 )
+#define STR_START_HOST           SMS_STRING( 307 )
 
 extern SMString g_SMString  [] __attribute__(   (  section( ".bss" )  )   );
 extern char     g_EmptyStr  [] __attribute__(   (  aligned( 1 ), section( ".data" )  )   );

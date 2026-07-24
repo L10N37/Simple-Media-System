@@ -77,7 +77,10 @@ static void _automce_handler    ( GUIMenu*, int );
 static void _autoudpfs_handler  ( GUIMenu*, int );
 #endif
 static void _autohdd_handler  ( GUIMenu*, int );
-static void _startnet_handler ( GUIMenu*, int );
+static void _starthost_handler ( GUIMenu*, int );
+#ifdef BDM
+static void _startsmb_handler  ( GUIMenu*, int );
+#endif
 static void _startusb_handler ( GUIMenu*, int );
 #ifdef BDM
 static void _startmx4sio_handler ( GUIMenu*, int );
@@ -590,8 +593,25 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
  * show for it, and this row could then only answer a bare "Error" ( SMS_IOPStartNet
  * refuses an owned NIC ). Mirror of the same fix on the Start-UDPFS row. */
   if (   !(  g_IOPFlags & ( SMS_IOPF_NET | SMS_IOPF_SMB | SMS_IOPF_UDPFS )  ) && !SMS_IOPNetOwnedByUDPFS ()   ) {   /* hide SMB/network start when udpfs owns the NIC */
-   s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_NETWORK_NOW;
-   s_DevMenu[   lSize ].Handler       = _startnet_handler;
+/* Two explicit rows replace the old single "Start network support": SMS_IOPStartNet picks
+ * SMB vs HOST from the SMS_DF_SMB config toggle, so a forced start just sets/clears that
+ * bit before calling it ( same mutation the Network Settings protocol toggle performs --
+ * deliberately persisted in g_Config, NOT saved, exactly like the toggle ).
+ * Start SMB is BDM-only ( smbman is compiled in under #ifdef BDM -- in a non-BDM build the
+ * flag would silently start HOST anyway ) and gated on SMS_IOPF_SMBINFO ( a server is
+ * configured -- same gate _netprot_handler uses ), otherwise the row could only fail. */
+#ifdef BDM
+   if ( g_IOPFlags & SMS_IOPF_SMBINFO ) {
+
+    s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_SMB;
+    s_DevMenu[   lSize ].Handler       = _startsmb_handler;
+
+   }  /* end if */
+#endif
+
+   s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_HOST;
+   s_DevMenu[   lSize ].Handler       = _starthost_handler;
+
   }  /* end if */
 
   if (  !( g_IOPFlags & SMS_IOPF_HDD )  ) {
@@ -1394,11 +1414,25 @@ static int _start_device (  GUIMenu* apMenu, int ( *Start ) ( int )  ) {
 
 }  /* end _start_device */
 
-static void _startnet_handler ( GUIMenu* apMenu, int aDir ) {
+#ifdef BDM
+static void _startsmb_handler ( GUIMenu* apMenu, int aDir ) {
 
+/* Force the SMB branch of SMS_IOPStartNet ( it dispatches on SMS_DF_SMB ) regardless of
+ * the Network Settings toggle. The mutation persists in g_Config on purpose -- same
+ * behavior as toggling the protocol in Network Settings; config is NOT saved here. */
+ g_Config.m_NetworkFlags |= SMS_DF_SMB;
  _start_device ( apMenu, SMS_IOPStartNet );
 
-}  /* end _startnet_handler */
+}  /* end _startsmb_handler */
+#endif
+
+static void _starthost_handler ( GUIMenu* apMenu, int aDir ) {
+
+/* Mirror of _startsmb_handler: force the HOST ( ps2dev ) branch of SMS_IOPStartNet. */
+ g_Config.m_NetworkFlags &= ~SMS_DF_SMB;
+ _start_device ( apMenu, SMS_IOPStartNet );
+
+}  /* end _starthost_handler */
 
 static void _startusb_handler ( GUIMenu* apMenu, int aDir ) {
 

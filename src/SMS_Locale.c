@@ -386,6 +386,8 @@ static char s_pNLSmbClient  [] __attribute__(   (  section( ".data" ), aligned( 
 static char s_pNLSmbPort    [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Port";
 static char s_pNLSmbShare   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Share ( optional )";
 static char s_pNLSmbTitle   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "SMB server";
+static char s_pNLStartSMB   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start SMB server support";
+static char s_pNLStartHOST  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start HOST ( ps2dev ) support";
 
 static SMString s_SMStringDef[] __attribute__(   (  section( ".data" )  )   ) = {
  { sizeof ( s_pAvailableMedia  ) - 1, s_pAvailableMedia  },
@@ -694,7 +696,9 @@ static SMString s_SMStringDef[] __attribute__(   (  section( ".data" )  )   ) = 
  { sizeof ( s_pNLSmbClient     ) - 1, s_pNLSmbClient     },   /* 302 */
  { sizeof ( s_pNLSmbPort       ) - 1, s_pNLSmbPort       },   /* 303 */
  { sizeof ( s_pNLSmbShare      ) - 1, s_pNLSmbShare      },   /* 304 */
- { sizeof ( s_pNLSmbTitle      ) - 1, s_pNLSmbTitle      }    /* 305 */
+ { sizeof ( s_pNLSmbTitle      ) - 1, s_pNLSmbTitle      },   /* 305 */
+ { sizeof ( s_pNLStartSMB      ) - 1, s_pNLStartSMB      },   /* 306 */
+ { sizeof ( s_pNLStartHOST     ) - 1, s_pNLStartHOST     }    /* 307 */
 };
 
 static unsigned char s_XLTLatin1[ 256 ] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = {
