@@ -225,6 +225,18 @@ static void _clock_thread ( void* apParam ) {
  s_DMA[ 2 ] = DMA_TAG( lQWC, 0, DMATAG_ID_REFE, 0, s_DrawPkt, 0 );
 
  FlushCache ( 0 );
+
+/* Snapshot only a settled frame. Every site that (re)starts the clock ( GUI_Initialize,
+ * _wait_user, About, _reinitialize ) kicks its repaint as an ASYNC GIF chain, and this
+ * thread ( prio 33 ) can preempt before that chain has actually repainted the clock
+ * corner. The capture then bakes whatever is still on screen -- the outgoing player
+ * frame, a dialog, or the previous digits -- into s_pImg, and every later tick re-blits
+ * it: the "clock corrupts / doubles / goes stale after returning from the player"
+ * report. Drain the GIF and land on a vsync so the capture always sees the finished
+ * desktop, no matter what the call site did. */
+ DMA_Wait ( DMAC_GIF );
+ GS_VSync ();
+
  GS_StoreImage ( &lStoreParam, s_pImg );
 
  lpDrawPkt = UNCACHED_SEG( s_DrawPkt );

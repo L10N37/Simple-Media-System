@@ -853,14 +853,21 @@ static int _wait_user ( char* apMsg, int anIcon, int anBtn, unsigned int* apBtn 
  GSContext_CallList  ( 1, lpDMA );
  GSContext_Flush ( 1, GSFlushMethod_KeepLists );
  SPU_PlaySound ( SMSound_Error, g_Config.m_PlayerVolume );
+/* Stop the clock WITHOUT immediately restarting it ( the old code did Stop+Start right
+ * here ): Start re-snapshots the framebuffer under the clock, and right now that corner
+ * still shows the last-drawn digits ( Stop does not erase them ), soon joined by the
+ * dialog itself once the async flush lands. A snapshot taken here bakes those pixels
+ * into the clock's background restore, so every later tick draws the current time ON
+ * TOP of the baked one -- the "doubled / ghost clock" report. The re-snapshot happens
+ * below, AFTER the status line has been re-rendered and drained, so it always captures
+ * the restored corner. */
  SMS_GUIClockStop ();
- SMS_GUIClockStart ( &g_Clock );
  lLen = GUI_WaitButtons ( anBtn, apBtn, 200 );
  GSContext_NewPacket (  1, 0, GSPaintMethod_Init  );
- SMS_GUIClockSuspend ();
  g_pStatusLine -> Render ( g_pStatusLine, 1 );
  GSContext_Flush ( 1, GSFlushMethod_KeepLists );
- SMS_GUIClockResume ();
+ DMA_Wait ( DMAC_GIF );   /* the restore is an async GIF chain -- be sure it is on screen before the clock re-snapshots it */
+ SMS_GUIClockStart ( &g_Clock );
 
  return lLen;
 

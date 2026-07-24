@@ -210,24 +210,27 @@ static GUIMenuItem s_AdvDispMenu[] __attribute__(   (  section( ".data" )  )   )
  * ( SMS_Locale, indices 269+ ) via STR_* macros -- no longer hardcoded here. */
 #ifdef BDM
 static GUIMenuItem s_DevMenu[ 28 ] __attribute__(   (  section( ".data" )  )   ) = {
+/* ORIGINAL upstream row order, restored after the 9985cc3 reorder broke every index-
+ * based consumer: the autostart / cdvd / dirbtn handlers below write each row's ON/OFF
+ * ( or text ) icon BY HARDCODED INDEX via _switch_flag / s_DevMenu[ n ], and so does the
+ * status block in _device_handler. Reordering rows without moving all of those indices
+ * in lockstep makes toggles land on the wrong lines -- and writing a GUICON id into a
+ * MENU_ITEM_TYPE_TEXT row ( or a string pointer into an icon row ) crashes the redraw.
+ * Do NOT reorder these rows without auditing every s_DevMenu[ n ] / _switch_flag index
+ * in this file first. */
  {                   0, &STR_NETWORK_SETTINGS,    0, 0, _network_handler,    0, 0 },   /*  0 */
  { MENU_ITEM_TYPE_TEXT, &STR_CONTROLLER_SLOT2,    0, 0, _cntslot_handler,    0, 0 },   /*  1 */
-/* Autostart block: ONE contiguous run, in the SAME order as the "Start <device>" rows built
- * below ( Nad ) -- USB, i.LINK, MX4SIO, MMCE, HDD APA, HDD BDM, UDPFS, then Network. It used
- * to be split by the CDVD / D-pad rows with UDPFS stranded at the end.
- * ⚠ GUIMenuSMS_UpdateStatus sets each row's ON/OFF icon BY INDEX -- keep that list in step
- * with any reordering here, or the indicators land on the wrong rows. */
- {                   0, &STR_AUTOSTART_USB,       0, 0, _autousb_handler,    0, 0 },   /*  2 */
- {                   0, &STR_AUTOSTART_ILINK,     0, 0, _autoilink_handler,  0, 0 },   /*  3 */
- {                   0, &STR_AUTOSTART_MX4SIO,    0, 0, _automx4sio_handler, 0, 0 },   /*  4 */
- {                   0, &STR_AUTOSTART_MMCE,      0, 0, _automce_handler,    0, 0 },   /*  5 */
- {                   0, &STR_AUTOSTART_HDD,       0, 0, _autohdd_handler,    0, 0 },   /*  6  HDD APA */
- {                   0, &STR_AUTOSTART_HDD_BDM,   0, 0, _autoata_handler,    0, 0 },   /*  7  HDD BDM */
- {                   0, &STR_AUTOSTART_UDPFS,     0, 0, _autoudpfs_handler,  0, 0 },   /*  8 */
- {                   0, &STR_AUTOSTART_NETWORK,   0, 0, _autonet_handler,    0, 0 },   /*  9 */
- {                   0, &STR_DISABLE_CDVD,        0, 0, _cdvd_handler,       0, 0 },   /* 10 */
- { MENU_ITEM_TYPE_TEXT, &STR_CDVD_SPEED,          0, 0, _cdvd_spd_handler,   0, 0 },   /* 11 */
- { MENU_ITEM_TYPE_TEXT, &STR_DIRECTIONAL_BUTTONS, 0, 0, _dirbtn_handler,     0, 0 }    /* 12 */
+ {                   0, &STR_AUTOSTART_NETWORK,   0, 0, _autonet_handler,    0, 0 },   /*  2 */
+ {                   0, &STR_AUTOSTART_USB,       0, 0, _autousb_handler,    0, 0 },   /*  3 */
+ {                   0, &STR_AUTOSTART_HDD,       0, 0, _autohdd_handler,    0, 0 },   /*  4  HDD APA */
+ {                   0, &STR_AUTOSTART_HDD_BDM,   0, 0, _autoata_handler,    0, 0 },   /*  5  HDD BDM */
+ {                   0, &STR_AUTOSTART_MX4SIO,    0, 0, _automx4sio_handler, 0, 0 },   /*  6 */
+ {                   0, &STR_AUTOSTART_ILINK,     0, 0, _autoilink_handler,  0, 0 },   /*  7 */
+ {                   0, &STR_AUTOSTART_MMCE,      0, 0, _automce_handler,    0, 0 },   /*  8 */
+ {                   0, &STR_DISABLE_CDVD,        0, 0, _cdvd_handler,       0, 0 },   /*  9 */
+ { MENU_ITEM_TYPE_TEXT, &STR_CDVD_SPEED,          0, 0, _cdvd_spd_handler,   0, 0 },   /* 10 */
+ { MENU_ITEM_TYPE_TEXT, &STR_DIRECTIONAL_BUTTONS, 0, 0, _dirbtn_handler,     0, 0 },   /* 11 */
+ {                   0, &STR_AUTOSTART_UDPFS,     0, 0, _autoudpfs_handler,  0, 0 }    /* 12 */
 };
 #else
 static GUIMenuItem s_DevMenu[ 12 ] __attribute__(   (  section( ".data" )  )   ) = {
@@ -557,36 +560,47 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
   s_DevMenu[ 1 ].m_IconRight = ( unsigned int )&STR_REMOTE_CONTROL;
  else s_DevMenu[ 1 ].m_IconRight = ( unsigned int )&STR_NONE;
 
-/* ⚠ These indices MUST match the s_DevMenu row order for THIS build. The BDM and non-BDM
- * menus have DIFFERENT layouts, so every row ( including 2 and 3 ) is assigned inside its
- * own branch -- do not hoist any of them back out. */
-#ifdef BDM
-/* BDM autostart block = rows 2..9: USB, i.LINK, MX4SIO, MMCE, HDD APA, HDD BDM, UDPFS, Network */
- s_DevMenu[  2 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_USB    ? GUICON_ON : GUICON_OFF;
- s_DevMenu[  3 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_ILINK  ? GUICON_ON : GUICON_OFF;
- s_DevMenu[  4 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_MX4SIO ? GUICON_ON : GUICON_OFF;
- s_DevMenu[  5 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_MMCE   ? GUICON_ON : GUICON_OFF;
- s_DevMenu[  6 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD    ? GUICON_ON : GUICON_OFF;  /* HDD APA */
- s_DevMenu[  7 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_ATA    ? GUICON_ON : GUICON_OFF;  /* HDD BDM */
- s_DevMenu[  8 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_UDPFS  ? GUICON_ON : GUICON_OFF;
- s_DevMenu[  9 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_NET    ? GUICON_ON : GUICON_OFF;
- s_DevMenu[ 10 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_CDVD        ? GUICON_ON : GUICON_OFF;
- s_DevMenu[ 11 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed ];
- s_DevMenu[ 12 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );
-#else
-/* non-BDM layout is unchanged: 2 Network, 3 USB, 4 HDD, 5 CDVD, 6 speed, 7 D-pad */
+/* These indices MUST match the s_DevMenu row order above. Rows 2 and 3 are the same in
+ * both layouts ( Autostart Network, Autostart USB ), so they are assigned once, outside
+ * the #ifdef; the rest differ between BDM and non-BDM and live inside the branches. */
  s_DevMenu[ 2 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_NET ? GUICON_ON   : GUICON_OFF;
  s_DevMenu[ 3 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_USB ? GUICON_ON   : GUICON_OFF;
+#ifdef BDM
+ s_DevMenu[  4 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD    ? GUICON_ON : GUICON_OFF;  /* HDD APA */
+ s_DevMenu[  5 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_ATA    ? GUICON_ON : GUICON_OFF;  /* HDD BDM */
+ s_DevMenu[  6 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_MX4SIO ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[  7 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_ILINK  ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[  8 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_MMCE   ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[  9 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_CDVD        ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[ 10 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed ];
+ s_DevMenu[ 11 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );
+ s_DevMenu[ 12 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_UDPFS ? GUICON_ON : GUICON_OFF;
+#else
  s_DevMenu[ 4 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD ? GUICON_ON   : GUICON_OFF;
  s_DevMenu[ 5 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_CDVD     ? GUICON_ON   : GUICON_OFF;
  s_DevMenu[ 6 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed ];
  s_DevMenu[ 7 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );
 #endif
 
-/* Device rows are emitted in ONE consistent order, matching the Autostart block above
- * ( Nad ): USB, i.LINK, MX4SIO, MMCE, HDD APA, HDD BDM, UDPFS -- then the network and
- * utility rows. The DEV9 test is applied per-row rather than wrapping a block, so the
- * order is free ( it previously forced Network + HDD APA to the top ). */
+ if ( g_IOPFlags & SMS_IOPF_DEV9_IS ) {
+
+/* The accessor term covers the gap the flags can't: udpfs claims the NIC ( s_NetOwner )
+ * the moment its smap loads, BEFORE SMS_IOPF_UDPFS is set -- so a partially-failed
+ * Start UDPFS ( smap up, later module failed ) leaves the NIC owned with no flag to
+ * show for it, and this row could then only answer a bare "Error" ( SMS_IOPStartNet
+ * refuses an owned NIC ). Mirror of the same fix on the Start-UDPFS row. */
+  if (   !(  g_IOPFlags & ( SMS_IOPF_NET | SMS_IOPF_SMB | SMS_IOPF_UDPFS )  ) && !SMS_IOPNetOwnedByUDPFS ()   ) {   /* hide SMB/network start when udpfs owns the NIC */
+   s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_NETWORK_NOW;
+   s_DevMenu[   lSize ].Handler       = _startnet_handler;
+  }  /* end if */
+
+  if (  !( g_IOPFlags & SMS_IOPF_HDD )  ) {
+   s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_HDD_NOW;
+   s_DevMenu[   lSize ].Handler       = _starthdd_handler;
+  }  /* end if */
+
+ }  /* end if */
+
  if (  !( g_IOPFlags & SMS_IOPF_UMS )  ) {   /* UMS ( usb-mass ) not USB ( usbd ): ds34usb now loads usbd alone at boot, so keep offering "Start USB" until the MASS stack is actually up */
 
   s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_USB_NOW;
@@ -595,21 +609,10 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
  }  /* end if */
 
 #ifdef BDM
- if (  !( g_IOPFlags & SMS_IOPF_ILINK )  ) {
-
-  s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_ILINK;
-  s_DevMenu[   lSize ].Handler       = _startilink_handler;
-
- }  /* end if */
-
 /* MX4SIO and MMCE drive the SAME SIO2 bus and neither module can be unloaded, so the
  * first to start owns it for the boot ( SMS_IOPStartMX4SIO / SMS_IOPStartMMCE each
- * refuse when the other holds it ). Hide the row the moment it could only fail, rather
- * than offering a button that reports a bare "Error" -- _start_device has no way to
- * explain WHY. Both rows carry the reciprocal test so the menu always reflects who owns
- * the bus. ( So "Start MMCE" is absent whenever MX4SIO already owns SIO2 -- and whenever
- * MMCE is itself already up, e.g. an MMCE boot -- which is by design, not a missing row. ) */
-/* ALWAYS EMITTED ( both of them ). These two used to be hidden whenever EITHER was up,
+ * refuse when the other holds it ).
+ * ALWAYS EMITTED ( both of them ). These two used to be hidden whenever EITHER was up,
  * which is how "there is no Start MMCE option" gets reported: an MMCE that is already
  * running takes its own row away, and so does an MX4SIO that has taken the bus. A row
  * that silently vanishes is indistinguishable from a build that forgot to include it,
@@ -630,26 +633,24 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
  }  /* end if */
 
- if ( 1 ) {   /* see the note above -- shown even when MX4SIO owns the shared SIO2 bus */
-
-  s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_MMCE;
-  s_DevMenu[   lSize ].Handler       = _startmce_handler;
-
- }  /* end if */
-#endif
-
- if (  ( g_IOPFlags & SMS_IOPF_DEV9_IS ) && !( g_IOPFlags & SMS_IOPF_HDD )  ) {   /* HDD APA ( PFS ) -- needs the DEV9 expansion bay */
-
-  s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_HDD_NOW;
-  s_DevMenu[   lSize ].Handler       = _starthdd_handler;
-
- }  /* end if */
-
-#ifdef BDM
  if (  !( g_IOPFlags & SMS_IOPF_ATA ) && ( g_IOPFlags & SMS_IOPF_DEV9_IS )  ) {
 
   s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_HDD_BDM;
   s_DevMenu[   lSize ].Handler       = _startata_handler;
+
+ }  /* end if */
+
+ if (  !( g_IOPFlags & SMS_IOPF_ILINK )  ) {
+
+  s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_ILINK;
+  s_DevMenu[   lSize ].Handler       = _startilink_handler;
+
+ }  /* end if */
+
+ if ( 1 ) {   /* always emitted -- see the MX4SIO/MMCE note above ( shown even when MX4SIO owns the shared SIO2 bus ) */
+
+  s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_MMCE;
+  s_DevMenu[   lSize ].Handler       = _startmce_handler;
 
  }  /* end if */
 
@@ -671,21 +672,6 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
  }  /* end if */
 #endif
-
-/* SMB / network last of the device rows -- it sits with UDPFS ( the other NIC consumer ),
- * after the local storage block, so the whole list reads in one order.
- * The accessor term covers the gap the flags can't: udpfs claims the NIC ( s_NetOwner )
- * the moment its smap loads, BEFORE SMS_IOPF_UDPFS is set -- so a partially-failed
- * Start UDPFS ( smap up, later module failed ) leaves the NIC owned with no flag to
- * show for it, and this row could then only answer a bare "Error" ( SMS_IOPStartNet
- * refuses an owned NIC ). Mirror of the same fix on the Start-UDPFS row. */
- if (  ( g_IOPFlags & SMS_IOPF_DEV9_IS ) &&
-       !(  g_IOPFlags & ( SMS_IOPF_NET | SMS_IOPF_SMB | SMS_IOPF_UDPFS )  ) && !SMS_IOPNetOwnedByUDPFS ()  ) {   /* hide SMB/network start when udpfs owns the NIC */
-
-  s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_NETWORK_NOW;
-  s_DevMenu[   lSize ].Handler       = _startnet_handler;
-
- }  /* end if */
 
 #ifdef BDM
  if (  g_IOPFlags & SMS_IOPF_DS34BT  ) {   /* Bluetooth driver up -> offer controller pairing */
@@ -1320,7 +1306,7 @@ static void _autousb_handler ( GUIMenu* apMenu, int aDir ) {
 #ifdef BDM
 static void _automx4sio_handler ( GUIMenu* apMenu, int aDir ) {
 
- _switch_flag ( apMenu, 6, &g_Config.m_NetworkFlags, SMS_DF_AUTO_MX4SIO );  /* MX4SIO row is index 6 after the HDD-APA/BDM regroup */
+ _switch_flag ( apMenu, 6, &g_Config.m_NetworkFlags, SMS_DF_AUTO_MX4SIO );  /* MX4SIO row is index 6 in the BDM menu */
 
 }  /* end _automx4sio_handler */
 
@@ -1352,7 +1338,7 @@ static void _autoudpfs_handler ( GUIMenu* apMenu, int aDir ) {
 static void _autohdd_handler ( GUIMenu* apMenu, int aDir ) {
 
 #ifdef BDM
- _switch_flag ( apMenu, 4, &g_Config.m_NetworkFlags, SMS_DF_AUTO_HDD );  /* HDD-APA row is index 4 after the regroup */
+ _switch_flag ( apMenu, 4, &g_Config.m_NetworkFlags, SMS_DF_AUTO_HDD );  /* HDD-APA row is index 4 in both layouts */
 #else
  _switch_flag ( apMenu, 4, &g_Config.m_NetworkFlags, SMS_DF_AUTO_HDD );
 #endif
@@ -1362,6 +1348,21 @@ static void _autohdd_handler ( GUIMenu* apMenu, int aDir ) {
 static int _start_device (  GUIMenu* apMenu, int ( *Start ) ( int )  ) {
 
  int retVal;
+
+/* Rate-limit device starts to ONE per second. Device starts are heavyweight IOP
+ * operations ( MMCE alone does a ~1-2 s blind busy-wait with no on-screen feedback ),
+ * and SMS's software auto-repeat keeps re-firing CROSS while it is held -- so a user
+ * mashing or holding the button stacked multiple start attempts back-to-back, each
+ * re-entering the module load path while the previous one was still settling. A held
+ * press now collapses to a single attempt per second; the extra firings are silently
+ * swallowed ( no error, no menu rebuild ). g_Timer is milliseconds. */
+ {
+  static u64 s_LastStart = 0;
+
+  if ( g_Timer - s_LastStart < 1000 ) return 1;
+
+  s_LastStart = g_Timer;
+ }
 
  if (   !(  retVal = Start ( 1 )  )   ) {
 
