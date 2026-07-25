@@ -472,6 +472,7 @@ const uint16_t s_mpeg4_resync_prefix[ 8 ] = {
 static int32_t MPEG4_Init    ( SMS_CodecContext*                                   );
 static int32_t MPEG4_Decode  ( SMS_CodecContext*, SMS_RingBuffer*, SMS_RingBuffer* );
 static void    MPEG4_Destroy ( SMS_CodecContext*                                   );
+static int     Codec_MPEG4_DecodeHeader ( void                                     );
 
 void SMS_Codec_MPEG4_Open ( SMS_CodecContext* apCtx ) {
 
@@ -656,6 +657,31 @@ static int32_t MPEG4_Init ( SMS_CodecContext* apCtx ) {
   BASECTX().m_pCBPTbl     = calloc ( 1, i = BASECTX().m_MBH * BASECTX().m_MBStride * sizeof ( uint8_t )  );
   BASECTX().m_pPredDirTbl = calloc ( 1, i );
 
+ }  /* end if */
+
+/* ffmpeg strips the VOL header from mp4v samples when muxing into MP4 -- the samples carry
+ * only GOV ( 0x1B3 ) and VOP ( 0x1B6 ) start codes, and the decoder config ( 0x120 VOL )
+ * lives exclusively in the esds atom, which the MOV demuxer stores in m_pUserData ( same
+ * field and guard convention the AAC codec uses, see _aac_init ). Without it the first VOP
+ * arrives with m_TimeIncRes == 0 and m_TimeIncBits == 0: _decode_vop_header then GUESSES
+ * the time-increment width by scanning for the marker bit, and a wrong guess desyncs the
+ * rest of the header parse, so frames come out garbled or get dropped. Feed the extradata
+ * through the very same start-code scanner packets use: VOL, user data ( DivX/XviD build
+ * detection ) and GOP are all handled there, and with no VOP start code present the scan
+ * just runs off the end of the buffer and returns -1, which is harmless here. This only
+ * SEEDS the state -- an in-band VOL later in the stream is still parsed by the same path
+ * exactly as before, and AVI files ( no extradata, m_UserDataLen == 0 ) take the old code
+ * path untouched. The buffer is borrowed: owned by the codec context, never freed or
+ * repointed here. It runs on every Init, not just the first, because a new stream means a
+ * new esds.
+ * Width/height: SMS_MPEGContext_Init above has already seeded g_MPEGCtx from the CONTAINER
+ * ( stsd ) dimensions; _decode_vol_header may then overwrite g_MPEGCtx.m_Width/m_Height
+ * with the VOL values. Deliberately left that way -- it is precisely what an in-band VOL
+ * does on the AVI path today, so both container formats converge on identical behavior
+ * instead of MP4 getting its own dimension rules. */
+ if ( apCtx -> m_pUserData && apCtx -> m_UserDataLen > 0 ) {
+  SMS_InitGetBits (  &g_MPEGCtx.m_BitCtx, apCtx -> m_pUserData, ( uint32_t )apCtx -> m_UserDataLen << 3  );
+  Codec_MPEG4_DecodeHeader ();
  }  /* end if */
 
  ++s_Init;
