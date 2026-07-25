@@ -1,0 +1,44 @@
+name: test-media
+
+# Rebuilds the SMS-test-media.zip pack (one synthetic clip per supported
+# format + the MP4 verification suite) and re-uploads it to the static
+# "test-media" prerelease, so testers always grab media that matches the
+# latest master. Everything is generated with ffmpeg in CI -- no binaries
+# are ever committed.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write        # needed to upload to the release
+
+concurrency:
+  group: test-media
+  cancel-in-progress: true
+
+jobs:
+  build-media:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Ensure ffmpeg is available
+      run: |
+        if ! command -v ffmpeg >/dev/null; then
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+        fi
+        ffmpeg -version | head -1
+
+    - name: Generate media pack
+      run: bash tools/gen-test-media.sh
+
+    - name: Upload to the test-media release (clobber)
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh release upload test-media SMS-test-media.zip --clobber || \
+        gh release create test-media SMS-test-media.zip --prerelease \
+          --title "SMS Test Media Pack" \
+          --notes "One short synthetic clip per format SMS plays, plus the MP4 verification suite. See README-TEST-MATRIX.md inside the zip. Auto-regenerated on every push to master."
