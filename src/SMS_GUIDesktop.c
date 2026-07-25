@@ -825,6 +825,7 @@ void GUI_Status ( char* apMsg ) {
  g_pStatusLine -> Render ( g_pStatusLine, 1 );
  SMS_GUIClockSuspend ();
  GSContext_Flush ( 1, GSFlushMethod_KeepLists );
+ DMA_Wait ( DMAC_VIF1 );
  SMS_GUIClockResume ();
 
 }  /* end GUI_Status */
