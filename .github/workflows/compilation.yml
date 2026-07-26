@@ -75,7 +75,7 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        printf 'Latest development build of Simple-Media-System -- auto-updated on every push to master.\n\nCommit: %s\nBuilt:  %s UTC\n\nSimple-Media-System.elf         -- standard ELF.\nSimple-Media-System-packed.elf  -- same build, self-extracting ( ~half the size, decompresses at boot ).\n\nFlash / run either to test.\n' \
+        printf 'Latest development build of Simple-Media-System -- auto-updated on every push to master.\n\nCommit: %s\nBuilt:  %s UTC\n\nSimple-Media-System.elf         -- standard ELF.\nSimple-Media-System-packed.elf  -- same build, self-extracting ( ~half the size, decompresses at boot ).\nSMS-Media-Converter.exe         -- standalone Windows desktop media converter app.\nSMS-Media-Converter-Linux.zip   -- Linux desktop media converter app.\n\nFlash / run either to test.\n' \
           "$GITHUB_SHA" "$(date -u +'%Y-%m-%d %H:%M')" > notes.md
         gh release delete rolling --yes --cleanup-tag 2>/dev/null || true
         gh release create rolling dist/Simple-Media-System.elf dist/Simple-Media-System-packed.elf dist/*.zip \

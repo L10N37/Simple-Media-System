@@ -79,3 +79,63 @@ jobs:
           dist-artifact/*.exe
           dist-artifact/*.zip
         retention-days: 90
+
+    # --- Publish to Rolling Release on Master Push ---
+    - name: Upload Windows Executable to Rolling Release
+      if: runner.os == 'Windows' && github.event_name == 'push' && github.ref == 'refs/heads/master'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      shell: bash
+      run: |
+        for i in {1..12}; do
+          if gh release upload rolling dist-artifact/SMS-Media-Converter.exe --clobber; then
+            echo "Uploaded SMS-Media-Converter.exe to rolling release!"
+            break
+          fi
+          echo "Waiting for rolling release creation..."
+          sleep 10
+        done
+
+    - name: Upload Linux Package to Rolling Release
+      if: runner.os == 'Linux' && github.event_name == 'push' && github.ref == 'refs/heads/master'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        for i in {1..12}; do
+          if gh release upload rolling dist-artifact/*.zip --clobber; then
+            echo "Uploaded SMS-Media-Converter-Linux.zip to rolling release!"
+            break
+          fi
+          echo "Waiting for rolling release creation..."
+          sleep 10
+        done
+
+    # --- Publish to Version Release on Tag Push (v*) ---
+    - name: Upload Windows Executable to Version Release
+      if: runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/v')
+      env:
+        GH_TOKEN: ${{ github.token }}
+      shell: bash
+      run: |
+        for i in {1..12}; do
+          if gh release upload "$GITHUB_REF_NAME" dist-artifact/SMS-Media-Converter.exe --clobber; then
+            echo "Uploaded SMS-Media-Converter.exe to release $GITHUB_REF_NAME!"
+            break
+          fi
+          echo "Waiting for release $GITHUB_REF_NAME..."
+          sleep 10
+        done
+
+    - name: Upload Linux Package to Version Release
+      if: runner.os == 'Linux' && startsWith(github.ref, 'refs/tags/v')
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        for i in {1..12}; do
+          if gh release upload "$GITHUB_REF_NAME" dist-artifact/*.zip --clobber; then
+            echo "Uploaded SMS-Media-Converter-Linux.zip to release $GITHUB_REF_NAME!"
+            break
+          fi
+          echo "Waiting for release $GITHUB_REF_NAME..."
+          sleep 10
+        done
