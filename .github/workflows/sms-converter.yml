@@ -57,12 +57,12 @@ jobs:
       run: |
         python tools/sms_converter/test_end_to_end.py
 
-    - name: Build Standalone Executable (Windows)
+    - name: Build Single Standalone Executable (Windows)
       if: runner.os == 'Windows'
       run: |
-        pyinstaller --noconfirm --onedir --windowed --name "SMS-Media-Converter" --paths "tools/sms_converter" tools/sms_converter/main.py
+        pyinstaller --noconfirm --onefile --windowed --name "SMS-Media-Converter" --paths "tools/sms_converter" tools/sms_converter/main.py
         mkdir dist-artifact
-        powershell Compress-Archive -Path dist/SMS-Media-Converter/* -DestinationPath dist-artifact/SMS-Media-Converter-Windows-${{ github.sha }}.zip
+        copy dist\SMS-Media-Converter.exe dist-artifact\SMS-Media-Converter.exe
 
     - name: Build Portable Package (Linux)
       if: runner.os == 'Linux'
@@ -71,9 +71,11 @@ jobs:
         cp -r tools/sms_converter/* dist-artifact/SMS-Media-Converter-Linux/
         cd dist-artifact && zip -r SMS-Media-Converter-Linux-${{ github.sha }}.zip SMS-Media-Converter-Linux/
 
-    - name: Upload GitHub Actions Artifact
+    - name: Upload GitHub Actions Single EXE & Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: SMS-Media-Converter-${{ runner.os }}-${{ github.sha }}
-        path: dist-artifact/*.zip
+        path: |
+          dist-artifact/*.exe
+          dist-artifact/*.zip
         retention-days: 90
