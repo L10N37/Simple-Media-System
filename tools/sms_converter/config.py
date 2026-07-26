@@ -4,8 +4,8 @@ Configuration and constants for SMS Media Converter.
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict
 
-LABEL_HARDWARE_CONFIRMED = "Hardware-confirmed on real PS2 hardware"
-LABEL_CUSTOM_PROFILE = "SMS-compatible specification; performance not hardware-confirmed"
+LABEL_HARDWARE_CONFIRMED = "✓ Hardware-Confirmed on real PS2 hardware"
+LABEL_CUSTOM_PROFILE = "⚠️ Custom Specification — performance not hardware-confirmed"
 
 # Resolution Limits for SMS
 MAX_WIDTH = 1024
@@ -14,7 +14,7 @@ RECOMMENDED_MAX_WIDTH = 640
 RECOMMENDED_MAX_HEIGHT = 480
 
 WARNING_RESOLUTION_MSG = (
-    "This resolution satisfies the SMS format limit but may not maintain full-speed playback on PS2 hardware."
+    "⚠️ Resolution exceeds standard 640×480. It satisfies SMS format rules but may drop frames on real PS2 hardware."
 )
 
 # File Size Limits (Bytes)
@@ -23,7 +23,7 @@ SIZE_4_0_GIB = int(4.0 * 1024 * 1024 * 1024) - (10 * 1024 * 1024) # ~3.99 GiB li
 
 MSG_FILE_SIZE_APPROACHING_LIMIT = (
     "Conversion stopped because the output was approaching the SMS 32-bit file-size limit. "
-    "Reduce the bitrate, resolution, or duration, or enable automatic splitting."
+    "Reduce the bitrate, resolution, or duration."
 )
 
 # Packet Size Validation Thresholds (Bytes)
@@ -63,8 +63,8 @@ class Preset:
     description: str = ""
 
 PRESETS: Dict[str, Preset] = {
-    "Xvid-Compatible AVI — Recommended": Preset(
-        name="Xvid-Compatible AVI — Recommended",
+    "Xvid-Compatible AVI [RECOMMENDED - Best PS2 Performance]": Preset(
+        name="Xvid-Compatible AVI [RECOMMENDED - Best PS2 Performance]",
         vcodec="mpeg4",
         vtag="XVID",
         width=640,
@@ -77,10 +77,10 @@ PRESETS: Dict[str, Preset] = {
         channels=2,
         ext=".avi",
         is_hardware_confirmed=True,
-        description="Best overall preset for PS2 hardware. Maximum smoothness over USB and SMB."
+        description="Best overall preset for PS2 hardware. Maximum smoothness over USB 1.1 and SMB network."
     ),
-    "MPEG-2 — High Compatibility": Preset(
-        name="MPEG-2 — High Compatibility",
+    "MPEG-2 [High Compatibility - DVD Standard]": Preset(
+        name="MPEG-2 [High Compatibility - DVD Standard]",
         vcodec="mpeg2video",
         vtag=None,
         width=640,
@@ -93,10 +93,10 @@ PRESETS: Dict[str, Preset] = {
         channels=2,
         ext=".mpg",
         is_hardware_confirmed=True,
-        description="Standard DVD-compatible MPEG-2 stream with MP2 audio."
+        description="Standard DVD-compatible MPEG-2 video stream with MP2 audio."
     ),
-    "MPEG-1 — Maximum Compatibility": Preset(
-        name="MPEG-1 — Maximum Compatibility",
+    "MPEG-1 [Maximum Compatibility - VCD Standard]": Preset(
+        name="MPEG-1 [Maximum Compatibility - VCD Standard]",
         vcodec="mpeg1video",
         vtag=None,
         width=640,
@@ -109,10 +109,10 @@ PRESETS: Dict[str, Preset] = {
         channels=2,
         ext=".mpg",
         is_hardware_confirmed=True,
-        description="VCD-style legacy MPEG-1 stream. Very low hardware decoder overhead."
+        description="VCD-style legacy MPEG-1 video stream with minimal CPU decoding overhead."
     ),
-    "MPEG-4 MP4 — Recommended": Preset(
-        name="MPEG-4 MP4 — Recommended",
+    "MPEG-4 MP4 [RECOMMENDED for MP4 files]": Preset(
+        name="MPEG-4 MP4 [RECOMMENDED for MP4 files]",
         vcodec="mpeg4",
         vtag=None,
         width=640,
@@ -125,10 +125,10 @@ PRESETS: Dict[str, Preset] = {
         channels=2,
         ext=".mp4",
         is_hardware_confirmed=True,
-        description="Modern MP4 container with MPEG-4 video and AAC audio."
+        description="Modern MP4 container with MPEG-4 video and AAC-LC audio."
     ),
-    "MPEG-4 MP4 — Small": Preset(
-        name="MPEG-4 MP4 — Small",
+    "MPEG-4 MP4 [Small - 320x240 Low Bitrate]": Preset(
+        name="MPEG-4 MP4 [Small - 320x240 Low Bitrate]",
         vcodec="mpeg4",
         vtag=None,
         width=320,
@@ -143,8 +143,8 @@ PRESETS: Dict[str, Preset] = {
         is_hardware_confirmed=True,
         description="Compact file size for memory cards or low-capacity USB drives."
     ),
-    "AAC Audio Only": Preset(
-        name="AAC Audio Only",
+    "AAC Audio Only (.m4a)": Preset(
+        name="AAC Audio Only (.m4a)",
         vcodec=None,
         vtag=None,
         width=None,
@@ -163,17 +163,17 @@ PRESETS: Dict[str, Preset] = {
 
 # Export target video codecs supported natively by SMS hardware decoder
 VIDEO_CODECS_MAP = {
-    "Xvid-compatible MPEG-4 (Recommended)": "mpeg4",
+    "Xvid-compatible MPEG-4 [RECOMMENDED]": "mpeg4",
     "MPEG-4 Part 2": "mpeg4",
-    "MPEG-2 Video (High Compatibility)": "mpeg2video",
-    "MPEG-1 Video (Max Compatibility)": "mpeg1video",
+    "MPEG-2 Video (DVD Stream)": "mpeg2video",
+    "MPEG-1 Video (VCD Stream)": "mpeg1video",
     "Microsoft MPEG-4 v3": "msmpeg4v3",
 }
 
 # Export target audio codecs supported natively by SMS hardware decoder
 AUDIO_CODECS_MAP = {
-    "MP3 (Recommended for AVI)": "libmp3lame",
-    "AAC-LC (Recommended for MP4)": "aac",
-    "MP2 (Recommended for MPEG-1/2)": "mp2",
+    "MP3 [RECOMMENDED for AVI]": "libmp3lame",
+    "AAC-LC [RECOMMENDED for MP4]": "aac",
+    "MP2 [RECOMMENDED for MPEG-1/2]": "mp2",
     "AC-3 / Dolby Digital": "ac3",
 }

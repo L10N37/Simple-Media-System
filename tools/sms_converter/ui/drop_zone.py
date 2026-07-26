@@ -1,5 +1,5 @@
 """
-Drag and drop file selection widget.
+Drag and drop file selection widget with format guidance.
 """
 import os
 from PySide6.QtCore import Qt, Signal
@@ -25,15 +25,20 @@ class DropZoneWidget(QFrame):
                 border-color: #3182CE;
                 background-color: #2D3748;
             }
-            QLabel {
+            QLabel#MainLabel {
                 color: #E2E8F0;
-                font-size: 14px;
+                font-size: 15px;
+                font-weight: bold;
+            }
+            QLabel#SubLabel {
+                color: #A0AEC0;
+                font-size: 11px;
             }
             QPushButton {
                 background-color: #3182CE;
                 color: white;
                 border-radius: 4px;
-                padding: 6px 14px;
+                padding: 6px 16px;
                 font-weight: bold;
             }
             QPushButton:hover {
@@ -43,16 +48,22 @@ class DropZoneWidget(QFrame):
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.setSpacing(8)
+        layout.setSpacing(6)
 
-        self.label_main = QLabel("Drop audio or video files here")
+        self.label_main = QLabel("📁 Drop ANY Audio or Video File Here")
+        self.label_main.setObjectName("MainLabel")
         self.label_main.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.btn_browse = QPushButton("Browse…")
+        self.label_sub = QLabel("Supports MKV, MP4, AVI, MOV, WMV, FLV, TS, VOB, WEBM, MP3, AAC, FLAC & more")
+        self.label_sub.setObjectName("SubLabel")
+        self.label_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.btn_browse = QPushButton("Browse Files…")
         self.btn_browse.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_browse.clicked.connect(self._open_file_dialog)
 
         layout.addWidget(self.label_main)
+        layout.addWidget(self.label_sub)
         layout.addWidget(self.btn_browse, 0, Qt.AlignmentFlag.AlignCenter)
 
     def dragEnterEvent(self, event):
@@ -83,7 +94,7 @@ class DropZoneWidget(QFrame):
             self,
             "Select Audio or Video Files",
             "",
-            "Media Files (*.mkv *.mp4 *.avi *.mpg *.mpeg *.mov *.wmv *.flv *.ts *.vob *.mp3 *.aac *.m4a *.wav *.flac *.ogg *.wma);;All Files (*.*)"
+            "Media Files (*.mkv *.mp4 *.avi *.mpg *.mpeg *.mov *.wmv *.flv *.ts *.vob *.webm *.mp3 *.aac *.m4a *.wav *.flac *.ogg *.wma);;All Files (*.*)"
         )
         if files:
             self.files_dropped.emit(files)

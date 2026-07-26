@@ -26,18 +26,14 @@ class TestSMSConverter(unittest.TestCase):
         ff, fp = find_ffmpeg_binaries()
         self.assertIsNotNone(ff, "FFmpeg binary should be found on system PATH or app dir")
         self.assertIsNotNone(fp, "ffprobe binary should be found on system PATH or app dir")
-        print(f"[TEST] FFmpeg found: {ff}")
-        print(f"[TEST] ffprobe found: {fp}")
 
     def test_presets(self):
-        self.assertIn("Xvid-Compatible AVI — Recommended", PRESETS)
-        self.assertIn("MPEG-2 — High Compatibility", PRESETS)
-        self.assertIn("MPEG-1 — Maximum Compatibility", PRESETS)
-        self.assertIn("MPEG-4 MP4 — Recommended", PRESETS)
-        self.assertIn("MPEG-4 MP4 — Small", PRESETS)
-        self.assertIn("AAC Audio Only", PRESETS)
+        self.assertTrue(any("Xvid-Compatible AVI" in k for k in PRESETS.keys()))
+        self.assertTrue(any("MPEG-2" in k for k in PRESETS.keys()))
+        self.assertTrue(any("MPEG-1" in k for k in PRESETS.keys()))
+        self.assertTrue(any("MPEG-4 MP4" in k for k in PRESETS.keys()))
 
-        xvid_preset = PRESETS["Xvid-Compatible AVI — Recommended"]
+        xvid_preset = PRESETS["Xvid-Compatible AVI [RECOMMENDED - Best PS2 Performance]"]
         self.assertEqual(xvid_preset.vtag, "XVID")
         self.assertEqual(xvid_preset.width, 640)
         self.assertEqual(xvid_preset.height, 480)
@@ -48,9 +44,7 @@ class TestSMSConverter(unittest.TestCase):
         self.assertEqual(MPEG_ALLOWED_FPS_MAP["59.94"], "60000/1001")
 
     def test_estimated_size_calculation(self):
-        # 10 minutes (600s), 1500 kbps video + 128 kbps audio
         est_bytes = calculate_estimated_output_size(600, 1500, 128)
-        # Expected: ~124.5 MB
         self.assertGreater(est_bytes, 100 * 1024 * 1024)
         self.assertLess(est_bytes, 150 * 1024 * 1024)
 

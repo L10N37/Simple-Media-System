@@ -44,6 +44,20 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(16, 16, 16, 16)
         main_layout.setSpacing(12)
 
+        # 0. Guidance Banner
+        self.banner = QLabel("💡 Converts ANY video or audio file for PlayStation 2 Simple Media System (SMS). Hardware-recommended defaults are pre-selected.")
+        self.banner.setStyleSheet("""
+            QLabel {
+                background-color: #2B6CB0;
+                color: #FFFFFF;
+                font-weight: bold;
+                font-size: 12px;
+                padding: 8px 12px;
+                border-radius: 6px;
+            }
+        """)
+        main_layout.addWidget(self.banner)
+
         # 1. Drop Zone
         self.drop_zone = DropZoneWidget()
         self.drop_zone.files_dropped.connect(self._on_files_added)
