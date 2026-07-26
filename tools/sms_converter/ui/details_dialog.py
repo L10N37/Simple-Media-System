@@ -5,7 +5,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QTabWidget, QTextEdit, QHBoxLayout, QPushButton, QFileDialog
 )
-from queue_table import QueueItem
+from ui.queue_table import QueueItem
 
 class DetailsDialog(QDialog):
     def __init__(self, item: QueueItem, parent=None):
