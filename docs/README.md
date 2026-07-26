@@ -1,14 +1,21 @@
-# SMS - Playstation 2 Simple Media System
-## Documentation
----
+# SMS documentation
 
-Thank you for reading the documentation!
+The current user manual is the static site in this directory:
 
-Currently, only the source code of the documentation is stored in SVN. The
-most up-to-date 'ready-to-view' version is on the web.
+- Live site: <https://nathanneurotic.github.io/Simple-Media-System/>
+- Deployment source: the repository's `master` branch, `/docs` folder
+- Entry page: [`index.html`](index.html)
 
-1. If you are just wanting to read the documentation, please go to https://ps2homebrew.github.io/SMS/ for a recent copy.
+GitHub Pages serves these HTML, CSS, JavaScript, image and data files directly. No
+Jekyll or DocBook build is required for the current site.
 
-2. If you are wanting to build the documentation from source, please read [README.buildingdocumentation.md](README.buildingdocumentation.md).
+The files under `src/` preserve the historic upstream DocBook source. The
+`legacy-manual.html` page records which legacy material is actually present, including
+the retained `pitrz/` MPEG-2 encoding guide. The former English, Portuguese and Russian
+generated manual directories are not part of this repository.
 
-3. If you are wanting to translate, modify or maintain the documentation, please read [README.maintainers.md](README.maintainers.md).
+See:
+
+- [`README.maintainers.md`](README.maintainers.md) to update or validate the site.
+- [`README.buildingdocumentation.md`](README.buildingdocumentation.md) to preview it
+  locally or work with the archived DocBook manual.

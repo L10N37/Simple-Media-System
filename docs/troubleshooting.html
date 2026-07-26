@@ -1,7 +1,7 @@
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Troubleshooting · SMS Docs</title>
-<meta name="description" content="Fixes for the common SMS problems: video that stutters or won't play, a device that won't appear, SMB shares that won't connect, settings that don't save, and corrupted HD display modes.">
+<meta name="description" content="Fix common SMS problems: unsupported or slow video, missing devices, SMB or UDPFS network failures, settings that do not save, and HD display issues.">
 <link rel="stylesheet" href="assets/style.css">
 </head><body data-base="">
 <header class="topbar">
@@ -66,26 +66,29 @@ through these in order.</p>
 <div class="steps">
   <div class="step"><h3>Confirm the format is supported</h3>
   <p>SMS plays a specific set of containers and codecs. If a file uses anything outside this list, it will fail to
-  open or play as garbage. Supported video is <b>AVI</b> (DivX / XviD / MPEG-4), <b>MP4 / MOV</b> (MPEG-4),
-  <b>MPEG program streams</b> (MPEG-1/2, <code>.mpg</code>/<code>.mpeg</code>) and <b>WMV / ASF</b>. Modern codecs
-  such as H.264/AVC, H.265/HEVC, VP9 and AV1 are <b>not</b> supported — re-encode those to MPEG-4/XviD first. See
+  open or may play only its supported audio track. Supported video is <b>AVI</b> (DivX / Xvid / MPEG-4 Part 2),
+  <b>MP4</b> (<code>mp4v</code>, MPEG-4 Part 2), and <b>MPEG program streams</b> (MPEG-1/2,
+  <code>.mpg</code>/<code>.mpeg</code>). H.264/AVC, H.265/HEVC, VP9, AV1 and WMV video are <b>not</b> supported —
+  re-encode those to MPEG-4 Part 2 first. See
   <a href="video.html">Video Playback</a> for the full format table.</p></div>
 
   <div class="step"><h3>Lower the bitrate and resolution</h3>
-  <p>Stutter almost always means the bitrate or frame size is beyond what the console can decode in real time.
-  Re-encode to a lower bitrate and a standard-definition frame size. A slower storage device (an SD card in an
-  MX4SIO adapter, or a network share) has less headroom than USB or the internal HDD, so keep the bitrate modest on
-  those. If the same file plays from USB but stutters over the network or from MX4SIO, the encode is close to the
-  edge — drop the bitrate.</p></div>
+  <p>SMS rejects either video dimension above <b>1024 pixels</b>, but passing that check does not guarantee real-time
+  playback. Resolution, frame rate, B-frames, QPel/GMC, motion complexity, audio work, bitrate and storage speed all
+  matter. Start from the confirmed 640×480, 30 fps, 1.5 Mbit/s MPEG-4 Part 2 profile and reduce resolution, frame
+  rate or bitrate if needed. If the same file plays from USB but stutters over the network or from MX4SIO, storage
+  throughput or fragmentation is the likely difference.</p></div>
 
   <div class="step"><h3>Rule out a damaged or fragmented file</h3>
   <p>A partial download, a bad burn, or a heavily fragmented file can cause hitching or a mid-file stop. Re-copy the
   file to the device (ideally to a freshly formatted or defragmented card/drive), or re-download it, and try again.
   A file that plays cleanly on a PC but stalls on the PS2 is the classic sign of a marginal encode or a bad copy.</p></div>
 
-  <div class="step"><h3>Check for interlaced source</h3>
-  <p>SMS historically targets progressive MPEG-4/DivX/XviD content. Interlaced video is not its strength — if a clip
-  shows combing artefacts or won't play, de-interlace it and re-encode to progressive before copying it across.</p></div>
+  <div class="step"><h3>Check the encode features</h3>
+  <p>Interlaced MPEG-4 and MPEG-2 decode paths exist, but the current hardware fixture baseline is progressive.
+  B-frames, QPel, GMC and interlacing can add work or expose compatibility differences. If a supported file is
+  marginal, re-encode it progressive with no B-frames using the known-good command on the
+  <a href="video.html#encoding">Video Playback</a> page.</p></div>
 </div>
 
 <div class="callout amber"><div class="h">⚠ Audio-only files that won't play</div>
@@ -101,7 +104,7 @@ it isn't started, it isn't formatted the way SMS expects, or it's blocked by a m
   <div class="step"><h3>Start the device (or turn on its Autostart)</h3>
   <p>On a clean install <b>nothing auto-starts</b> — this is by design (see below). Open the settings menu and either
   flip on that device's <b>Autostart</b> toggle (Autostart USB, Autostart MX4SIO, Autostart HDD APA, Autostart HDD
-  BDM for ATA/exFAT, Autostart i.LINK, Autostart MMCE, Autostart Network), or use the <b>Start &lt;device&gt; now</b>
+  BDM for ATA/exFAT, Autostart i.LINK, Autostart MMCE, Autostart Network, Autostart UDPFS), or use the matching <b>Start …</b>
   item that appears when a device isn't running yet. Starting it on demand does not need a reboot.</p></div>
 
   <div class="step"><h3>Check the filesystem format</h3>
@@ -111,19 +114,21 @@ it isn't started, it isn't formatted the way SMS expects, or it's blocked by a m
   partition rather than a PC filesystem; see <a href="hdd.html">Internal HDD</a>.</p></div>
 
   <div class="step"><h3>Rule out a mutual exclusion</h3>
-  <p>Two pairs of devices share a bus and cannot both be active at once:</p>
+  <p>Three resource pairs cannot both be active in one boot:</p>
   <ul class="checklist">
     <li><b>MX4SIO and MMCE</b> both use the SIO2 / memory-card-slot bus. If one is running, the other won't appear —
     turn off the one you don't need.</li>
     <li><b>The internal HDD APA/PFS path and the ATA/exFAT (BDM) path</b> both own the internal ATA bus. Whichever
     starts first owns it; pick one.</li>
+    <li><b>SMB/host and UDPFS</b> load different stacks for the single Ethernet controller. Reboot, then start only
+    the network path you intend to use.</li>
   </ul></div>
 </div>
 
 <div class="callout info"><div class="h">ℹ How devices are named</div>
 BDM mass devices (USB, MX4SIO, ATA/exFAT, i.LINK) all share the <code>massN:</code> namespace, with <code>N</code>
 counting up from 0. MMCE devices are <code>mmce0:</code> / <code>mmce1:</code>. The internal APA/PFS HDD is
-<code>hdd0:</code>. If a device is present but numbered differently than you expect, that's usually just the mount
+<code>hdd0:</code>, and the UDPFS folder is <code>udpfs:</code>. If a device is present but numbered differently than you expect, that's usually just the mount
 order — check the path shown on the status line at the bottom of the screen.</div>
 
 <h2 id="smb-wont-connect">An SMB share won't connect</h2>
@@ -149,8 +154,8 @@ option, as it varies by version.</p></details>
   identical to "server refused". Case can matter for share names and usernames.</p></div>
 
   <div class="step"><h3>Check the PS2's own network settings</h3>
-  <p>Make sure the PS2 has a valid IP on the same subnet as the server (via DHCP or a static address you set in the
-  network menu), and that the network device is started. If the console can't reach the network at all, no share
+  <p>Make sure the PS2 has a valid static IP on the same subnet as the server, saved through
+  <b>Device settings → Network settings → Edit IPCONFIG.DAT</b>, and that the network device is started. If the console can't reach the network at all, no share
   will connect.</p></div>
 
   <div class="step"><h3>Check firewalls and the server's file sharing</h3>
@@ -159,10 +164,19 @@ option, as it varies by version.</p></details>
   network.</p></div>
 </div>
 
-<div class="callout amber"><div class="h">⚠ SMB is a known limitation of this fork</div>
+<div class="callout amber"><div class="h">⚠ SMB1 is a legacy protocol</div>
 The SMB client in SMS is the legacy SMB1 stack, and modernising it to SMB2 is separate work beyond this build. If
-you can't or won't enable SMB1 on your server, use a directly-attached device instead — USB, MX4SIO, MMCE or the
-internal HDD all avoid the network entirely.</div>
+you can't or won't enable SMB1 on your server, use the <a href="network.html#udpfs">UDPFS network drive</a> or a
+directly-attached device instead.</div>
+
+<h2 id="udpfs-wont-connect">The UDPFS network drive won't appear</h2>
+<ul class="checklist">
+<li>Save the PS2's own static IP through <b>Edit IPCONFIG.DAT</b>; a <code>NOIP</code> error means this step is missing.</li>
+<li>Run PS2-Servers UDPFSD on a PC on the same LAN, select the folder to serve, and keep <b>Modulo mode off</b>.</li>
+<li>Allow UDP port <code>0xF5F6</code> (62966) through the PC firewall on the trusted LAN.</li>
+<li>If SMB/host was already started, reboot before choosing <b>Start UDPFS network drive</b>. The two stacks cannot
+share the NIC in one boot.</li>
+</ul>
 
 <h2 id="settings-dont-save">Settings don't persist across reboots</h2>
 <p>If your Autostart toggles, network details or playback preferences reset every time you power on, the config isn't
@@ -223,6 +237,7 @@ reports are the hardest to act on.</div>
 <tr><td>MX4SIO and MMCE clash</td><td>Both use the SIO2 slot bus</td><td>Run only one at a time</td></tr>
 <tr><td>HDD APA and ATA/exFAT clash</td><td>Both own the internal ATA bus</td><td>Pick one; first to start owns the bus</td></tr>
 <tr><td>SMB share won't connect</td><td>SMB1 disabled on the server</td><td>Re-enable SMB1; then check IP / credentials / firewall</td></tr>
+<tr><td>UDPFS drive won't appear</td><td>No static PS2 IP, no server response, firewall, or SMB already owns the NIC</td><td>Save IPCONFIG; run UDPFSD with Modulo off; allow UDP 62966; reboot to switch stacks</td></tr>
 <tr><td>Settings reset each boot</td><td>No memory card, or config not saved</td><td>Insert a card (or save to the boot device); save after changes</td></tr>
 <tr><td>Nothing auto-starts</td><td>Clean-install default</td><td>Enable Autostart for the devices you use</td></tr>
 <tr><td>Corrupted screen in HD</td><td>Known theme issue at HD resolutions</td><td>Use 480i output</td></tr>

@@ -1,7 +1,7 @@
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Home · SMS Docs</title>
-<meta name="description" content="Simple Media System (SMS) — the PlayStation 2 media player. Play DivX/XviD/MPEG-4, MPEG-1/2, MP3, AAC, FLAC, OGG and JPEG with subtitles, from CD/DVD, USB, MX4SIO microSD, internal HDD (APA & exFAT), i.LINK, MMCE (SD2PSX / MemCard PRO2) and SMB network shares — on a bone-stock PS2.">
+<meta name="description" content="Simple Media System (SMS) for PlayStation 2: exact supported video/audio formats, source-enforced playback limits, hardware-tested profiles, storage devices, setup and troubleshooting for v3.0.0-rev1.">
 <link rel="stylesheet" href="assets/style.css">
 </head><body data-base="">
 <header class="topbar">
@@ -49,19 +49,20 @@
   <main class="content"><div class="hero">
 <h1>Simple Media System <span class="g">for PlayStation 2</span></h1>
 <p class="lead"><b>SMS</b> turns a bone-stock PlayStation 2 into a media player. It plays <b>video</b>
-(DivX / XviD / MPEG-4, MPEG-1/2, WMV), <b>audio</b> (MP3, AAC, AC3, FLAC, OGG, WMA) and <b>pictures</b> (JPEG),
+(DivX / XviD / MPEG-4 Part 2 and MPEG-1/2), <b>audio</b> (MP2/MP3, AAC, AC3, FLAC, OGG and WMA) and <b>pictures</b> (JPEG),
 with soft <b>subtitles</b> and <b>M3U playlists</b> — read from just about every storage device the PS2 can reach:
 CD/DVD, USB, <b>MX4SIO</b> microSD, the internal HDD (APA <i>and</i> exFAT), i.LINK, <b>MMCE</b> (SD2PSX / MemCard PRO2),
-and <b>SMB</b> network shares. No HDD, no network adapter, no chip required.</p>
+<b>SMB</b> shares and the <b>UDPFS</b> network drive. No HDD, no network adapter, no chip required.</p>
 <div class="btn-row">
   <a class="btn" href="getting-started.html">🚀 New here? Play your first file</a>
+  <a class="btn ghost" href="https://github.com/NathanNeurotic/Simple-Media-System/releases/tag/v3.0.0-rev1">📦 Download v3.0.0-rev1</a>
   <a class="btn ghost" href="#sections">Browse the full reference</a>
 </div>
 <div class="stat-row">
   <div class="stat"><b>9</b><span>storage backends</span></div>
-  <div class="stat"><b>12+</b><span>media formats</span></div>
+  <div class="stat"><b>1024 px</b><span>per-axis source limit</span></div>
+  <div class="stat"><b>640×480</b><span>30 fps hardware baseline</span></div>
   <div class="stat"><b>MX4SIO</b><span>playback — a first</span></div>
-  <div class="stat"><b>Stock PS2</b><span>no HDD/network needed</span></div>
 </div>
 </div>
 
@@ -71,7 +72,7 @@ and <b>SMB</b> network shares. No HDD, no network adapter, no chip required.</p>
 been playing good-resolution video with sound on an <b>unmodified</b> console straight off a burned disc — no hard
 drive, no network adapter. This documentation covers an <b>enhanced fork</b> that adds first-class <b>MX4SIO</b>
 microSD playback, exFAT support on the internal HDD, i.LINK and MMCE devices, a fully on-screen network/SMB setup,
-and a refreshed look — while staying a stock-console media player at heart. The
+the UDPFS network drive, DualShock&nbsp;3/4 support and a refreshed look — while staying a stock-console media player at heart. The
 <a href="getting-started.html"><b>Getting Started</b></a> guide gets a file playing in minutes; the sections below
 are the deep reference.</div>
 
@@ -84,13 +85,52 @@ the classic APA/PFS <code>SMS_Media</code> partition. See <a href="hdd.html">Int
 <li><b>i.LINK (IEEE&nbsp;1394) storage</b> — mount a FireWire drive as a game/media source. See <a href="ilink.html">i.LINK</a>.</li>
 <li><b>MMCE devices</b> — browse media from an <b>SD2PSX</b> or <b>MemCard PRO2</b> in the memory-card slot
 (<code>mmce0:</code> / <code>mmce1:</code>). See <a href="mmce.html">MMCE</a>.</li>
+<li><b>UDPFS network drive</b> — browse a real PC folder as <code>udpfs:</code> through PS2-Servers UDPFSD;
+boot, playback and clean exit are hardware-confirmed. See <a href="network.html#udpfs">Network Setup</a>.</li>
 <li><b>On-screen network &amp; SMB setup</b> — configure your IP and connect to a Windows / Samba share entirely from
 the pad, with a real on-screen keyboard — no pre-made config files to hand-edit. See <a href="network.html">Network Setup</a>.</li>
+<li><b>DualShock 3 &amp; 4</b> — wired USB and Bluetooth controller support, including in-app Bluetooth pairing.
+These paths stay on USB and do not contend with MX4SIO on SIO2.</li>
+<li><b>Native MP4 playback</b> — MPEG-4 Part&nbsp;2 <code>mp4v</code> video with AAC audio, now included in the
+hardware test matrix. H.264/H.265 remain unsupported.</li>
+<li><b>Clock redraw reliability</b> — status rendering now waits for the pending VIF1 DMA before resuming the clock,
+preventing doubled or fragmented digits after menus and playback.</li>
 <li><b>Settings that save anywhere</b> — configuration persists to the memory card <i>or</i> to the device SMS booted
 from (USB, HDD…), so a memory-card-less setup keeps its settings. See <a href="settings.html">Settings</a>.</li>
 <li><b>A refreshed theme</b> — new desktop artwork and device icons, on top of the existing <code>.smi</code> skin
 engine. See <a href="themes.html">Themes &amp; Skins</a>.</li>
 </ul>
+
+<h2 id="playback-spec">Playback support and exact limits</h2>
+<p>There are two useful boundaries: what the current source accepts, and what has been confirmed at full speed on
+real hardware. SMS rejects video when either dimension exceeds <b>1024 pixels</b>, but that is an input ceiling rather
+than a promise that every 1024×1024 encode will be real-time.</p>
+
+<table>
+<thead><tr><th>Property</th><th>Current support / limit</th></tr></thead>
+<tbody>
+<tr><td>Video codecs</td><td>MPEG-4 Part 2 / ASP (DivX, Xvid and Microsoft MPEG-4 v3); MPEG-1; MPEG-2</td></tr>
+<tr><td>Video files</td><td>AVI (<code>.avi</code>, <code>.divx</code>, <code>.xvid</code>), MP4
+(<code>.mp4</code> with <code>mp4v</code>), MPEG program stream (<code>.mpg</code>, <code>.mpeg</code>)</td></tr>
+<tr><td>Video dimensions</td><td>Width ≤ 1024 and height ≤ 1024</td></tr>
+<tr><td>MPEG-1/2 frame rates</td><td>23.976, 24, 25, 29.97, 30, 50, 59.94 and 60 fps</td></tr>
+<tr><td>Standalone audio</td><td>MP2/MP3/MPA, Ogg Vorbis, WMA v1/v2, AAC Main/LC and HE-AAC/SBR, AC-3 and
+mono/stereo FLAC</td></tr>
+<tr><td>Container / file limits</td><td>8 streams maximum; 32-bit file addressing (individual files smaller than
+4 GiB); compressed packets up to 2,097,088 bytes for video and 524,224 bytes for audio</td></tr>
+<tr><td>Unsupported video</td><td>H.264/AVC, H.265/HEVC, VP9 and AV1. Supported audio in such a file may still
+play without video.</td></tr>
+</tbody>
+</table>
+
+<div class="callout info"><div class="h">✓ Hardware-confirmed baseline</div>
+The complete generated test pack has been exercised on a real PS2. Confirmed video cases include Xvid AVI at
+<b>640×480, 30 fps and 1.5 Mbit/s</b>; MPEG-2 PS at <b>640×480, 30 fps and 2.5 Mbit/s</b>; MPEG-1 PS at
+<b>640×480, 30 fps and 1.15 Mbit/s</b>; and <code>mp4v</code> + AAC MP4 at <b>640×480, 30 fps,
+1.5 Mbit/s</b>. MP3, Ogg Vorbis, WMA v2, FLAC, AC-3, M4A/AAC, ADTS AAC and MP2 standalone audio also passed.
+H.264 and H.265 video remained unsupported as expected. See <a href="video.html">Video Playback</a> and
+<a href="audio.html">Audio &amp; Playlists</a> for the full profiles and the distinction between accepted and
+performance-tested limits.</div>
 
 <h2 id="sections">Full reference</h2>
 <p class="lead">Jump straight in, or use the search box up top to find any device, format, or setting instantly
@@ -114,12 +154,12 @@ engine. See <a href="themes.html">Themes &amp; Skins</a>.</li>
 <table>
 <thead><tr><th>Capability</th><th>What SMS does</th></tr></thead>
 <tbody>
-<tr><td>Video</td><td>DivX / XviD / MPEG-4 (AVI, MP4/MOV), MPEG-1/2 (MPG/MPEG program streams), WMV (ASF)</td></tr>
-<tr><td>Audio</td><td>MP3, AAC (M4A), AC3, FLAC, OGG&nbsp;Vorbis, WMA — standalone or as a video's soundtrack</td></tr>
+<tr><td>Video</td><td>DivX / Xvid / MPEG-4 Part 2 (AVI or MP4), MPEG-1/2 (MPG/MPEG program streams)</td></tr>
+<tr><td>Audio</td><td>MP2/MP3, AAC (ADTS, M4A or audio-only MP4), AC3, FLAC, OGG&nbsp;Vorbis and WMA</td></tr>
 <tr><td>Pictures</td><td>JPEG viewer</td></tr>
 <tr><td>Subtitles</td><td>External SRT / SUB, shown over video with adjustable size &amp; colour</td></tr>
 <tr><td>Playlists</td><td>M3U</td></tr>
-<tr><td>Sources</td><td>CD/DVD (incl. CDDAFS &amp; DVD-Video), Audio&nbsp;CD (CDDA), USB, MX4SIO, internal HDD (APA &amp; exFAT), i.LINK, MMCE, SMB</td></tr>
+<tr><td>Sources</td><td>CD/DVD (incl. CDDAFS &amp; DVD-Video), Audio&nbsp;CD (CDDA), USB, MX4SIO, internal HDD (APA &amp; exFAT), i.LINK, MMCE, SMB and UDPFS</td></tr>
 <tr><td>Requirements</td><td>Any PS2 that can run homebrew. HDD and network adapter are <b>optional</b> — used only if you want those sources.</td></tr>
 </tbody>
 </table>
@@ -132,8 +172,9 @@ disc — and a heavily PS2-optimised port of parts of <b>FFmpeg</b> using the co
 project was later adopted and modernised by the <b>ps2homebrew</b> community, gaining USB, HDD, network (SMB), a GUI
 browser, a skin engine and many more formats.</p>
 <p>This documentation is for a <b>downstream fork</b> focused on <b>storage breadth</b>: it makes <b>MX4SIO</b> microSD
-playback work, adds exFAT/ATA HDD, i.LINK and MMCE devices, moves network and SMB setup fully on-screen, and
-refreshes the look. It is a labour of love built on the work of many — see <a href="credits.html">Credits &amp; Sources</a>.</p>
+playback work, adds exFAT/ATA HDD, i.LINK, MMCE and UDPFS devices, moves network and SMB setup fully on-screen,
+adds DualShock&nbsp;3/4 support, and refreshes the look. It is a labour of love built on the work of many — see
+<a href="credits.html">Credits &amp; Sources</a>.</p>
 </details>
 </main>
   <aside class="toc"><div class="toc-h">On this page</div><nav id="toc-nav"></nav></aside>

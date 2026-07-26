@@ -9,17 +9,17 @@ WHAT THIS IS
 
 HOW SMS USES IT
   * On a memory-card boot SMS reads  mc0:/SMS/SMS.lng
-  * On a USB/HDD/network boot it reads  SMS.lng  next to the SMS.ELF (CWD)
+  * On a USB/HDD/network/UDPFS boot it reads  SMS.lng  next to the SMS.ELF (CWD)
   * Or import it in-app: SMS menu -> Device settings -> "Update SMS.lng file"
   * Then set  SMS menu -> Browser settings -> Language  to anything other than
     "English" for the file to take effect.
 
 THE FIVE RULES (break any one and SMS silently ignores the WHOLE file and
 falls back to English -- there is no error message):
-  1. EXACTLY 306 lines. Do not add or remove a line. One English line in ->
+  1. EXACTLY 308 lines. Do not add or remove a line. One English line in ->
      one translated line out, same position.
   2. NEVER leave a line blank. An empty line makes the parser stop early, the
-     line count no longer equals 306, and the entire file is rejected. If a
+     line count no longer equals 308, and the entire file is rejected. If a
      string should stay untranslated, copy the English text verbatim -- do not
      blank it.
   3. Keep every  %s  %d  %.1f  %02d  etc. EXACTLY as-is (same specifiers, same
@@ -32,10 +32,10 @@ falls back to English -- there is no error message):
      Greek). CRLF or LF line endings are both fine; UTF-8 is NOT -- SMS renders
      single-byte encodings.
 
-NEW IN THIS BUILD: lines 269..305 were added for UI that used to be English-only
+NEW IN THIS BUILD: lines 269..307 were added for UI that used to be English-only
 (device menu: MX4SIO / HDD BDM / i.LINK / MMCE / UDPFS start+autostart; the UDPFS
 and ATA start/error messages; the on-screen keyboard; the SMB server editor). In
-the shipped community packs these 37 tail lines are still ENGLISH placeholders --
+the shipped community packs these 39 tail lines are still ENGLISH placeholders --
 that is where translation is now needed. Keep device/protocol proper-nouns
 (MX4SIO, UDPFS, i.LINK, MMCE, HDD BDM) verbatim; translate the words around them.
 
@@ -44,11 +44,11 @@ very long strings can overflow their box.
 
 INSTALLING A FINISHED TRANSLATION (from the legacy pack's own readme)
   1. Rename your file to  SMS.lng   (case sensitive)
-  2. Copy it to  mc0:/SMS   (or next to SMS.ELF on USB/HDD)
+  2. Copy it to  mc0:/SMS   (or next to SMS.ELF on USB/HDD/UDPFS)
   3. Select / enable it in the SMS menu
 
 The 19 community translations in docs/translation/ (BG CA CZ DE EN ES FR HU ID IT
-NL PL PT PT-BR RU SE SK TR UA) were extended to 306 lines to match THIS build, so
+NL PL PT PT-BR RU SE SK TR UA) were extended to 308 lines to match THIS build, so
 they load as-is (new-feature lines show English until translated). They are the
 best reference for tone/length. (TR had a pre-existing duplicate line that was
 removed to realign it.)
@@ -363,3 +363,5 @@ removed to realign it.)
 303 | STR_SMB_POR | Port
 304 | STR_SMB_SHA | Share ( optional )
 305 | STR_SMB_EDI | SMB server
+306 | STR_START_S | Start SMB server support
+307 | STR_START_H | Start HOST ( ps2dev ) support

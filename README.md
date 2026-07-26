@@ -4,6 +4,72 @@
 
 📖 **User manual & documentation:** https://nathanneurotic.github.io/Simple-Media-System/
 
+📦 **Current stable release:** [v3.0.0-rev1](https://github.com/NathanNeurotic/Simple-Media-System/releases/tag/v3.0.0-rev1)
+
+## Playback compatibility
+
+SMS supports the following current file and codec paths:
+
+- **Video:** MPEG-4 Part 2 / ASP (DivX, Xvid and Microsoft MPEG-4 v3) in
+  `.avi`, `.divx` or `.xvid`; MPEG-4 Part 2 `mp4v` in `.mp4`; MPEG-1
+  and MPEG-2 video in `.mpg` / `.mpeg` program streams.
+- **Standalone audio:** MPEG Layer II/III (`.mp2`, `.mp3`, `.mpa`), Ogg
+  Vorbis (`.ogg`), WMA v1/v2 (`.wma`), AAC Main/LC and HE-AAC/SBR
+  (`.aac`, `.m4a`, or audio-only `.mp4`), AC-3 (`.ac3`) and mono/stereo
+  FLAC (`.flac`). Supported containers can also carry DTS and 16-bit PCM.
+- **Pictures, playlists and subtitles:** baseline JPEG (`.jpg`, `.jpeg`),
+  M3U playlists, and external SRT / SUB / TXT subtitles.
+- **Not supported:** H.264/AVC, H.265/HEVC, VP9 and AV1 video. A file with
+  one of these video codecs can produce audio only when its audio track is
+  independently supported.
+
+### Source-enforced limits
+
+| Property | Exact implementation limit |
+|---|---:|
+| Video dimensions | Width <= 1024 and height <= 1024 |
+| MPEG-1/2 frame rates | 23.976, 24, 25, 29.97, 30, 50, 59.94 or 60 fps |
+| Container streams/tracks | 8 maximum |
+| Compressed video packet/sample | 2,097,088 bytes maximum |
+| Compressed audio packet/sample | 524,224 bytes maximum |
+| File addressing | 32-bit; individual files must be smaller than 4 GiB |
+
+AAC accepts 8, 11.025, 12, 16, 22.05, 24, 32, 44.1, 48, 64, 88.2
+and 96 kHz core sample rates
+and converts multichannel input to stereo. Ogg Vorbis and FLAC standalone
+files are limited to mono or stereo; decoded output is 16-bit PCM. Large
+video frames automatically fall back to dithered 16-bit GS textures when a
+32/24-bit texture would overlap video memory used by the UI.
+
+The 1024-pixel-per-axis check is an **acceptance ceiling**, not a promise
+that every file at that size will decode in real time. SMS has no fixed
+maximum stream bitrate or general MPEG-4 frame-rate rejection. Smoothness
+also depends on frame rate, B-frames, QPel/GMC, interlacing, motion
+complexity, audio workload, storage throughput and fragmentation.
+
+### Hardware-confirmed baseline
+
+The repository's generated test pack has been exercised on real PS2
+hardware. All positive cases played as intended, and the negative modern
+codec cases failed as intended:
+
+| Container / codec | Confirmed test profile |
+|---|---|
+| AVI / Xvid + MP3 | 640x480, 30 fps, 1.5 Mbit/s video, 128 kbit/s audio |
+| MPEG-2 PS + MP2 | 640x480, 30 fps, 2.5 Mbit/s video, 192 kbit/s audio |
+| MPEG-1 PS + MP2 | 640x480, 30 fps, 1.15 Mbit/s video, 192 kbit/s audio |
+| MP4 / `mp4v` + AAC | 640x480, 30 fps, 1.5 Mbit/s video, 48 kHz stereo AAC at 128 kbit/s |
+| MP4 / `mp4v` + AAC | 320x240, 30 fps, 600 kbit/s video, 48 kHz stereo AAC at 128 kbit/s |
+| Standalone audio matrix | MP3, Ogg Vorbis, WMA v2, FLAC, AC-3, M4A/AAC, ADTS AAC and MP2 |
+| Negative cases | H.264 and H.265 video are not decoded |
+
+The exact fixtures and encoder settings live in
+[`tools/gen-test-media.sh`](tools/gen-test-media.sh). See the
+[Video](https://nathanneurotic.github.io/Simple-Media-System/video.html)
+and
+[Audio](https://nathanneurotic.github.io/Simple-Media-System/audio.html)
+pages for the detailed compatibility notes.
+
 ## What's new in this edition
 
 **Storage & playback**

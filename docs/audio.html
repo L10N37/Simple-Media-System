@@ -1,7 +1,7 @@
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Audio &amp; Playlists · SMS Docs</title>
-<meta name="description" content="Play music on SMS — MP3, AAC (M4A), AC3, FLAC, OGG Vorbis and WMA — plus M3U playlists, the audio player screen, and pause / resume / stop controls.">
+<meta name="description" content="Exact SMS audio support and limits: MP2/MP3, AAC/HE-AAC, AC-3, FLAC, Ogg Vorbis and WMA v1/v2, file extensions, channel/sample-rate behavior and hardware-confirmed profiles.">
 <link rel="stylesheet" href="assets/style.css">
 </head><body data-base="">
 <header class="topbar">
@@ -66,14 +66,59 @@ formats and file extensions this build plays:</p>
 <table data-sortable>
 <thead><tr><th>Format</th><th>Extensions</th><th>Notes</th></tr></thead>
 <tbody>
-<tr><td>MP3 (MPEG Audio Layer&nbsp;III)</td><td><code>.mp3</code> <code>.mpa</code> <code>.mp2</code></td><td>The classic. A long-tuned decoder handles LAME-encoded files.</td></tr>
-<tr><td>AAC</td><td><code>.aac</code> <code>.m4a</code></td><td>Advanced Audio Coding. <code>.m4a</code> is AAC in an MP4/MOV container.</td></tr>
+<tr><td>MPEG Audio Layer II / III</td><td><code>.mp2</code> <code>.mp3</code> <code>.mpa</code></td><td>MP2 and MP3 use the shared MPEG-audio decoder.</td></tr>
+<tr><td>AAC Main / LC and HE-AAC/SBR</td><td><code>.aac</code> <code>.m4a</code> <code>.mp4</code></td><td><code>.aac</code>
+is raw ADTS; <code>.m4a</code> is the audio-only ISO-BMFF route. An audio-only <code>.mp4</code> falls back to the
+same reader.</td></tr>
 <tr><td>AC3 (Dolby&nbsp;Digital)</td><td><code>.ac3</code></td><td>The same audio format SMS decodes for DVD-style video soundtracks.</td></tr>
-<tr><td>FLAC</td><td><code>.flac</code></td><td>Free Lossless Audio Codec — bit-perfect, larger files.</td></tr>
-<tr><td>OGG Vorbis</td><td><code>.ogg</code></td><td>Open, patent-free lossy audio.</td></tr>
-<tr><td>WMA</td><td><code>.wma</code></td><td>Windows Media Audio, carried in an ASF container.</td></tr>
+<tr><td>FLAC</td><td><code>.flac</code></td><td>Mono or stereo; decoded to 16-bit PCM output.</td></tr>
+<tr><td>Ogg Vorbis</td><td><code>.ogg</code></td><td>Mono or stereo; decoded to 16-bit PCM output.</td></tr>
+<tr><td>WMA v1 / v2</td><td><code>.wma</code></td><td>Windows Media Audio carried in an ASF container. This is audio,
+not WMV video.</td></tr>
 </tbody>
 </table>
+
+<p>Supported movie/container tracks can additionally use <b>DTS</b> and <b>16-bit little- or big-endian PCM</b>.
+Those codecs are registered for embedded audio, but the browser does not expose standalone <code>.dts</code> or
+<code>.wav</code> routes.</p>
+
+<h2 id="implementation-limits">Exact implementation limits</h2>
+<table>
+<thead><tr><th>Property</th><th>Current behavior / limit</th></tr></thead>
+<tbody>
+<tr><td>Compressed audio packet/sample</td><td><b>524,224 bytes maximum</b> (512 KiB packet ring minus the mandatory
+64-byte allocation overhead)</td></tr>
+<tr><td>AAC object types</td><td>AAC Main and AAC-LC, with SBR/HE-AAC extension processing</td></tr>
+<tr><td>AAC core sample rates</td><td>8, 11.025, 12, 16, 22.05, 24, 32, 44.1, 48, 64, 88.2 and 96 kHz</td></tr>
+<tr><td>AAC channels</td><td>Mono/stereo output; accepted multichannel AAC is downmixed to stereo</td></tr>
+<tr><td>FLAC and Ogg Vorbis channels</td><td>Mono or stereo only</td></tr>
+<tr><td>FLAC, Ogg and AAC decoded output</td><td>16-bit PCM</td></tr>
+<tr><td>Container tracks</td><td>8 total streams/tracks shared with video and subtitles</td></tr>
+<tr><td>Individual file size</td><td>Smaller than 4 GiB because file sizes, positions and seeks are 32-bit</td></tr>
+</tbody>
+</table>
+
+<h2 id="hardware-tested">Hardware-confirmed audio matrix</h2>
+<p>The repository's generated 20-second audio fixtures were all played successfully on a real PS2. The matrix uses
+a 44.1 kHz mono tone unless otherwise noted:</p>
+
+<table data-sortable>
+<thead><tr><th>Route</th><th>Fixture profile</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>MP3</td><td>192 kbit/s</td><td>Passed</td></tr>
+<tr><td>Ogg Vorbis</td><td>Quality 5</td><td>Passed</td></tr>
+<tr><td>WMA v2</td><td>128 kbit/s</td><td>Passed</td></tr>
+<tr><td>FLAC</td><td>Lossless mono fixture</td><td>Passed</td></tr>
+<tr><td>AC-3</td><td>192 kbit/s</td><td>Passed</td></tr>
+<tr><td>AAC in M4A</td><td>128 kbit/s</td><td>Passed</td></tr>
+<tr><td>Raw ADTS AAC</td><td>128 kbit/s</td><td>Passed</td></tr>
+<tr><td>MP2</td><td>192 kbit/s</td><td>Passed</td></tr>
+<tr><td>Audio-only MP4 / AAC</td><td>48 kHz stereo, 128 kbit/s</td><td>Passed as music with the visualiser</td></tr>
+</tbody>
+</table>
+
+<p>AAC Main, HE-AAC/SBR, WMA v1, DTS, embedded PCM and multichannel downmix are source-supported paths but were not
+separate cases in this hardware fixture matrix.</p>
 
 <div class="callout amber"><div class="h">⚠ Match the extension to the contents</div>
 SMS chooses the decoder from the file's extension. A file that has been renamed to the wrong extension (say, an AAC
@@ -166,7 +211,8 @@ order written in the file. Turn it off to hear the list exactly as it is laid ou
 
 <h2 id="soundtracks">Audio inside video</h2>
 <p>The same decoders power the soundtrack of a movie. When you play an AVI, MP4 or MPEG file, SMS decodes its
-embedded audio stream — commonly MP3 or AC3 — right alongside the picture. So "audio format support" and
+embedded audio stream — commonly MP3, MP2, AAC or AC3 — right alongside the picture. If the video codec itself is
+unsupported (for example H.264 or H.265) the supported audio track may still play by itself. So "audio format support" and
 "a video's soundtrack" are two sides of the same engine; for the video side of things, see
 <a href="video.html">Video Playback</a>.</p>
 

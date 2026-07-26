@@ -75,6 +75,10 @@ difference is that the bytes are arriving over Ethernet instead of off a disc or
 The SMB client rides on top of the PS2's TCP/IP stack, so the console needs a working wired network connection —
 an IP address and a link to your router or switch — before it can reach a share. Configure that on the
 <a href="network.html">Network Setup</a> page first; this page assumes the PS2 is already on your LAN.</div>
+<div class="callout amber"><div class="h">⚠ SMB/host and UDPFS cannot share one boot</div>
+SMS's ordinary SMB/host stack and the <a href="network.html#udpfs">UDPFS network drive</a> use different drivers
+for the one Ethernet controller. Whichever starts first owns it until reboot. Enable <b>Autostart network</b> for
+SMB or <b>Autostart UDPFS</b>, not both.</div>
 
 <h2 id="requirements">Requirements</h2>
 <ul class="checklist">
@@ -150,13 +154,13 @@ the server's list of shares, or fill it in to jump straight into one named share
 </table>
 
 <p>When the fields are filled in, choose the <b>Save Settings</b> item at the bottom of the form to store the
-entry. SMS keeps the share in its saved configuration (see <a href="settings.html">Settings</a> for where the
-config lives), so you don't have to re-type it next time.</p>
+entry. SMS keeps the server list in a separate <code>SMS.smb</code> file in the same directory as the general
+<code>SMS.cfg</code>, so it follows the configuration location and you do not have to re-type it next time.</p>
 
 <div class="callout info"><div class="h">ℹ Turn the network device on</div>
 As with the other sources, SMS only brings up the network stack when you ask it to. The settings menu has an
 <b>Autostart Network</b> toggle so the share is available automatically on boot, and — when networking isn't
-running yet — a "start it now" option so you can bring it up on demand without rebooting. On a clean install
+running yet and a server is configured — a <b>Start SMB server support</b> action so you can bring it up on demand without rebooting. On a clean install
 nothing auto-starts; you enable networking when you want it.</div>
 
 <h2 id="connecting">Connecting &amp; browsing</h2>
@@ -218,12 +222,10 @@ SMB1, SMS can use it; if it only serves SMB2/3, it can't.</b></p>
 
 <details class="deep"><summary>Why is SMB1 a security concern, and is enabling it safe?</summary>
 <p>SMBv1 is an old protocol with known weaknesses, which is exactly why Microsoft and the Samba project switched it
-off by default. For a <b>trusted home LAN</b> that is behind a router and not exposed to the internet, turning
-SMB1 back on to serve media to the PS2 is a common and generally acceptable trade-off. If you'd rather not enable
-SMB1 on your main PC, a good alternative is to run the share on a separate, isolated machine (or a small
-always-on box) that only holds media — or simply to use a local source such as <a href="usb.html">USB</a>,
-<a href="mx4sio.html">MX4SIO</a> or the <a href="hdd.html">internal HDD</a> instead. The choice is yours; SMS
-just needs whatever it connects to to speak SMB1.</p>
+off by default. Do not expose it to the internet. If you choose to use it, isolate the service to a trusted LAN or
+a dedicated media host. If you would rather not enable SMB1, use the <a href="network.html#udpfs">UDPFS network
+drive</a> or a local source such as <a href="usb.html">USB</a>, <a href="mx4sio.html">MX4SIO</a> or the
+<a href="hdd.html">internal HDD</a>.</p>
 </details>
 
 <h2 id="see-also">See also</h2>

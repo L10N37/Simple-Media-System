@@ -1,7 +1,7 @@
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Video Playback · SMS Docs</title>
-<meta name="description" content="Everything about playing video in SMS: supported formats (DivX/XviD/MPEG-4, MPEG-1/2, WMV), how to open a file, the player controls, how SMS decodes video with the PS2 IPU, encoding tips and limitations.">
+<meta name="description" content="Exact SMS video support: MPEG-4 Part 2/DivX/Xvid in AVI or MP4, MPEG-1/2 program streams, the 1024-pixel-per-axis source limit, hardware-tested profiles and unsupported modern codecs.">
 <link rel="stylesheet" href="assets/style.css">
 </head><body data-base="">
 <header class="topbar">
@@ -49,7 +49,7 @@
   <main class="content">
 <h1>Video Playback</h1>
 <p class="lead">SMS turns a bone-stock PlayStation 2 into a video player. Point it at a movie file on any storage
-device — a burned disc, a USB stick, an MX4SIO microSD card, the internal HDD, or a network share — press one
+device — a burned disc, a USB stick, an MX4SIO microSD card, the internal HDD, SMB or UDPFS — press one
 button, and it plays. This page covers every video format SMS understands, how to open a file, the on-screen
 player controls, how the decoding works under the hood, and how to get the smoothest playback out of the console.</p>
 
@@ -64,23 +64,69 @@ of FFmpeg-derived decoders that have been hand-optimised for the PS2's Emotion E
 plays and the file extensions SMS looks for.</p>
 
 <table data-sortable>
-<thead><tr><th>Container</th><th>Video it carries</th><th>Extensions</th></tr></thead>
+<thead><tr><th>Container</th><th>Supported video codec</th><th>Extensions</th></tr></thead>
 <tbody>
-<tr><td><b>AVI</b></td><td>DivX / XviD / MPEG-4 (ASP)</td><td><code>.avi</code> <code>.divx</code> <code>.xvid</code></td></tr>
-<tr><td><b>MP4</b></td><td>MPEG-4</td><td><code>.mp4</code></td></tr>
+<tr><td><b>AVI</b></td><td>MPEG-4 Part 2 / ASP (DivX, Xvid and Microsoft MPEG-4 v3 tags)</td><td><code>.avi</code> <code>.divx</code> <code>.xvid</code></td></tr>
+<tr><td><b>MP4 / ISO-BMFF</b></td><td>MPEG-4 Part 2 (<code>mp4v</code>)</td><td><code>.mp4</code></td></tr>
 <tr><td><b>MPEG program stream</b></td><td>MPEG-1 / MPEG-2</td><td><code>.mpg</code> <code>.mpeg</code></td></tr>
-<tr><td><b>WMV / ASF</b></td><td>Windows Media (ASF container)</td><td><code>.wma</code></td></tr>
 </tbody>
 </table>
 
-<div class="callout info"><div class="h">ℹ AVI is the sweet spot</div>
-The classic SMS use case — and where it is most thoroughly tested — is a progressive <b>DivX / XviD / MPEG-4</b>
-movie in an <b>AVI</b> container with an MP3 soundtrack. That combination has been played on stock consoles since
-the very first SMS builds and is the most reliable choice if you are encoding new files yourself.</div>
+<div class="callout red"><div class="h">✕ Modern video codecs are not supported</div>
+<b>H.264/AVC, H.265/HEVC, VP9 and AV1 are not decoded.</b> An MP4 carrying one of those video codecs may still play
+its AAC soundtrack, which looks like successful audio-only playback, but that does not mean the video codec is
+supported. WMV video is also not registered; <code>.wma</code> is a standalone Windows Media <i>audio</i> route.</div>
 
 <p>Audio inside a video (the soundtrack) is decoded by the same engine that plays standalone music files, so a
 movie can carry an MP3, AAC, AC3, or other supported audio track. For the full audio picture — including playlists
 and standalone music — see <a href="audio.html">Audio &amp; Playlists</a>.</p>
+
+<h2 id="implementation-limits">Exact implementation limits</h2>
+<p>These are hard limits visible in the current source, not estimates:</p>
+
+<table>
+<thead><tr><th>Property</th><th>Limit</th><th>What it means</th></tr></thead>
+<tbody>
+<tr><td>Frame dimensions</td><td><b>Width ≤ 1024 and height ≤ 1024</b></td><td>SMS rejects the file if either
+dimension is greater than 1024.</td></tr>
+<tr><td>MPEG-1/2 frame rate</td><td>23.976, 24, 25, 29.97, 30, 50, 59.94 or 60 fps</td><td>The MPEG sequence-header
+rate table, including MPEG-2 extensions.</td></tr>
+<tr><td>Compressed video packet/sample</td><td><b>2,097,088 bytes</b></td><td>The 2 MiB packet ring minus its
+mandatory 64-byte allocation overhead.</td></tr>
+<tr><td>Streams/tracks</td><td><b>8 total</b></td><td>The container-wide stream table includes video, audio and
+subtitle tracks.</td></tr>
+<tr><td>Individual file size</td><td><b>smaller than 4 GiB</b></td><td>File sizes, positions and seeks use 32-bit
+addressing.</td></tr>
+</tbody>
+</table>
+
+<div class="callout amber"><div class="h">⚠ 1024×1024 is an acceptance ceiling, not a speed guarantee</div>
+The player has no universal maximum bitrate or generic MPEG-4 frame-rate rejection. A file that passes the
+dimension check can still be too demanding for real-time playback. Work varies with frame rate, B-frames,
+QPel/GMC, interlacing, motion complexity, audio decoding, device throughput and fragmentation. Large frames may
+also switch automatically from 32/24-bit to dithered 16-bit GS textures to fit video memory.</div>
+
+<h2 id="hardware-tested">Hardware-confirmed profiles</h2>
+<p>The generated repository fixtures were played on a real PS2. Every positive case below played correctly,
+including seeking/pause/return-to-browser checks, while unsupported modern-codec cases failed as expected.</p>
+
+<table data-sortable>
+<thead><tr><th>Container / codec</th><th>Resolution / rate</th><th>Encoded profile</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>AVI / Xvid + MP3</td><td>640×480, 30 fps</td><td>1.5 Mbit/s video; no B-frames; GOP 30; 128 kbit/s MP3</td><td>Passed</td></tr>
+<tr><td>MPEG-2 PS + MP2</td><td>640×480, 30 fps</td><td>2.5 Mbit/s video; GOP 15; 192 kbit/s MP2</td><td>Passed</td></tr>
+<tr><td>MPEG-1 PS + MP2</td><td>640×480, 30 fps</td><td>1.15 Mbit/s video; GOP 15; 192 kbit/s MP2</td><td>Passed</td></tr>
+<tr><td>MP4 / <code>mp4v</code> + AAC</td><td>640×480, 30 fps</td><td>1.5 Mbit/s video; no B-frames; GOP 30;
+48 kHz stereo AAC at 128 kbit/s</td><td>Passed</td></tr>
+<tr><td>MP4 / <code>mp4v</code> + AAC</td><td>320×240, 30 fps</td><td>600 kbit/s video; no B-frames; GOP 30;
+48 kHz stereo AAC at 128 kbit/s</td><td>Passed</td></tr>
+<tr><td>MP4 / H.264 or H.265 + supported audio</td><td>Tested negative cases</td><td>Unsupported video codec</td><td>No
+video, as expected; supported audio can still play</td></tr>
+</tbody>
+</table>
+
+<p>This table is the real-time <b>confirmed baseline</b>, not the full accepted range. Higher dimensions up to the
+1024-pixel-per-axis source limit remain valid inputs but have not been qualified as universally smooth.</p>
 
 <h2 id="playing">Playing a video</h2>
 <p>Opening a movie is a three-key affair: pick the device, walk into the folder, press play.</p>
@@ -89,7 +135,7 @@ and standalone music — see <a href="audio.html">Audio &amp; Playlists</a>.</p>
 <div class="step"><h3>Pick the device</h3>
 <p>SMS opens on the <b>device menu</b> — the top row of device icons. Use <b>Left</b> / <b>Right</b> to highlight the
 device your movie lives on (a <code>massN:</code> device for USB / MX4SIO / HDD-exFAT / i.LINK, an
-<code>mmce0:</code> card, the internal <code>hdd0:</code>, a CD/DVD, or a network share). If the device you want
+<code>mmce0:</code> card, the internal <code>hdd0:</code>, a CD/DVD, <code>smb:</code> or <code>udpfs:</code>). If the device you want
 is not listed, it may not be started yet — see <a href="devices.html">Devices Overview</a> for the Autostart
 toggles and the "Start &lt;device&gt; now" option.</p></div>
 
@@ -141,21 +187,22 @@ with no HDD and no extra hardware.</li>
 </ul>
 
 <div class="callout amber"><div class="h">⚠ Performance depends on the file</div>
-The PS2 is a fixed console, so how smoothly a movie plays comes down to how demanding the file is. <b>Higher
-bitrate and higher resolution mean more work per frame.</b> A modest, well-encoded clip plays effortlessly; a very
-high-bitrate or high-resolution encode can push the console past real-time and stutter — especially when it is being
-read from a slower device. When in doubt, keep the encode reasonable (see the tips below).</div>
+The PS2 is a fixed console, so how smoothly a movie plays comes down to how demanding the file is. Resolution,
+frame rate and coding tools affect decoder work; bitrate also affects storage demand but is not a complete measure
+of decode complexity. A demanding encode can push the console past real-time, especially from a slower or
+fragmented device. Start from a hardware-confirmed profile when making a new encode.</div>
 
 <h2 id="encoding">Encoding tips</h2>
 <p>If you are making files for SMS rather than playing existing ones, a few choices make the difference between
 flawless playback and a slideshow.</p>
 
 <ul class="checklist">
-<li><b>Keep bitrate and resolution reasonable.</b> Standard-definition, progressive DivX / XviD / MPEG-4 in AVI is
-the proven target. You do not need to push resolution or bitrate high to get a good-looking result on a TV — and
-staying modest keeps decoding comfortably ahead of playback.</li>
-<li><b>Favour AVI + MP3.</b> The most-tested and most forgiving combination is a progressive MPEG-4 (DivX/XviD)
-video track with an MP3 soundtrack in an AVI container.</li>
+<li><b>Start from a tested profile.</b> 640×480 at 30 fps with 1.5 Mbit/s MPEG-4 Part 2 video is confirmed in both
+AVI/Xvid + MP3 and MP4/<code>mp4v</code> + AAC. Lower dimensions or bitrate provide more headroom.</li>
+<li><b>Use a supported codec, not just a familiar extension.</b> For MP4, select MPEG-4 Part 2
+(<code>mp4v</code>), not the much more common H.264 or H.265 encoders.</li>
+<li><b>Avoid expensive tools when compatibility matters most.</b> B-frames, QPel and GMC are implemented but add
+work. The hardware-confirmed fixtures use no B-frames.</li>
 <li><b>Defragment on slower devices.</b> On a device with limited read throughput, a heavily fragmented file forces
 the console to seek constantly, which can starve the decoder. Copying the file back onto a freshly-formatted card or
 drive so it lands contiguously gives the smoothest reads, which helps most on the slowest media.</li>
@@ -164,18 +211,24 @@ keep the subtitle track out of the video and drop the <code>.srt</code> / <code>
 the <a href="subtitles.html">Subtitles</a> page.</li>
 </ul>
 
+<p>The exact command used for the confirmed 640×480 MP4 profile is:</p>
+<pre>ffmpeg -i INPUT.mp4 -c:v mpeg4 -vtag mp4v -b:v 1500k -bf 0 -g 30 \
+  -s 640x480 -c:a aac -b:a 128k -ar 48000 -ac 2 \
+  -movflags +faststart OUTPUT.mp4</pre>
+
 <h2 id="limitations">Limitations</h2>
 <p>SMS is a stock-console player, and a few historic limits come with that. Knowing them up front saves a lot of
 "why won't this play" head-scratching.</p>
 
 <ul>
-<li><b>No interlaced video.</b> SMS was designed around <b>progressive</b> footage and does not support interlaced
-movies. If a file is interlaced, re-encode it progressive.</li>
-<li><b>Best results with progressive MPEG-4 (DivX / XviD).</b> AVI-wrapped DivX 5xx / XviD is the format SMS was
-built and tested around; other combinations work but the MPEG-4-in-AVI path is the most solid.</li>
-<li><b>Very high bitrates may stutter on slower devices.</b> The console can only decode so fast, and it can only
-read a file so fast. A demanding encode combined with a slow source can drop frames. Lower the bitrate/resolution,
-or move the file to a faster device, if playback is not smooth.</li>
+<li><b>Codec support is deliberately narrow.</b> There are no H.264, H.265, VP9, AV1 or WMV video decoders.</li>
+<li><b>Interlaced is supported, but not part of the current fixture baseline.</b> The MPEG-4 decoder contains
+interlaced field/DCT paths, and MPEG-2 supports frame- and field-encoded interlaced video. The published test
+profiles above are progressive.</li>
+<li><b>The source ceiling and the real-time ceiling are different.</b> SMS accepts each dimension through 1024,
+but no single bitrate or resolution below that is guaranteed for every codec-tool and storage combination.</li>
+<li><b>Large files remain 32-bit addressed.</b> exFAT removes FAT32's filesystem limit, but the SMS file context
+still limits an individual file to less than 4 GiB.</li>
 </ul>
 
 <details class="deep"><summary>Why can a stock PS2 play "good-resolution movies" at all?</summary>

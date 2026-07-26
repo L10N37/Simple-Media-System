@@ -57,8 +57,8 @@ was able to build on. This page names the people and projects it is grateful to,
 <h2>Built on twenty years of shared work</h2>
 <p>SMS began as one developer's quest to play good-looking video on an unmodified PlayStation 2,
 and became a community effort spanning USB, HDD, network, a GUI, a skin engine and a long list of
-formats. This fork adds storage breadth — MX4SIO playback, exFAT, i.LINK, MMCE, on-screen
-network/SMB — on top of all of that. None of it would exist in isolation.</p></div>
+formats. This fork adds storage breadth — MX4SIO playback, exFAT, i.LINK, MMCE, SMB and UDPFS —
+plus DualShock&nbsp;3/4 support. None of it would exist in isolation.</p></div>
 
 <h2 id="foundation">The foundation</h2>
 <p>The heart of SMS is <b>Eugene Plotnikov</b>'s original media player and the years of
@@ -92,6 +92,16 @@ the protocol behind loading files from an <b>SD2PSX</b> or <b>MemCard PRO2</b> t
 memory-card slot. This fork's <code>mmce0:</code> / <code>mmce1:</code> device support builds directly
 on that work. See <a href="mmce.html">MMCE</a>.</dd></div>
 
+<div class="credit"><dt>rickgaiser, Maximus32 &amp; the neutrino contributors</dt><dd>The
+<b>UDPFS / UDPRDMA</b>, ministack and SMAP foundation vendored from
+<a href="https://github.com/rickgaiser/neutrino">neutrino</a>. The working load sequence was cross-checked against
+<a href="https://github.com/saildot4k/wLaunchELF_R3Z">wLaunchELF-R3Z</a>. SMS carries documented local integration
+changes while preserving upstream attribution.</dd></div>
+
+<div class="credit"><dt>The Open PS2 Loader contributors</dt><dd>The DS3/DS4 USB and Bluetooth driver/client
+foundation vendored from <a href="https://github.com/ps2homebrew/Open-PS2-Loader">Open PS2 Loader</a>, adapted here
+for SMS's controller path and in-app Bluetooth pairing.</dd></div>
+
 <div class="credit"><dt>The FFmpeg project</dt><dd>SMS's video and audio decoders trace their heritage to
 <b>FFmpeg</b>. Plotnikov's original player was a heavily PS2-optimised port of parts of FFmpeg, and the
 decoder lineage — for AVI/MP4 MPEG-4, MPEG program streams, MP3, AAC, AC3, FLAC, OGG and more — reaches
@@ -99,9 +109,9 @@ back to that project's contributors.</dd></div>
 
 <div class="credit"><dt>This fork</dt><dd>The storage-focused work documented on this site: the
 <b>MX4SIO microSD playback fix</b> (the headline feature), <b>exFAT internal HDD over ATA</b> alongside
-classic APA, <b>i.LINK</b> storage, <b>MMCE</b> devices, fully on-screen <b>network &amp; SMB setup</b>
-with a real on-screen keyboard, config that saves to the boot device, a refreshed theme and device
-icons, and this documentation.</dd></div>
+classic APA, <b>i.LINK</b> storage, <b>MMCE</b> devices, the <b>UDPFS network drive</b>, fully on-screen
+<b>network &amp; SMB setup</b>, DualShock&nbsp;3/4 integration, config that saves to the boot device, MP4 support,
+a refreshed theme and device icons, and this documentation.</dd></div>
 </dl>
 
 <h2 id="what-this-fork-adds">What this fork contributes</h2>
@@ -116,8 +126,12 @@ adapter, with a hardened driver that keeps playback reliable under a media playe
 <code>SMS_Media</code> partition. See <a href="hdd.html">Internal HDD</a>.</li>
 <li><b>i.LINK (IEEE&nbsp;1394) storage</b> — a FireWire drive as a media source. See <a href="ilink.html">i.LINK</a>.</li>
 <li><b>MMCE devices</b> — browsing media from an SD2PSX or MemCard PRO2 in the memory-card slot. See <a href="mmce.html">MMCE</a>.</li>
+<li><b>UDPFS network drive</b> — a folder-served network filesystem at <code>udpfs:</code>, distinct from UDPBD.
+See <a href="network.html#udpfs">Network Setup</a>.</li>
 <li><b>On-screen network &amp; SMB setup</b> — configure your IP and connect to a share entirely from
 the pad, no hand-edited config files. See <a href="network.html">Network Setup</a>.</li>
+<li><b>DualShock 3 / 4 support</b> — wired USB and Bluetooth input, with controller pairing inside SMS.</li>
+<li><b>MPEG-4 Part 2 MP4 playback</b> — <code>mp4v</code> video with AAC audio, covered by the hardware test pack.</li>
 <li><b>Settings that save anywhere</b> — configuration persists to the memory card or to the device SMS
 booted from. See <a href="settings.html">Settings</a>.</li>
 <li><b>A refreshed theme</b> — new desktop artwork and device icons, on the existing skin engine. See
@@ -164,8 +178,8 @@ for SMS you may also want:</p>
 <p>The community-maintained SMS project lives with the <a href="https://github.com/ps2homebrew">ps2homebrew</a>
 organisation, and its documentation is at <a href="https://ps2homebrew.github.io/SMS/">ps2homebrew.github.io/SMS</a>.
 This documentation covers a <b>downstream fork</b> focused on storage breadth — it makes MX4SIO microSD
-playback work and adds exFAT/ATA HDD, i.LINK and MMCE devices, moves network and SMB setup fully
-on-screen, and refreshes the look. It is a labour of love built on the work of everyone named above; the
+playback work and adds exFAT/ATA HDD, i.LINK, MMCE and UDPFS devices, moves network and SMB setup fully
+on-screen, adds DualShock&nbsp;3/4 support, and refreshes the look. It is a labour of love built on the work of everyone named above; the
 long-term home of SMS remains the community project.</p>
 </details>
 </main>

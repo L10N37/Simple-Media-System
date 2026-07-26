@@ -66,11 +66,16 @@ memory card, <b>FreeDVDBoot</b> from a burned disc, or any other exploit/loader 
 already run homebrew on your PS2, you are ready.</li>
 <li><b>The SMS build</b> — the <code>SMS.elf</code> file itself. See <a href="#getting-sms">Getting SMS</a> below.</li>
 <li><b>A media device</b> to play from. The simplest is a <b>FAT32 or exFAT USB flash drive</b>; if you want to use
-MX4SIO, the internal HDD, i.LINK, MMCE or an SMB share instead, each has its own page under
+MX4SIO, the internal HDD, i.LINK, MMCE, SMB or UDPFS instead, each is covered under
 <a href="devices.html">Devices</a>. On a very early / fat PS2 you can also just burn media to CD/DVD.</li>
-<li><b>A DualShock&nbsp;2 controller</b> to drive the menus, and a memory card if you want SMS to remember your
-settings (optional — see <a href="#next-steps">Next steps</a>).</li>
+<li><b>A controller</b> to drive the menus: DualShock&nbsp;2, or DualShock&nbsp;3/4 over USB or Bluetooth.
+A memory card is optional for ordinary settings but is required to save the network <code>IPCONFIG.DAT</code>.</li>
 </ul>
+
+<div class="callout info"><div class="h">ℹ DualShock 3 / 4</div>
+Wired DS3/DS4 support uses USB and is loaded automatically. For Bluetooth, connect a compatible USB Bluetooth
+dongle, plug the controller into USB, choose <b>Device settings → Pair Bluetooth controller</b>, then unplug the
+cable and power the controller on. These USB controller paths do not contend with MX4SIO on SIO2.</div>
 
 <div class="callout amber"><div class="h">⚠ Homebrew access is up to you</div>
 This guide assumes your console can already launch homebrew. Setting up FreeMcBoot, FreeDVDBoot or another exploit
@@ -137,15 +142,15 @@ and the <a href="devices.html">Devices Overview</a>.</p>
 <div class="callout amber"><div class="h">⚠ On a clean install, nothing auto-starts</div>
 Out of the box SMS starts with <b>no storage devices running</b> — the device row will look sparse until you turn
 something on. This is deliberate: you enable exactly the devices you use. Open the settings menu and flip the
-matching <b>Autostart</b> toggle (Autostart USB, Autostart MX4SIO, Autostart HDD, Autostart i.LINK, Autostart
-MMCE, Autostart Network…), or use the <b>Start &lt;device&gt; now</b> item to bring one up on the spot without a
+matching <b>Autostart</b> toggle (USB, MX4SIO, HDD, i.LINK, MMCE, network or UDPFS), or use its
+<b>Start …</b> item to bring it up on the spot without a
 reboot. Once a device is started it appears in the top row and you can browse into it. Full details are on the
 <a href="settings.html">Settings Reference</a>.</div>
 
-<div class="callout red"><div class="h">✋ Two pairs of devices can't run at once</div>
-Because of how the PS2 wires them, <b>MX4SIO and MMCE</b> share the memory-card / SIO2 bus, and the internal HDD's
-<b>APA/PFS</b> path and its <b>exFAT (BDM)</b> path share the internal ATA bus — in each pair only one can be active
-at a time. If you enable a conflicting pair, whichever starts first owns the bus. Pick the one you need. See
+<div class="callout red"><div class="h">✋ Three resource pairs — choose one from each</div>
+<b>MX4SIO and MMCE</b> share SIO2; the internal HDD's <b>APA/PFS</b> and <b>exFAT/BDM</b> paths share ATA; and
+<b>SMB/host and UDPFS</b> load different stacks for the one Ethernet controller. Whichever starts first owns the
+shared resource for that boot. See
 <a href="devices.html">Devices Overview</a> for the specifics.</div>
 
 <h2 id="prepare-device">Preparing a media device</h2>
@@ -159,7 +164,8 @@ no special partitioning is needed for USB or MX4SIO. (The internal APA HDD is th
 PS2's own partition scheme; see <a href="hdd.html">Internal HDD</a>.)</p></div>
 <div class="step"><h3>Copy your media anywhere on it</h3>
 <p>Drop your videos, music and pictures onto the drive in whatever folders you like. SMS recognises files by
-extension — AVI/MP4/MPG for video, MP3/AAC/FLAC/OGG for audio, JPEG for pictures, plus M3U playlists and external
+extension — AVI/DivX/Xvid, <code>mp4v</code> MP4 and MPG/MPEG for video; MP2/MP3, AAC, AC3, FLAC, OGG and WMA
+for audio; JPEG for pictures; plus M3U playlists and external
 SRT/SUB subtitles. The full list is on the <a href="video.html">Video</a> and <a href="audio.html">Audio</a>
 pages.</p></div>
 <div class="step"><h3>Plug it in and start the device in SMS</h3>
@@ -170,7 +176,7 @@ appear in the browser, ready to open with <b>Cross</b>. That is it — no import
 <div class="callout info"><div class="h">ℹ Device names you'll see</div>
 BDM mass-storage devices (USB, MX4SIO, exFAT HDD, i.LINK) all appear as <code>massN:</code> where N is
 0,&nbsp;1,&nbsp;2… MMCE units show as <code>mmce0:</code>/<code>mmce1:</code>, the internal APA HDD as
-<code>hdd0:</code>, and optical discs via <code>cdfs</code>. You rarely need to type these — you pick devices by
+<code>hdd0:</code>, UDPFS as <code>udpfs:</code>, and optical discs via <code>cdfs</code>. You rarely need to type these — you pick devices by
 their icon — but they show up in the status line's path.</div>
 
 <h2 id="next-steps">Next steps</h2>
@@ -180,7 +186,7 @@ their icon — but they show up in the status line's path.</div>
 <a class="tile" href="devices.html"><span class="em">🗂️</span><b>Devices Overview</b><span>Every storage source explained</span></a>
 <a class="tile" href="settings.html"><span class="em">🔧</span><b>Settings Reference</b><span>Autostart toggles &amp; options</span></a>
 <a class="tile" href="mx4sio.html"><span class="em">💠</span><b>MX4SIO</b><span>microSD playback — the headline</span></a>
-<a class="tile" href="network.html"><span class="em">📡</span><b>Network Setup</b><span>On-screen IP &amp; SMB</span></a>
+<a class="tile" href="network.html"><span class="em">📡</span><b>Network Setup</b><span>On-screen IP, SMB &amp; UDPFS</span></a>
 <a class="tile" href="releases.html"><span class="em">📦</span><b>Releases</b><span>Download the latest ELF</span></a>
 </div>
 

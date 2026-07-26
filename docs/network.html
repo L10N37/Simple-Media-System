@@ -1,7 +1,7 @@
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Network Setup · SMS Docs</title>
-<meta name="description" content="Set up networking on SMS for PlayStation 2 — network adapter and wired Ethernet requirements, on-screen IP configuration with no config files to edit, and how it feeds the SMB share browser.">
+<meta name="description" content="Set up SMS networking for SMB shares or the UDPFS network drive: wired Ethernet, on-screen static IP configuration, server setup, protocol differences and the one-network-stack-per-boot rule.">
 <link rel="stylesheet" href="assets/style.css">
 </head><body data-base="">
 <header class="topbar">
@@ -48,127 +48,84 @@
   </nav>
   <main class="content">
 <h1>Network Setup</h1>
-<p class="lead">SMS can read media straight off a <b>Windows or Samba network share</b> over your home
-network. Everything you need to get there — the PS2's own network stack and the address of the machine you're
-connecting to — is configured <b>on-screen from the pad</b>. In this fork there is <b>no pre-made
-<code>ipconfig.dat</code> to hand-edit</b>: you fill in the fields on the TV and SMS saves them for you. This page
-covers the hardware you need and how the addressing works; the <a href="smb.html">SMB Network</a> page walks through
-the share fields and the on-screen keyboard in detail.</p>
+<p class="lead">SMS has two ways to browse media over wired Ethernet: the established <b>SMB1/CIFS share</b>
+client and this fork's <b>UDPFS network drive</b>. SMB connects to a configured Windows or Samba share.
+UDPFS discovers a PC folder served by PS2-Servers UDPFSD and mounts it as <code>udpfs:</code>. Both use settings
+entered from the pad; no hand-edited network file is required.</p>
 
-<div class="callout info"><div class="h">ℹ Networking is optional</div>
-SMS is a stock-console media player — it plays perfectly well from CD/DVD, USB, MX4SIO, the internal HDD, i.LINK and
-MMCE without any network at all. You only need the steps on this page if you want to stream media from a
-<b>network share</b>. If you're not using SMB, you can leave <b>Autostart Network</b> off and skip this entirely.</div>
+<div class="callout amber"><div class="h">⚠ Choose SMB/host or UDPFS for each boot</div>
+The two paths load different network stacks for the PS2's one EMAC3 Ethernet controller. Whichever starts first owns
+the NIC until reboot. Use <b>Autostart network</b> for SMB/host or <b>Autostart UDPFS</b> for UDPFS, not both.
+This does not conflict with MX4SIO or MMCE because those use SIO2, not Ethernet.</div>
 
 <h2 id="requirements">Requirements</h2>
-<p>Network support on the PS2 rides on the console's <b>Ethernet</b> hardware, so you need a wired connection to your
-router or PC:</p>
 <ul class="checklist">
-<li>A <b>PlayStation 2 Network Adapter</b> — the official expansion-bay adapter for the older fat consoles — <i>or</i>
-a slim console that has Ethernet <b>built in</b>. Either one gives the PS2 an Ethernet port.</li>
-<li>A <b>wired Ethernet cable</b> from that port to your router, switch, or directly to the PC hosting the share.
-SMS's network path is wired; there is no built-in Wi-Fi on the PS2.</li>
-<li>A machine on the same network sharing files over <b>SMB1</b> (see the note below) — a Windows PC, a NAS, or a
-Samba server.</li>
+<li>A fat PS2 with a <b>Network Adapter</b>, or a slim PS2 with built-in Ethernet.</li>
+<li>A wired Ethernet connection to the same LAN as the server PC. The PS2 has no built-in Wi-Fi.</li>
+<li>For SMB: a Windows, Samba or NAS host offering an <b>SMB1/CIFS</b> share.</li>
+<li>For UDPFS: <a href="https://github.com/NathanNeurotic/PS2-Servers"><b>PS2-Servers</b></a> running its
+<b>UDPFSD</b> folder server.</li>
 </ul>
-<div class="callout amber"><div class="h">⚠ Fat vs. slim adapters</div>
-On the original "fat" PS2, the same expansion-bay Network Adapter also carries the internal-HDD (ATA) connector.
-On slim consoles the Ethernet is on-board and there is no internal 3.5" HDD bay. Whichever you have, only the
-<b>Ethernet</b> side matters for SMB — the internal HDD is a separate feature covered on the
-<a href="hdd.html">Internal HDD</a> page.</div>
 
-<h2 id="ip-config">IP configuration — done on-screen</h2>
-<p>Classic builds of SMS (and OPL) expected you to prepare a network configuration file on your memory card by hand
-before you could reach a share. <b>This fork removes that step.</b> Addressing is entered <b>in the GUI</b>, from the
-controller, and stored in the SMS configuration — so there is no text file to create, no octets to type on a PC, and
-nothing to copy back to the memory card first.</p>
-
-<p>In practice the address you're setting is entered as part of <b>adding a network share</b>. When you open the
-<b>Add / Edit share</b> form (from the SMB device — see <a href="smb.html">SMB Network</a>), the top of the form is
-the target <b>IP address</b>, broken into its four octets. Each octet is its own field:</p>
+<h2 id="ip-config">Set the PS2's static IP on-screen</h2>
+<p>Open <b>Device settings → Network settings → Edit IPCONFIG.DAT</b>. Enter the PS2's own IP address,
+network mask and gateway one octet at a time, then choose <b>Save/Update IPCONFIG.DAT</b>. SMS writes the result to
+<code>mc0:/SYS-CONF/IPCONFIG.DAT</code>. UDPFS requires a valid static PS2 IP; SMB uses the same network
+configuration.</p>
 <div class="steps">
-<div class="step"><h3>Pick an octet field</h3>
-<p>Move Up/Down to highlight one of the four IP octet fields at the top of the Add / Edit share form. A brand-new
-entry starts pre-filled with a sensible private-network default (a <code>192.168.x.x</code> style address) so you're
-only nudging it to match your own network.</p></div>
-<div class="step"><h3>Dial in the value</h3>
-<p>With an octet highlighted, press <b>Left</b> / <b>Right</b> to roll that number down or up. Each octet wraps
-around the full <b>0–255</b> range, so you can spin quickly to the value you need. Repeat for all four octets until
-the address matches the machine (or the target you want on your subnet).</p></div>
-<div class="step"><h3>Fill in the rest of the form</h3>
-<p>Below the IP are the remaining connection fields — server name, share, user, password, and so on — which you type
-using the <b>on-screen keyboard</b>. Highlight a field and press <b>Cross</b> to bring the keyboard up. These fields
-are documented on the <a href="smb.html">SMB Network</a> page.</p></div>
-<div class="step"><h3>Save</h3>
-<p>Choose <b>Save</b> at the bottom of the form. SMS writes the entry to its configuration and rebuilds the share
-list — no reboot, no config file to place by hand.</p></div>
+<div class="step"><h3>Choose an address</h3><p>Give the PS2 an unused static address on the same subnet as the
+server, such as <code>192.168.1.20</code> when the PC is <code>192.168.1.10</code>.</p></div>
+<div class="step"><h3>Enter mask and gateway</h3><p>For a typical home LAN the mask is
+<code>255.255.255.0</code>; use your router's address as the gateway. Match your actual network.</p></div>
+<div class="step"><h3>Save</h3><p>Choose <b>Save/Update IPCONFIG.DAT</b>. A memory card in the boot-selected slot is required for this
+network file even when the general SMS configuration is saved beside the ELF.</p></div>
 </div>
 
-<div class="callout info"><div class="h">ℹ Where these settings live</div>
-Like the rest of SMS's options, saved network/share entries persist to the memory card at
-<code>mc0:/SMS/SMS.cfg</code>. In this fork, if SMS was booted from another device (USB, HDD…) with <i>no</i> memory
-card present, settings save next to the SMS ELF on that boot device instead — so a memory-card-less setup keeps its
-network entries too. See <a href="settings.html">Settings Reference</a>.</div>
+<h2 id="smb">SMB network shares</h2>
+<p>The SMB browser stores a server address, share, user, password, client name and port. Add or edit the server
+from the SMB device using the on-screen keyboard; see <a href="smb.html">SMB Network</a> for the complete field
+reference. Start it with <b>Start SMB server support</b> or save <b>Autostart network</b>.</p>
+<div class="callout amber"><div class="h">⚠ SMB1 is required</div>
+SMS speaks SMB1/CIFS. Modern Windows disables SMB1 by default, so a Samba/NAS configuration that permits SMB1 is
+usually safer than enabling an obsolete protocol broadly on a general-purpose PC. Keep this service on a trusted
+LAN.</div>
 
-<details class="deep"><summary>What about static vs. DHCP, or my PS2's own IP?</summary>
-<p>The address you dial in on the form is the <b>address SMS connects to</b> for the share — it's how SMS knows where
-your PC or NAS lives on the network. The important, user-visible change in this fork is simply that <b>you set it
-on-screen</b>, with no <code>ipconfig.dat</code>-style file to prepare in advance.</p>
-<p>Exact behaviour of the PS2's own address on the network (for example whether it takes an address automatically or
-uses a fixed one) depends on your network. If a share won't connect, the practical fix is almost always to
-double-check that the address you entered is correct and that the PS2 and the host are on the <b>same subnet</b> — see
-Troubleshooting below.</p>
-</details>
-
-<h2 id="connecting">Connecting to a share</h2>
-<p>Once addressing is entered, connecting is the job of the <b>SMB device</b>: SMS logs in to the server, lists its
-shares, and drops you into the share as an ordinary folder you can browse and play from. The full walkthrough — the
-server name, user/password, client name, port and share fields, the on-screen keyboard, and how admin
-(<code>$</code>) shares are hidden — lives on its own page:</p>
-<div class="grid">
-<a class="tile" href="smb.html"><span class="em">🌐</span><b>SMB Network</b><span>Share fields, login, on-screen keyboard</span></a>
-<a class="tile" href="settings.html"><span class="em">🔧</span><b>Settings Reference</b><span>Autostart Network &amp; where config saves</span></a>
-<a class="tile" href="devices.html"><span class="em">🗂️</span><b>Devices Overview</b><span>How all the sources fit together</span></a>
+<h2 id="udpfs">UDPFS network drive</h2>
+<p>UDPFS serves a real PC directory over the UDPFS/UDPRDMA protocol. It is a <b>file-level</b> service:
+the folder mounts directly as <code>udpfs:</code>. It is not UDPBD, does not require a disk image, and does not
+appear as <code>massN:</code>.</p>
+<div class="steps">
+<div class="step"><h3>Configure the PS2 IP</h3><p>Complete the static-IP steps above and save
+<code>IPCONFIG.DAT</code>.</p></div>
+<div class="step"><h3>Serve the folder</h3><p>Run the UDPFSD server from
+<a href="https://github.com/NathanNeurotic/PS2-Servers">PS2-Servers</a>, select the folder to expose, and keep
+<b>Modulo mode off</b>. The PC and PS2 must be on the same LAN; SMS discovers the server by broadcast, so there is
+no server IP to enter in SMS.</p></div>
+<div class="step"><h3>Start the drive</h3><p>Choose <b>Start UDPFS network drive</b>, or enable
+<b>Autostart UDPFS</b> and save settings. When discovery succeeds, browse the <code>udpfs:</code> device like any
+other source.</p></div>
 </div>
-<p>To have the network device come up on its own each boot, turn on <b>Autostart Network</b> in the settings menu.
-When it isn't running, a "<b>Start Network now</b>"-style item lets you bring it up on demand without a reboot. On a
-clean install nothing auto-starts, so you enable networking only if you actually use SMB. See
-<a href="settings.html">Settings Reference</a> for the device toggles.</p>
+<div class="callout info"><div class="h">✓ Hardware-confirmed in this fork</div>
+Booting SMS from UDPFS, browsing and playing media from the served folder, and exiting playback cleanly have all
+been confirmed on real PS2 hardware.</div>
 
-<h2 id="troubleshooting">Notes &amp; troubleshooting</h2>
-<div class="callout amber"><div class="h">⚠ Your server must speak SMB1</div>
-SMS connects using the <b>SMB1</b> (CIFS) protocol. Modern Windows disables SMB1 by default for security. To share
-to the PS2 you typically have to <b>re-enable SMB1</b> on the host (on Windows, the "SMB 1.0/CIFS File Sharing
-Support" optional feature) or use a <b>Samba</b>/NAS server configured to allow SMB1 clients. If SMS reaches the
-machine but can't list or open shares, an SMB1 mismatch on the server is the most common cause.</div>
+<h2 id="troubleshooting">Troubleshooting</h2>
 <ul class="checklist">
-<li><b>Check the cable and link.</b> Confirm the Ethernet cable is seated at both ends and the link LED is lit on
-your router/switch. A wired link is required — the PS2 has no Wi-Fi.</li>
-<li><b>Stay on the same subnet.</b> The address you entered must be on the same network as the PS2 (for a typical
-home network, the first three octets usually match — e.g. <code>192.168.1.x</code> on both). A wrong subnet is the
-classic "can't connect" symptom.</li>
-<li><b>Double-check the address octets.</b> Because each octet rolls independently, it's easy to leave one at the
-wrong value. Re-open the Add / Edit form and confirm all four match your host.</li>
-<li><b>Confirm the share is actually shared.</b> The target folder must be shared on the host and reachable by the
-user/password you entered. Admin shares (names ending in <code>$</code>) are intentionally hidden by SMS's share
-list.</li>
-<li><b>Confirm sign-in on the host.</b> If the host rejects the login, the user name / password (or "guest" access
-rules) on the server side are usually the issue — adjust them on the host, not on the PS2.</li>
+<li><b>Check link and subnet.</b> Confirm Ethernet link lights and put the PS2 and server on the same subnet.</li>
+<li><b>UDPFS says NOIP.</b> Save the PS2's static IP through <b>Edit IPCONFIG.DAT</b> first.</li>
+<li><b>UDPFS discovery fails.</b> Start UDPFSD before retrying, keep Modulo mode off, and allow UDP port
+<code>0xF5F6</code> (62966) through the PC firewall on the trusted LAN.</li>
+<li><b>The other network option disappeared.</b> One network stack already owns the NIC. Reboot, then start only
+the path you intend to use.</li>
+<li><b>SMB reaches the host but cannot list or open shares.</b> Check SMB1 availability and the configured
+credentials. Administrative shares ending in <code>$</code> are intentionally hidden.</li>
 </ul>
 
-<div class="callout info"><div class="h">ℹ Prefer local storage if the network fights you</div>
-Network streaming has more moving parts than local playback (adapter, cable, router, host, SMB1). If you're just
-trying to watch a file, copying it to <a href="usb.html">USB</a>, <a href="mx4sio.html">MX4SIO microSD</a>, or the
-<a href="hdd.html">internal HDD</a> is often the quickest path — SMS plays the same formats from any of them.</div>
-
-<details class="deep"><summary>Why is SMB the "network" feature and not a general file protocol?</summary>
-<p>SMS browses the raw filesystem of whatever device it can reach. On a local disk that's the disk itself; over the
-network, the equivalent is a <b>file share</b>, and the protocol the PS2 homebrew stack speaks for that is
-<b>SMB/CIFS</b> — the same protocol Windows "shared folders" and Samba use. So "networking" in SMS is, in practice,
-"reach an SMB share": bring up the Ethernet stack, point SMS at the host's address, log in, and the share behaves
-like any other folder of media. That's why this page (addressing/hardware) and the <a href="smb.html">SMB Network</a>
-page (the share itself) are two halves of one story.</p>
-</details>
+<div class="grid">
+<a class="tile" href="smb.html"><span class="em">🌐</span><b>SMB Network</b><span>Share fields and login</span></a>
+<a class="tile" href="settings.html"><span class="em">🔧</span><b>Settings Reference</b><span>Autostart and Start-now controls</span></a>
+<a class="tile" href="devices.html"><span class="em">🗂️</span><b>Devices Overview</b><span>All sources and exclusion rules</span></a>
+</div>
 </main>
   <aside class="toc"><div class="toc-h">On this page</div><nav id="toc-nav"></nav></aside>
 </div>

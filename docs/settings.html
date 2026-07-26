@@ -94,22 +94,25 @@ without rebooting.</p>
 <table data-sortable>
 <thead><tr><th>Option</th><th>Device it starts</th><th>Values</th></tr></thead>
 <tbody>
-<tr><td><b>Autostart network</b></td><td>The network stack (needed for SMB shares). See <a href="network.html">Network Setup</a>.</td><td>on / off</td></tr>
+<tr><td><b>Autostart network</b></td><td>The SMB/host network stack. Mutually exclusive with UDPFS for that boot. See <a href="network.html">Network Setup</a>.</td><td>on / off</td></tr>
 <tr><td><b>Autostart USB</b></td><td>USB mass storage (<code>massN:</code>). See <a href="usb.html">USB</a>.</td><td>on / off</td></tr>
 <tr><td><b>Autostart HDD APA</b></td><td>The internal HDD via the classic APA/PFS path (<code>hdd0:</code>, the <code>SMS_Media</code> partition). See <a href="hdd.html">Internal HDD</a>.</td><td>on / off</td></tr>
 <tr><td><b>Autostart HDD BDM</b></td><td>The internal HDD via ATA as a BDM <code>massN:</code> device — this is the <b>exFAT</b> path added by this fork. See <a href="hdd.html">Internal HDD</a>.</td><td>on / off</td></tr>
 <tr><td><b>Autostart MX4SIO</b></td><td>The MX4SIO microSD adapter over SIO2 (<code>massN:</code>). The headline feature of this fork. See <a href="mx4sio.html">MX4SIO</a>.</td><td>on / off</td></tr>
 <tr><td><b>Autostart i.LINK</b></td><td>An i.LINK (IEEE&nbsp;1394 / FireWire) drive as a BDM <code>massN:</code> device. See <a href="ilink.html">i.LINK</a>.</td><td>on / off</td></tr>
 <tr><td><b>Autostart MMCE</b></td><td>An MMCE device (SD2PSX / MemCard PRO2) in the memory-card slot (<code>mmce0:</code> / <code>mmce1:</code>). See <a href="mmce.html">MMCE</a>.</td><td>on / off</td></tr>
+<tr><td><b>Autostart UDPFS</b></td><td>The folder-served UDPFS network drive (<code>udpfs:</code>). Mutually exclusive with SMB/host for that boot. See <a href="network.html#udpfs">UDPFS</a>.</td><td>on / off</td></tr>
 </tbody>
 </table>
 
-<div class="callout red"><div class="h">⚠ Two pairs of devices share a bus — don't turn both on</div>
+<div class="callout red"><div class="h">⚠ Shared resources — choose one member of each pair</div>
 <ul>
 <li><b>MX4SIO and MMCE</b> both use the SIO2 / memory-card-slot bus. Only one can be active at a time — enable the one
 you're using, not both.</li>
 <li><b>HDD APA and HDD BDM</b> both own the internal ATA bus. Pick one; whichever starts first owns the bus. Use
 <b>HDD APA</b> for a classic PFS <code>SMS_Media</code> drive, or <b>HDD BDM</b> for a modern exFAT drive.</li>
+<li><b>Network (SMB/host) and UDPFS</b> load different stacks for the one Ethernet controller. Whichever starts
+first owns it until reboot. Enable one, not both.</li>
 </ul>
 See <a href="devices.html">Devices Overview</a> for the full picture.</div>
 
@@ -118,13 +121,15 @@ See <a href="devices.html">Devices Overview</a> for the full picture.</div>
 device immediately, so it shows up in the device row without a reboot. Once the device is up, its item disappears from
 the list. The wording matches each device:</p>
 <ul class="checklist">
-<li><b>Start network support</b></li>
+<li><b>Start SMB server support</b> (shown when an SMB server is configured)</li>
+<li><b>Start HOST ( ps2dev ) support</b></li>
 <li><b>Start USB support</b></li>
 <li><b>Start HDD support</b> (APA)</li>
 <li><b>Start HDD BDM</b> (ATA / exFAT)</li>
 <li><b>Start MX4SIO support</b></li>
 <li><b>Start i.LINK support</b></li>
 <li><b>Start MMCE support</b></li>
+<li><b>Start UDPFS network drive</b></li>
 </ul>
 <p>The Device menu also ends with a <b>Refresh connections</b> item, which re-probes the running devices — handy after
 hot-swapping a card or drive so its contents are re-read.</p>
@@ -141,8 +146,9 @@ links to the on-screen network setup.</p>
 <table>
 <thead><tr><th>Option</th><th>What it does</th><th>Values</th></tr></thead>
 <tbody>
-<tr><td><b>Network settings…</b></td><td>Opens the on-screen network / SMB configuration (IP address, SMB server list, on-screen keyboard). Fully documented on the <a href="network.html">Network Setup</a> page.</td><td>opens sub-menu</td></tr>
+<tr><td><b>Network settings…</b></td><td>Opens the network protocol selector and <b>Edit IPCONFIG.DAT</b> for the PS2's static IP, mask and gateway. The SMB device has its own server editor. See <a href="network.html">Network Setup</a>.</td><td>opens sub-menu</td></tr>
 <tr><td><b>Controller port 2</b></td><td>Tells SMS what is plugged into controller port&nbsp;2 so it reads it correctly.</td><td>gamepad / remote control / none</td></tr>
+<tr><td><b>Pair Bluetooth controller</b></td><td>Pairs a DualShock&nbsp;3 or DualShock&nbsp;4 to the connected USB Bluetooth dongle. The row appears only when the Bluetooth driver is available: connect the dongle, plug the controller into USB, run this command, then unplug the cable and power on the controller.</td><td>action</td></tr>
 <tr><td><b>Disable CD/DVD</b></td><td>Turns the optical (CD/DVD) source on or off. Disable it if you never use discs, so SMS doesn't wait on the drive.</td><td>on / off</td></tr>
 <tr><td><b>CD/DVD speed</b></td><td>Read speed for the optical drive.</td><td>low / medium / high</td></tr>
 <tr><td><b>Directional buttons</b></td><td>Chooses how the D-pad is read — as a standard gamepad or as a remote control.</td><td>gamepad / remote control</td></tr>
@@ -290,10 +296,11 @@ Until then you can change anything and simply not save. There is also a button s
 
 <div class="callout info"><div class="h">ℹ Where the config is stored (and the fork's twist)</div>
 By default SMS saves its configuration to the memory card at <code>mc0:/SMS/SMS.cfg</code>. On this fork, if SMS was
-booted from another device (USB, HDD, MX4SIO…) and there's no memory card to write to, it saves the config
+booted from another re-mountable device (USB, HDD, MX4SIO, MMCE, i.LINK or writable UDPFS) and there's no memory card to write to, it saves the config
 <b>next to the SMS ELF on that boot device</b> instead — so a memory-card-less setup still keeps its settings. Either
 way, one <b>Save settings</b> is all it takes. Deleting the config file gives you clean defaults again — where nothing
-auto-starts.</div>
+auto-starts. The separate <code>SMS.smb</code> server list follows the same directory; only
+<code>IPCONFIG.DAT</code> remains memory-card based.</div>
 
 <div class="callout amber"><div class="h">⚠ Clean defaults auto-start nothing</div>
 On a first boot or after clearing the config, <b>no storage device is started automatically</b>. This is deliberate on
@@ -303,7 +310,7 @@ this fork: you turn on exactly what you need. If SMS boots and you don't see you
 <h2 id="see-also">See also</h2>
 <div class="grid">
 <a class="tile" href="devices.html"><span class="em">🗂️</span><b>Devices Overview</b><span>Which device is which, and the bus rules</span></a>
-<a class="tile" href="network.html"><span class="em">📡</span><b>Network Setup</b><span>On-screen IP &amp; SMB configuration</span></a>
+<a class="tile" href="network.html"><span class="em">📡</span><b>Network Setup</b><span>On-screen IP, SMB &amp; UDPFS</span></a>
 <a class="tile" href="subtitles.html"><span class="em">💬</span><b>Subtitles</b><span>Loading, styling &amp; placement</span></a>
 <a class="tile" href="themes.html"><span class="em">🎨</span><b>Themes &amp; Skins</b><span>Skins, palette &amp; artwork</span></a>
 <a class="tile" href="mx4sio.html"><span class="em">💠</span><b>MX4SIO</b><span>Enable &amp; play from microSD</span></a>

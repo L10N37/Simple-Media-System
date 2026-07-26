@@ -1,4 +1,4 @@
-/* POPStarter Docs — self-contained search + nav. No dependencies. */
+/* SMS Docs — self-contained search + nav. No dependencies. */
 (function () {
   "use strict";
   var INDEX = [], ready = false;
@@ -112,14 +112,9 @@
 /* right-rail "On this page" table of contents + scroll-spy */
 (function () {
   "use strict";
-  var nav = document.getElementById('toc-nav');
-  var aside = document.querySelector('.toc');
-  if (!nav || !aside) return;
-  var heads = Array.prototype.slice.call(document.querySelectorAll('.content h2, .content h3'))
-    .filter(function (h) { return !h.closest('.card') && !h.closest('.step') && !h.closest('details'); });
-  if (heads.length < 2) { aside.classList.add('hide'); return; }
-  var used = {}, links = [], byId = {};
-  heads.forEach(function (h) {
+  var allHeads = Array.prototype.slice.call(document.querySelectorAll('.content h2, .content h3'));
+  var used = {};
+  allHeads.forEach(function (h) {
     var id = h.id;
     if (!id) {
       id = (h.textContent || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'sec';
@@ -127,6 +122,17 @@
       h.id = id;
     }
     used[id] = 1;
+  });
+
+  var nav = document.getElementById('toc-nav');
+  var aside = document.querySelector('.toc');
+  if (!nav || !aside) return;
+  var heads = allHeads
+    .filter(function (h) { return !h.closest('.card') && !h.closest('.step') && !h.closest('details'); });
+  if (heads.length < 2) { aside.classList.add('hide'); return; }
+  var links = [], byId = {};
+  heads.forEach(function (h) {
+    var id = h.id;
     var a = document.createElement('a');
     a.href = '#' + id; a.textContent = h.textContent;
     a.className = h.tagName === 'H3' ? 'lv3' : 'lv2';

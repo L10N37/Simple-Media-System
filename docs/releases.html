@@ -1,7 +1,7 @@
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Releases &amp; Changelog · SMS Docs</title>
-<meta name="description" content="Where SMS builds come from, the current version (3.0 Rev.0), what this storage-focused fork adds, and the historical SMS changelog lineage from Eugene Plotnikov's original DivX player.">
+<meta name="description" content="Download Simple Media System v3.0.0-rev1, verify its release assets, understand rolling builds, and review the fork's current features and historical SMS lineage.">
 <link rel="stylesheet" href="assets/style.css">
 </head><body data-base="">
 <header class="topbar">
@@ -53,9 +53,11 @@ the player. The short version: grab the ready-made <code>SMS.elf</code> from the
 storage additions on top of two decades of SMS development.</p>
 
 <div class="callout info"><div class="h">ℹ Just want to run it?</div>
-You do not need to compile anything. A prebuilt <code>SMS.elf</code> is published on the project's repository
-releases — download it, copy it to a device your PS2 can boot from, and launch it with your usual homebrew
-loader. See <a href="install.html">Install &amp; First Boot</a> for the step-by-step, and
+You do not need to compile anything. Download
+<a href="https://github.com/NathanNeurotic/Simple-Media-System/releases/download/v3.0.0-rev1/Simple-Media-System.elf"><b>Simple-Media-System.elf</b></a>
+from the stable <a href="https://github.com/NathanNeurotic/Simple-Media-System/releases/tag/v3.0.0-rev1"><b>v3.0.0-rev1 release</b></a>,
+copy it to a device your PS2 can boot from, and launch it with your usual homebrew loader. See
+<a href="install.html">Install &amp; First Boot</a> for the step-by-step, and
 <a href="getting-started.html">Getting Started</a> to play your first file.</div>
 
 <h2 id="getting-a-build">Getting a build</h2>
@@ -65,9 +67,12 @@ system — it is a self-contained homebrew ELF that you launch like any other. T
 
 <div class="steps">
   <div class="step"><h3>Download the release ELF</h3>
-    <p>The compiled <code>SMS.elf</code> is published on the project's repository releases page. Grab the latest
-    published build there. Keep the URL generic — go to the repository's Releases and take the most recent
-    <code>SMS.elf</code> asset.</p></div>
+    <p>The current stable version is
+    <a href="https://github.com/NathanNeurotic/Simple-Media-System/releases/tag/v3.0.0-rev1"><b>v3.0.0-rev1</b></a>.
+    Download the standard <a href="https://github.com/NathanNeurotic/Simple-Media-System/releases/download/v3.0.0-rev1/Simple-Media-System.elf"><code>Simple-Media-System.elf</code></a>,
+    the smaller self-extracting
+    <a href="https://github.com/NathanNeurotic/Simple-Media-System/releases/download/v3.0.0-rev1/Simple-Media-System-packed.elf"><code>Simple-Media-System-packed.elf</code></a>,
+    or the <a href="https://github.com/NathanNeurotic/Simple-Media-System/releases/download/v3.0.0-rev1/Simple-Media-System-95b803ba.zip">ZIP containing both</a>.</p></div>
   <div class="step"><h3>Copy it to a bootable device</h3>
     <p>Put <code>SMS.elf</code> wherever your homebrew setup launches ELFs from — a USB stick, the memory card, the
     internal HDD, an MX4SIO card, an MMCE device, and so on. SMS itself will then browse whichever storage you turn
@@ -86,11 +91,23 @@ full on the <a href="building.html">Building from Source</a> page.</div>
 <table>
 <thead><tr><th>Field</th><th>Value</th></tr></thead>
 <tbody>
-<tr><td>Version</td><td><b>3.0 (Rev.0)</b></td></tr>
-<tr><td>Executable</td><td><code>SMS.elf</code> (single self-contained PS2 homebrew ELF)</td></tr>
+<tr><td>Version / tag</td><td><b>v3.0.0-rev1</b> (shown in-app as Version 3.0, Rev.1)</td></tr>
+<tr><td>Released</td><td>2026-07-25 (Pacific) / 2026-07-26 UTC</td></tr>
+<tr><td>Source commit</td><td><code>95b803ba07d1c55aa644acbd633936eb0a1e6ad6</code></td></tr>
+<tr><td>Executables</td><td><code>Simple-Media-System.elf</code> and the smaller self-extracting
+<code>Simple-Media-System-packed.elf</code></td></tr>
 <tr><td>Lineage</td><td>Storage-focused fork of Simple Media System, originally by Eugene Plotnikov</td></tr>
 <tr><td>Toolchain</td><td>Built with the pinned <code>ps2dev/ps2dev:v1.0</code> toolchain via <code>make</code></td></tr>
 <tr><td>Drivers</td><td>IOP <code>.irx</code> modules embedded in the ELF (including a patched <code>mx4sio_bd</code> driver)</td></tr>
+</tbody>
+</table>
+<h3 id="release-hashes">Published asset SHA-256 hashes</h3>
+<table>
+<thead><tr><th>Asset</th><th>SHA-256</th></tr></thead>
+<tbody>
+<tr><td><code>Simple-Media-System.elf</code></td><td><code>045c38fb9213fc0ce4eeef16a8c0d70eb1a9fa4846a04b153912e712ca8d8493</code></td></tr>
+<tr><td><code>Simple-Media-System-packed.elf</code></td><td><code>20edc456817c17f768ea598c1ffe4d263ec53fd16ce5e0df3a61c121f00707fb</code></td></tr>
+<tr><td><code>Simple-Media-System-95b803ba.zip</code></td><td><code>db06917cda9c6f918821c62e6b088e7054246896f805fcaade0187535715a7dc</code></td></tr>
 </tbody>
 </table>
 <p>The version number appears on-screen during SMS's startup/initialization, as it has since the original
@@ -103,6 +120,11 @@ making setup happen entirely on-screen. The headline is that <b>MX4SIO microSD p
 <li><b>MX4SIO microSD playback</b> — video and audio play smoothly from a microSD in an MX4SIO (SIO2) adapter,
 with a hardened driver for reliable playback, its own device icon, and an <b>Autostart MX4SIO</b> toggle. See
 <a href="mx4sio.html">MX4SIO</a>.</li>
+<li><b>MP4 video playback</b> — <code>.mp4</code> files containing MPEG-4 Part 2 (<code>mp4v</code>) video and AAC
+audio now reach the existing decoders correctly, including seeking, audio-only MP4 fallback and
+<code>moov</code>-at-end files. See <a href="video.html">Video Playback</a>.</li>
+<li><b>UDPFS network drive</b> — browse and stream from the PS2-Servers UDPFSD folder protocol over the LAN, with
+clean session shutdown.</li>
 <li><b>Internal HDD — exFAT as well as APA</b> — read media from a modern <b>exFAT</b> drive over ATA (BDM) in
 addition to the classic APA/PFS <code>SMS_Media</code> partition. See <a href="hdd.html">Internal HDD</a>.</li>
 <li><b>i.LINK (IEEE&nbsp;1394) storage</b> — mount a FireWire drive as a media source over the BDM stack. See
@@ -117,8 +139,11 @@ without one, next to the SMS ELF on the device it started from — so a memory-c
 See <a href="settings.html">Settings</a>.</li>
 <li><b>Refreshed theme</b> — new desktop artwork and device icons, on top of the existing <code>.smi</code> skin
 engine. See <a href="themes.html">Themes &amp; Skins</a>.</li>
+<li><b>DualShock 3 and DualShock 4 support</b> — USB and Bluetooth controller input, including in-app Bluetooth
+pairing.</li>
 <li><b>Reliability fixes</b> — settings now load back correctly after a save, memory-card detection is more robust,
-and a clean install starts with nothing auto-running so you turn on only what you need.</li>
+a clean install starts with nothing auto-running, and the status redraw is synchronized before the clock resumes
+after leaving menus or playback.</li>
 </ul>
 
 <div class="callout info"><div class="h">ℹ Everything else still works</div>
@@ -161,8 +186,9 @@ with slideshow and rotate; big (4&nbsp;GB) OpenDML AVI support; USB/FAT driver r
 <tr><td>2009 — later refinements</td><td>576p video mode and 2:2 pulldown for smoother 24fps playback; audio-driver and
 AC3 downmix improvements; further USB/FAT speed work — the last stretch of the original development line before the
 project's community era.</td></tr>
-<tr><td><b>This fork — 3.0 (Rev.0)</b></td><td><b>Working MX4SIO playback</b>, exFAT/ATA HDD, i.LINK, MMCE, on-screen
-network/SMB setup, save-to-boot-device config, a refreshed theme and the reliability fixes listed
+<tr><td><b>This fork — v3.0.0-rev1</b></td><td><b>Working MX4SIO playback</b>, MP4/<code>mp4v</code> video,
+UDPFS, exFAT/ATA HDD, i.LINK, MMCE, DualShock 3/4 input, on-screen network/SMB setup, save-to-boot-device config,
+a refreshed theme and the reliability fixes listed
 <a href="#whats-new">above</a>.</td></tr>
 </tbody>
 </table>
@@ -174,9 +200,9 @@ repository as <code>CHANGELOG.md</code>; open it there if you want the exact ent
 <details class="deep"><summary>Why does this fork jump to version 3.0?</summary>
 <p>SMS versioning has never been a single tidy line — the original author noted early on that different
 "distributors" would put their own signature on their builds. This documentation set describes the build labelled
-<b>3.0 (Rev.0)</b>: a storage-focused fork that keeps SMS's decades-old playback intact while adding the devices and
-on-screen setup covered throughout this site. The version shows on-screen during startup, so you can always confirm
-what you are running.</p></details>
+<b>v3.0.0-rev1</b>, displayed by SMS as <b>Version 3.0 (Rev.1)</b>: a storage-focused fork that keeps SMS's
+decades-old playback while adding the devices, MP4 path and on-screen setup covered throughout this site. The
+version shows on-screen during startup, so you can always confirm what you are running.</p></details>
 
 <details class="deep"><summary>Is this an official SMS release?</summary>
 <p>No. This is a community fork built on the work of many contributors — Eugene Plotnikov's original SMS, the
