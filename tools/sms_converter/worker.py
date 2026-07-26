@@ -102,7 +102,7 @@ class ConversionWorker(QThread):
             start_time = time.time()
             out_time_us = 0
 
-            while self._process.poll() is None:
+            while True:
                 if self._is_cancelled:
                     break
 
@@ -111,6 +111,10 @@ class ConversionWorker(QThread):
                     current_size = os.path.getsize(self.partial_file)
                     if current_size >= SIZE_4_0_GIB:
                         self.cancel()
+                        try:
+                            self._process.wait(timeout=5)
+                        except Exception:
+                            pass
                         self.failed_signal.emit(self.item_id, MSG_FILE_SIZE_APPROACHING_LIMIT)
                         self._cleanup_partial()
                         return
@@ -118,7 +122,7 @@ class ConversionWorker(QThread):
                 # 2. Read FFmpeg progress output line by line
                 line = self._process.stdout.readline()
                 if not line:
-                    continue
+                    break
 
                 self.console_log.append(line)
                 self.log_signal.emit(self.item_id, line.rstrip())
@@ -155,11 +159,18 @@ class ConversionWorker(QThread):
                         self.progress_signal.emit(self.item_id, pct, status_msg)
 
             if self._is_cancelled:
+                try:
+                    self._process.wait(timeout=5)
+                except Exception:
+                    pass
                 self._cleanup_partial()
                 self.cancelled_signal.emit(self.item_id)
                 return
 
-            return_code = self._process.poll()
+            if self._process.stdout:
+                self._process.stdout.close()
+            return_code = self._process.wait()
+
             if return_code != 0:
                 err_text = "".join(self.console_log[-20:])
                 self._cleanup_partial()
@@ -176,10 +187,15 @@ class ConversionWorker(QThread):
 
             # If PASS or WARN, promote partial file to final target file
             if val_result.status in ("PASS", "WARN"):
-                if os.path.exists(self.final_file):
-                    os.remove(self.final_file)
-                os.rename(self.partial_file, self.final_file)
-                self.validation_signal.emit(self.item_id, val_result, self.final_file)
+                target_path = self.final_file
+                if os.path.exists(target_path):
+                    target_path, _ = generate_unique_output_path(
+                        self.input_file,
+                        Path(self.final_file).suffix,
+                        str(Path(self.final_file).parent)
+                    )
+                os.rename(self.partial_file, target_path)
+                self.validation_signal.emit(self.item_id, val_result, target_path)
             else:
                 self._cleanup_partial()
                 self.validation_signal.emit(self.item_id, val_result, self.partial_file)

@@ -247,11 +247,6 @@ class AdvancedSettingsWidget(QWidget):
         self.chk_normalize.setChecked(False)
 
         self._block_signals(False)
-        self._check_resolution_warning()
-
-    def get_settings(() -> Dict[str, Any]:
-        pass  # Will define below
-
     def get_settings_dict(self) -> Dict[str, Any]:
         vcodec_display = self.combo_vcodec.currentText()
         ff_vcodec = VIDEO_CODECS_MAP.get(vcodec_display, "mpeg4")
@@ -263,8 +258,10 @@ class AdvancedSettingsWidget(QWidget):
         w = self.spin_width.value()
         h = self.spin_height.value()
         # Even number rounding
-        if w % 2 != 0: w -= 1
-        if h % 2 != 0: h -= 1
+        if w % 2 != 0:
+            w -= 1
+        if h % 2 != 0:
+            h -= 1
 
         return {
             "vcodec": ff_vcodec,
