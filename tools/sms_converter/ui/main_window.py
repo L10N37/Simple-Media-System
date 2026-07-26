@@ -228,6 +228,19 @@ class MainWindow(QMainWindow):
         pass
 
     def _on_settings_changed(self, settings: dict):
+        preset_name = self.preset_selector.current_preset_name()
+        preset = PRESETS.get(preset_name)
+        if preset:
+            is_match = (
+                settings.get("width") == (preset.width or settings.get("width")) and
+                settings.get("height") == (preset.height or settings.get("height")) and
+                settings.get("vbitrate_kbps") == (preset.vbitrate_kbps or settings.get("vbitrate_kbps")) and
+                settings.get("bframes") == 0 and
+                not settings.get("qpel") and
+                not settings.get("gmc")
+            )
+            self.preset_selector.set_badge_state(is_match and preset.is_hardware_confirmed)
+
         self._recalculate_estimates()
 
     def _recalculate_estimates(self):
