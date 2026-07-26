@@ -1,5 +1,5 @@
 """
-Collapsible advanced video and audio settings panel.
+Collapsible advanced video and audio settings panel with hints and tooltips.
 """
 from typing import Dict, Any
 from PySide6.QtCore import Qt, Signal
@@ -28,6 +28,7 @@ class AdvancedSettingsWidget(QWidget):
         self.btn_toggle.setCheckable(True)
         self.btn_toggle.setChecked(False)
         self.btn_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_toggle.setToolTip("Click to expand or collapse fine-grained custom video and audio encoding options.")
         self.btn_toggle.setStyleSheet("""
             QPushButton {
                 background: transparent;
@@ -78,6 +79,12 @@ class AdvancedSettingsWidget(QWidget):
         v_layout = QFormLayout(grp_video)
 
         self.combo_vcodec = QComboBox()
+        self.combo_vcodec.setToolTip(
+            "Select output video codec supported natively by SMS on PS2:\n"
+            "• Xvid-compatible MPEG-4 (Recommended): Best performance and compatibility.\n"
+            "• MPEG-2 Video: Standard DVD video stream format.\n"
+            "• MPEG-1 Video: VCD video format with minimal CPU load."
+        )
         for k in VIDEO_CODECS_MAP.keys():
             self.combo_vcodec.addItem(k)
         self.combo_vcodec.currentIndexChanged.connect(self._on_control_changed)
@@ -86,12 +93,14 @@ class AdvancedSettingsWidget(QWidget):
         self.spin_width.setRange(2, MAX_WIDTH)
         self.spin_width.setSingleStep(2)
         self.spin_width.setValue(640)
+        self.spin_width.setToolTip("Target width in pixels (max 1024). Standard PS2 resolution is 640. Automatically rounded to even numbers.")
         self.spin_width.valueChanged.connect(self._on_resolution_changed)
 
         self.spin_height = QSpinBox()
         self.spin_height.setRange(2, MAX_HEIGHT)
         self.spin_height.setSingleStep(2)
         self.spin_height.setValue(480)
+        self.spin_height.setToolTip("Target height in pixels (max 1024). Standard PS2 resolution is 480. Automatically rounded to even numbers.")
         self.spin_height.valueChanged.connect(self._on_resolution_changed)
 
         res_layout = QHBoxLayout()
@@ -99,11 +108,19 @@ class AdvancedSettingsWidget(QWidget):
         res_layout.addWidget(QLabel("×"))
         res_layout.addWidget(self.spin_height)
 
-        self.chk_aspect = QCheckBox("Preserve aspect ratio")
+        self.chk_aspect = QCheckBox("Preserve aspect ratio (Recommended)")
         self.chk_aspect.setChecked(True)
+        self.chk_aspect.setToolTip("Preserves original video proportions by applying black letterbox bars when scaling.")
         self.chk_aspect.stateChanged.connect(self._on_control_changed)
 
         self.combo_scaling = QComboBox()
+        self.combo_scaling.setToolTip(
+            "Choose scaling mode:\n"
+            "• Letterbox to exact dimensions (Recommended): Pad black bars to fit target resolution.\n"
+            "• Fit inside dimensions: Scale down without adding black bars.\n"
+            "• Crop to fill: Scale up and crop edges to fill entire screen.\n"
+            "• Stretch: Force stretch image to target resolution."
+        )
         self.combo_scaling.addItems([
             "Letterbox to exact dimensions",
             "Fit inside dimensions",
@@ -114,9 +131,11 @@ class AdvancedSettingsWidget(QWidget):
 
         self.chk_upscale = QCheckBox("Allow upscaling (default off)")
         self.chk_upscale.setChecked(False)
+        self.chk_upscale.setToolTip("Disabled by default. Upscaling low-res video increases file size without improving quality.")
         self.chk_upscale.stateChanged.connect(self._on_control_changed)
 
         self.combo_fps = QComboBox()
+        self.combo_fps.setToolTip("Target video frame rate. 30 FPS or 24 FPS recommended for PS2 hardware. Restricted for MPEG-1/2.")
         for fps_val in MPEG_ALLOWED_FPS_MAP.keys():
             self.combo_fps.addItem(fps_val)
         self.combo_fps.setCurrentText("30")
@@ -127,23 +146,28 @@ class AdvancedSettingsWidget(QWidget):
         self.spin_vbitrate.setSingleStep(100)
         self.spin_vbitrate.setSuffix(" kbps")
         self.spin_vbitrate.setValue(1500)
+        self.spin_vbitrate.setToolTip("Target video bitrate. 1500 kbps (1.5 Mbps) recommended for smooth USB 1.1 / SMB network playback.")
         self.spin_vbitrate.valueChanged.connect(self._on_control_changed)
 
         self.chk_deinterlace = QCheckBox("Deinterlace video")
         self.chk_deinterlace.setChecked(False)
+        self.chk_deinterlace.setToolTip("Converts interlaced video to progressive frames. Recommended for TV rips or DVD source material.")
         self.chk_deinterlace.stateChanged.connect(self._on_control_changed)
 
         self.spin_bframes = QSpinBox()
         self.spin_bframes.setRange(0, 4)
         self.spin_bframes.setValue(0)
+        self.spin_bframes.setToolTip("Number of B-frames (0-4). Recommended: 0 for maximum PS2 hardware decoding speed.")
         self.spin_bframes.valueChanged.connect(self._on_control_changed)
 
         self.chk_qpel = QCheckBox("QPel (Quarter-Pixel, default off)")
         self.chk_qpel.setChecked(False)
+        self.chk_qpel.setToolTip("Quarter-Pixel motion estimation. Recommended: OFF for PS2 hardware decoding compatibility.")
         self.chk_qpel.stateChanged.connect(self._on_control_changed)
 
         self.chk_gmc = QCheckBox("GMC (Global Motion Comp, default off)")
         self.chk_gmc.setChecked(False)
+        self.chk_gmc.setToolTip("Global Motion Compensation. Recommended: OFF for PS2 hardware decoding compatibility.")
         self.chk_gmc.stateChanged.connect(self._on_control_changed)
 
         v_layout.addRow("Codec:", self.combo_vcodec)
@@ -163,29 +187,41 @@ class AdvancedSettingsWidget(QWidget):
         a_layout = QFormLayout(grp_audio)
 
         self.combo_acodec = QComboBox()
+        self.combo_acodec.setToolTip(
+            "Select output audio codec supported natively by SMS:\n"
+            "• MP3 (Recommended for AVI): Broadest playback support.\n"
+            "• AAC-LC (Recommended for MP4): High quality audio at lower bitrates.\n"
+            "• MP2: Standard for MPEG-1/2 streams."
+        )
         for k in AUDIO_CODECS_MAP.keys():
             self.combo_acodec.addItem(k)
         self.combo_acodec.currentIndexChanged.connect(self._on_control_changed)
 
         self.combo_abitrate = QComboBox()
+        self.combo_abitrate.setToolTip("Target audio bitrate. 128 kbps recommended for MP3/AAC, 192 kbps for MP2.")
         for b in [64, 96, 128, 160, 192, 256, 320]:
-            self.combo_abitrate.addItem(f"{b} kbps", b)
-        self.combo_abitrate.setCurrentText("128 kbps")
+            label = f"{b} kbps (Recommended)" if b == 128 else f"{b} kbps"
+            self.combo_abitrate.addItem(label, b)
+        self.combo_abitrate.setCurrentIndex(2) # 128 kbps
         self.combo_abitrate.currentIndexChanged.connect(self._on_control_changed)
 
         self.combo_sample = QComboBox()
+        self.combo_sample.setToolTip("Audio sampling rate. 48000 Hz (48 kHz) is the hardware recommended baseline for PS2 audio output.")
         for sr in [48000, 44100, 32000, 22050]:
-            self.combo_sample.addItem(f"{sr} Hz", sr)
-        self.combo_sample.setCurrentText("48000 Hz")
+            label = f"{sr} Hz (Recommended)" if sr == 48000 else f"{sr} Hz"
+            self.combo_sample.addItem(label, sr)
+        self.combo_sample.setCurrentIndex(0) # 48000 Hz
         self.combo_sample.currentIndexChanged.connect(self._on_control_changed)
 
         self.combo_channels = QComboBox()
-        self.combo_channels.addItem("Stereo (2 ch)", 2)
+        self.combo_channels.setToolTip("Audio channel layout. Stereo (2 ch) recommended for PlayStation 2.")
+        self.combo_channels.addItem("Stereo (2 ch) — Recommended", 2)
         self.combo_channels.addItem("Mono (1 ch)", 1)
         self.combo_channels.currentIndexChanged.connect(self._on_control_changed)
 
         self.chk_normalize = QCheckBox("Normalize audio (Loudnorm)")
         self.chk_normalize.setChecked(False)
+        self.chk_normalize.setToolTip("Applies EBU R128 audio normalization filter to equalize volume levels between quiet and loud scenes.")
         self.chk_normalize.stateChanged.connect(self._on_control_changed)
 
         a_layout.addRow("Codec:", self.combo_acodec)
@@ -212,12 +248,12 @@ class AdvancedSettingsWidget(QWidget):
         self._block_signals(True)
         if preset.vcodec is None:
             # Audio only
-            self.combo_vcodec.setCurrentText("MPEG-4 Part 2")
+            self.combo_vcodec.setCurrentIndex(0)
         else:
             for display_name, ff_name in VIDEO_CODECS_MAP.items():
                 if ff_name == preset.vcodec:
                     if preset.vtag == "XVID":
-                        self.combo_vcodec.setCurrentText("Xvid-compatible MPEG-4")
+                        self.combo_vcodec.setCurrentText("Xvid-compatible MPEG-4 (Recommended)")
                     else:
                         self.combo_vcodec.setCurrentText(display_name)
                     break
@@ -236,8 +272,18 @@ class AdvancedSettingsWidget(QWidget):
                 self.combo_acodec.setCurrentText(display_name)
                 break
 
-        self.combo_abitrate.setCurrentText(f"{preset.abitrate_kbps} kbps")
-        self.combo_sample.setCurrentText(f"{preset.sample_rate} Hz")
+        # Match abitrate
+        for i in range(self.combo_abitrate.count()):
+            if self.combo_abitrate.itemData(i) == preset.abitrate_kbps:
+                self.combo_abitrate.setCurrentIndex(i)
+                break
+
+        # Match sample rate
+        for i in range(self.combo_sample.count()):
+            if self.combo_sample.itemData(i) == preset.sample_rate:
+                self.combo_sample.setCurrentIndex(i)
+                break
+
         self.combo_channels.setCurrentIndex(0 if preset.channels == 2 else 1)
 
         self.spin_bframes.setValue(0)
@@ -247,17 +293,18 @@ class AdvancedSettingsWidget(QWidget):
         self.chk_normalize.setChecked(False)
 
         self._block_signals(False)
+        self._check_resolution_warning()
+
     def get_settings_dict(self) -> Dict[str, Any]:
         vcodec_display = self.combo_vcodec.currentText()
         ff_vcodec = VIDEO_CODECS_MAP.get(vcodec_display, "mpeg4")
-        vtag = "XVID" if vcodec_display == "Xvid-compatible MPEG-4" else None
+        vtag = "XVID" if "Xvid-compatible" in vcodec_display else None
 
         acodec_display = self.combo_acodec.currentText()
         ff_acodec = AUDIO_CODECS_MAP.get(acodec_display, "aac")
 
         w = self.spin_width.value()
         h = self.spin_height.value()
-        # Even number rounding
         if w % 2 != 0:
             w -= 1
         if h % 2 != 0:
@@ -296,8 +343,10 @@ class AdvancedSettingsWidget(QWidget):
     def _on_resolution_changed(self):
         w = self.spin_width.value()
         h = self.spin_height.value()
-        if w % 2 != 0: self.spin_width.setValue(w - 1)
-        if h % 2 != 0: self.spin_height.setValue(h - 1)
+        if w % 2 != 0:
+            self.spin_width.setValue(w - 1)
+        if h % 2 != 0:
+            self.spin_height.setValue(h - 1)
         self._check_resolution_warning()
         self._on_control_changed()
 

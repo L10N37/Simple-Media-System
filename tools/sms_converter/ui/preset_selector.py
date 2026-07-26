@@ -22,12 +22,20 @@ class PresetSelectorWidget(QWidget):
 
         # 1. Preset Dropdown
         self.combo_preset = QComboBox()
-        for name in PRESETS.keys():
+        self.combo_preset.setToolTip(
+            "Select a PlayStation 2 hardware-confirmed export preset.\n"
+            "• Xvid-Compatible AVI is recommended for maximum performance over USB and SMB network shares."
+        )
+        for name, preset in PRESETS.items():
             self.combo_preset.addItem(name)
         self.combo_preset.currentIndexChanged.connect(self._on_preset_changed)
 
         # 2. Quality / Confirmation Badge Label
         self.label_badge = QLabel(LABEL_HARDWARE_CONFIRMED)
+        self.label_badge.setToolTip(
+            "Indicates whether your output profile is hardware-tested on real PS2 consoles.\n"
+            "Standard presets guarantee hardware performance. Custom settings display a warning if limits are exceeded."
+        )
         self.label_badge.setStyleSheet("""
             QLabel {
                 color: #48BB78;
@@ -39,7 +47,8 @@ class PresetSelectorWidget(QWidget):
         # 3. Save to Destination Dropdown & Path Display
         save_layout = QHBoxLayout()
         self.combo_save = QComboBox()
-        self.combo_save.addItem("Same folder as source", "same")
+        self.combo_save.setToolTip("Select where converted SMS-compatible files will be saved.")
+        self.combo_save.addItem("Same folder as source (Default)", "same")
         self.combo_save.addItem("Custom folder…", "custom")
         self.combo_save.currentIndexChanged.connect(self._on_save_changed)
 

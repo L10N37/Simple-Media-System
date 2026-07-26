@@ -67,6 +67,7 @@ class MainWindow(QMainWindow):
 
         self.lbl_size_warning = QLabel("")
         self.lbl_size_warning.setStyleSheet("font-size: 11px; font-weight: bold;")
+        self.lbl_estimated_size.setToolTip("Estimated output file size calculated from target video and audio bitrates.")
         self.lbl_size_warning.hide()
 
         size_layout = QHBoxLayout()
@@ -77,6 +78,7 @@ class MainWindow(QMainWindow):
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
+        self.progress_bar.setToolTip("Real-time encoding progress for the active media file.")
         self.progress_bar.setStyleSheet("""
             QProgressBar {
                 border: 1px solid #4A5568;
@@ -100,19 +102,24 @@ class MainWindow(QMainWindow):
         btn_layout = QHBoxLayout()
 
         self.btn_remove = QPushButton("Remove")
+        self.btn_remove.setToolTip("Remove selected item(s) from the conversion queue.")
         self.btn_remove.clicked.connect(self._remove_selected)
 
         self.btn_clear = QPushButton("Clear")
+        self.btn_clear.setToolTip("Clear all files from the queue.")
         self.btn_clear.clicked.connect(self._clear_queue)
 
         self.btn_details = QPushButton("Details")
+        self.btn_details.setToolTip("Open conversion log, FFmpeg command details, and post-conversion SMS validation report.")
         self.btn_details.clicked.connect(self._show_selected_details)
 
         self.btn_cancel = QPushButton("Cancel")
+        self.btn_cancel.setToolTip("Cancel the active encoding job.")
         self.btn_cancel.setEnabled(False)
         self.btn_cancel.clicked.connect(self._cancel_conversion)
 
         self.btn_convert = QPushButton("Convert")
+        self.btn_convert.setToolTip("Start converting queued media files into SMS hardware-compatible format.")
         self.btn_convert.setStyleSheet("""
             QPushButton {
                 background-color: #38A169;
