@@ -4,6 +4,7 @@ Asynchronous worker threads for file inspection, conversion execution, file size
 import os
 import sys
 import time
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -11,10 +12,7 @@ from PySide6.QtCore import QThread, Signal
 
 from config import SIZE_4_0_GIB, MSG_FILE_SIZE_APPROACHING_LIMIT
 from ffmpeg_utils import (
-    get_media_info,
-    parse_media_summary,
-    build_ffmpeg_cmd,
-    generate_unique_output_path,
+    get_media_info, parse_media_summary, build_ffmpeg_cmd, generate_unique_output_path
 )
 from validator import validate_converted_file, ValidationResult
 
@@ -190,24 +188,16 @@ class ConversionWorker(QThread):
                 self.settings.get("preset_name")
             )
 
-            # If PASS or WARN, promote the partial file without clobbering an
-            # unrelated file that appeared after the output name was selected.
+            # If PASS or WARN, promote partial file to final target file
             if val_result.status in ("PASS", "WARN"):
                 target_path = self.final_file
-                while True:
-                    try:
-                        # A hard-link creation is atomic and fails if target_path
-                        # already exists. The partial and final paths share an
-                        # output directory, so they are on the same filesystem.
-                        os.link(self.partial_file, target_path)
-                        os.unlink(self.partial_file)
-                        break
-                    except FileExistsError:
-                        target_path, _ = generate_unique_output_path(
-                            self.input_file,
-                            Path(self.final_file).suffix,
-                            str(Path(self.final_file).parent)
-                        )
+                if os.path.exists(target_path):
+                    target_path, _ = generate_unique_output_path(
+                        self.input_file,
+                        Path(self.final_file).suffix,
+                        str(Path(self.final_file).parent)
+                    )
+                shutil.move(self.partial_file, target_path)
                 self.validation_signal.emit(self.item_id, val_result, target_path)
             else:
                 self._cleanup_partial()
