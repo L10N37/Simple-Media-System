@@ -1,0 +1,45 @@
+"""
+Application launcher and Qt environment initialization.
+"""
+import sys
+from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QPalette, QColor
+from ffmpeg_utils import find_ffmpeg_binaries
+from ui.setup_dialog import SetupDialog
+from ui.main_window import MainWindow
+
+DARK_STYLESHEET = """
+QMainWindow, QDialog {
+    background-color: #171923;
+}
+QWidget {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #E2E8F0;
+}
+QToolTip {
+    background-color: #2D3748;
+    color: white;
+    border: 1px solid #4A5568;
+    padding: 4px;
+}
+"""
+
+def run_app():
+    app = QApplication(sys.argv)
+    app.setStyleSheet(DARK_STYLESHEET)
+
+    # 1. Search for FFmpeg binaries
+    ffmpeg_path, ffprobe_path = find_ffmpeg_binaries()
+
+    if not ffmpeg_path or not ffprobe_path:
+        setup_dlg = SetupDialog()
+        if setup_dlg.exec() == SetupDialog.DialogCode.Accepted:
+            ffmpeg_path = setup_dlg.ffmpeg_path
+            ffprobe_path = setup_dlg.ffprobe_path
+        else:
+            sys.exit(0)
+
+    # 2. Launch Main Window
+    window = MainWindow(ffmpeg_path, ffprobe_path)
+    window.show()
+    sys.exit(app.exec())

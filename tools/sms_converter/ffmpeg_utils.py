@@ -1,0 +1,326 @@
+"""
+FFmpeg and ffprobe helper utilities.
+"""
+import os
+import sys
+import shutil
+import json
+import subprocess
+from pathlib import Path
+from typing import Optional, Tuple, Dict, Any, List
+from config import MPEG_ALLOWED_FPS_MAP
+
+def get_app_dir() -> Path:
+    """Returns the base directory of the application."""
+    if getattr(sys, 'frozen', False):
+        return Path(sys.executable).parent
+    return Path(__file__).resolve().parent
+
+def find_ffmpeg_binaries(custom_dir: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Search for ffmpeg and ffprobe binaries in:
+    1. <application directory>/ffmpeg/bin/
+    2. <application directory>/ffmpeg.exe
+    3. Custom directory specified by user
+    4. System PATH
+    """
+    app_dir = get_app_dir()
+    exe_ext = ".exe" if sys.platform == "win32" else ""
+    ffmpeg_name = f"ffmpeg{exe_ext}"
+    ffprobe_name = f"ffprobe{exe_ext}"
+
+    # Search candidates
+    search_paths = [
+        app_dir / "ffmpeg" / "bin",
+        app_dir / "ffmpeg",
+        app_dir,
+    ]
+    if custom_dir:
+        custom_p = Path(custom_dir)
+        search_paths.insert(0, custom_p / "bin" if (custom_p / "bin").exists() else custom_p)
+
+    for p in search_paths:
+        ff = p / ffmpeg_name
+        fp = p / ffprobe_name
+        if ff.exists() and fp.exists():
+            return str(ff), str(fp)
+
+    # Check system PATH
+    ff_sys = shutil.which("ffmpeg")
+    fp_sys = shutil.which("ffprobe")
+    if ff_sys and fp_sys:
+        return ff_sys, fp_sys
+
+    return None, None
+
+def check_libxvid_support(ffmpeg_path: str) -> bool:
+    """Checks if the given ffmpeg binary supports the libxvid encoder."""
+    try:
+        res = subprocess.run(
+            [ffmpeg_path, "-encoders"],
+            capture_output=True,
+            text=True,
+            check=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        )
+        return "libxvid" in res.stdout
+    except Exception:
+        return False
+
+def get_media_info(ffprobe_path: str, file_path: str) -> Dict[str, Any]:
+    """Retrieves media format and stream metadata using ffprobe JSON output."""
+    cmd = [
+        ffprobe_path,
+        "-v", "quiet",
+        "-print_format", "json",
+        "-show_format",
+        "-show_streams",
+        file_path
+    ]
+    try:
+        res = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        )
+        return json.loads(res.stdout)
+    except Exception as e:
+        return {"error": str(e)}
+
+def parse_media_summary(probe_info: Dict[str, Any]) -> Dict[str, Any]:
+    """Extracts duration, video specs, audio specs from ffprobe dictionary."""
+    if "error" in probe_info:
+        return {"error": probe_info["error"]}
+
+    fmt = probe_info.get("format", {})
+    streams = probe_info.get("streams", [])
+
+    duration = float(fmt.get("duration", 0.0))
+    size_bytes = int(fmt.get("size", 0))
+
+    video_stream = next((s for s in streams if s.get("codec_type") == "video"), None)
+    audio_stream = next((s for s in streams if s.get("codec_type") == "audio"), None)
+
+    v_codec = video_stream.get("codec_name") if video_stream else None
+    v_width = int(video_stream.get("width", 0)) if video_stream else 0
+    v_height = int(video_stream.get("height", 0)) if video_stream else 0
+    
+    # Calculate FPS
+    v_fps = 0.0
+    if video_stream:
+        r_fps = video_stream.get("r_frame_rate", "0/0")
+        if "/" in r_fps:
+            num, den = r_fps.split("/")
+            if float(den) > 0:
+                v_fps = float(num) / float(den)
+
+    a_codec = audio_stream.get("codec_name") if audio_stream else None
+    a_sample_rate = int(audio_stream.get("sample_rate", 0)) if audio_stream else 0
+    a_channels = int(audio_stream.get("channels", 0)) if audio_stream else 0
+
+    return {
+        "duration": duration,
+        "size": size_bytes,
+        "video_codec": v_codec,
+        "width": v_width,
+        "height": v_height,
+        "fps": v_fps,
+        "audio_codec": a_codec,
+        "sample_rate": a_sample_rate,
+        "channels": a_channels,
+        "num_streams": len(streams)
+    }
+
+def calculate_estimated_output_size(duration_sec: float, vbitrate_kbps: float, abitrate_kbps: float) -> int:
+    """Calculates estimated output size in bytes including minor container overhead (~1%)."""
+    if duration_sec <= 0:
+        return 0
+    total_bitrate_bps = (vbitrate_kbps + abitrate_kbps) * 1000.0
+    payload_bytes = (duration_sec * total_bitrate_bps) / 8.0
+    return int(payload_bytes * 1.015)
+
+def make_even(val: int) -> int:
+    """Ensures integer dimension is an even number."""
+    val = int(val)
+    if val % 2 != 0:
+        val -= 1
+    return max(2, val)
+
+def build_scale_filter(
+    src_w: int,
+    src_h: int,
+    target_w: int,
+    target_h: int,
+    scaling_mode: str,
+    allow_upscale: bool = False,
+    deinterlace: bool = False
+) -> List[str]:
+    """Generates FFmpeg video filter (-vf) chain for scaling and aspect ratio handling."""
+    filters = []
+
+    if deinterlace:
+        filters.append("yadif")
+
+    target_w = make_even(target_w)
+    target_h = make_even(target_h)
+
+    if not allow_upscale and src_w > 0 and src_h > 0:
+        if target_w > src_w:
+            target_w = make_even(src_w)
+        if target_h > src_h:
+            target_h = make_even(src_h)
+
+    if scaling_mode == "Stretch":
+        filters.append(f"scale={target_w}:{target_h}")
+    elif scaling_mode == "Fit inside dimensions":
+        filters.append(f"scale='min({target_w},iw)':'min({target_h},ih)':force_original_aspect_ratio=decrease,pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:black")
+        # Ensure dimensions in scale output are even
+        filters.append("scale=trunc(iw/2)*2:trunc(ih/2)*2")
+    elif scaling_mode == "Letterbox to exact dimensions":
+        filters.append(f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:black")
+    elif scaling_mode == "Crop to fill":
+        filters.append(f"scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}")
+
+    return filters
+
+def build_ffmpeg_cmd(
+    ffmpeg_path: str,
+    input_file: str,
+    output_file: str,
+    settings: Dict[str, Any],
+    has_video_stream: bool = True
+) -> List[str]:
+    """Builds complete FFmpeg command line arguments list."""
+    cmd = [ffmpeg_path, "-y", "-i", input_file]
+
+    vcodec = settings.get("vcodec")
+    acodec = settings.get("acodec")
+
+    # Safe Stream Mapping: retain first video and first audio stream by default
+    if settings.get("limit_streams", True):
+        cmd.extend(["-map", "0:v:0?", "-map", "0:a:0?", "-sn", "-dn", "-map_metadata", "-1"])
+
+    # Video Settings
+    if vcodec and has_video_stream and vcodec != "none":
+        cmd.extend(["-c:v", vcodec])
+
+        # VTAG for XVID
+        vtag = settings.get("vtag")
+        if vtag:
+            cmd.extend(["-vtag", vtag])
+
+        # Video bitrate
+        vbitrate = settings.get("vbitrate_kbps")
+        if vbitrate:
+            cmd.extend(["-b:v", f"{vbitrate}k"])
+
+        # Scaling and Filters
+        src_w = settings.get("src_width", 0)
+        src_h = settings.get("src_height", 0)
+        target_w = settings.get("width", 640)
+        target_h = settings.get("height", 480)
+        scaling_mode = settings.get("scaling_mode", "Letterbox to exact dimensions")
+        allow_upscale = settings.get("allow_upscale", False)
+        deinterlace = settings.get("deinterlace", False)
+
+        vf_chain = build_scale_filter(
+            src_w, src_h, target_w, target_h, scaling_mode, allow_upscale, deinterlace
+        )
+
+        # Frame rate
+        fps = str(settings.get("fps", ""))
+        if fps in MPEG_ALLOWED_FPS_MAP:
+            cmd.extend(["-r", MPEG_ALLOWED_FPS_MAP[fps]])
+            vf_chain.append(f"fps=fps={MPEG_ALLOWED_FPS_MAP[fps]}")
+        elif fps:
+            cmd.extend(["-r", fps])
+            vf_chain.append(f"fps=fps={fps}")
+
+        # B-frames, QPel, GMC default off
+        bframes = settings.get("bframes", 0)
+        cmd.extend(["-bf", str(bframes)])
+
+        if settings.get("qpel", False):
+            cmd.extend(["-qpel", "1"])
+        
+        if settings.get("gmc", False):
+            cmd.extend(["-gmc", "1"])
+
+        # Ensure pixel format is yuv420p for standard compatibility
+        vf_chain.append("format=yuv420p")
+
+        if vf_chain:
+            cmd.extend(["-vf", ",".join(vf_chain)])
+
+    else:
+        cmd.append("-vn")
+
+    # Audio Settings
+    if acodec and acodec != "none":
+        cmd.extend(["-c:a", acodec])
+
+        abitrate = settings.get("abitrate_kbps")
+        if abitrate:
+            cmd.extend(["-b:a", f"{abitrate}k"])
+
+        sample_rate = settings.get("sample_rate", 48000)
+        if sample_rate:
+            cmd.extend(["-ar", str(sample_rate)])
+
+        channels = settings.get("channels", 2)
+        if channels:
+            cmd.extend(["-ac", str(channels)])
+
+        # Audio resampling parameters
+        pass
+
+        if settings.get("normalize_audio", False):
+            cmd.extend(["-filter:a", "loudnorm"])
+    else:
+        cmd.append("-an")
+
+    # Determine format from output filename (handling .partial extension)
+    out_path_clean = output_file[:-8] if output_file.endswith(".partial") else output_file
+    ext = Path(out_path_clean).suffix.lower()
+
+    format_map = {
+        ".avi": "avi",
+        ".mpg": "mpeg",
+        ".mpeg": "mpeg",
+        ".mp4": "mp4",
+        ".m4a": "mp4",
+    }
+    fmt_flag = format_map.get(ext)
+    if fmt_flag:
+        cmd.extend(["-f", fmt_flag])
+
+    # Progress output via pipe:1
+    cmd.extend(["-progress", "pipe:1", "-nostats", output_file])
+    return cmd
+
+def generate_unique_output_path(
+    source_file: str,
+    extension: str,
+    custom_save_dir: Optional[str] = None
+) -> Tuple[str, str]:
+    """
+    Generates non-overwriting destination path with SMS suffix and partial path.
+    Example: Movie.mp4 -> Movie_SMS.avi, Movie_SMS_2.avi if Movie_SMS.avi exists.
+    """
+    source_p = Path(source_file)
+    target_dir = Path(custom_save_dir) if custom_save_dir and Path(custom_save_dir).is_dir() else source_p.parent
+    base_name = source_p.stem
+
+    ext = extension if extension.startswith(".") else f".{extension}"
+    candidate = target_dir / f"{base_name}_SMS{ext}"
+    
+    counter = 2
+    while candidate.exists():
+        candidate = target_dir / f"{base_name}_SMS_{counter}{ext}"
+        counter += 1
+
+    final_path = str(candidate)
+    partial_path = f"{final_path}.partial"
+    return final_path, partial_path

@@ -1,0 +1,245 @@
+"""
+Post-conversion inspection and packet scanning validator for SMS compliance.
+"""
+import os
+import json
+import subprocess
+import sys
+from dataclasses import dataclass, field
+from typing import List, Dict, Any, Tuple, Optional
+from config import (
+    MAX_WIDTH, MAX_HEIGHT, SIZE_4_0_GIB, MAX_SMS_STREAMS,
+    MAX_VIDEO_PACKET_SIZE, MAX_AUDIO_PACKET_SIZE, MPEG_ALLOWED_FPS_MAP
+)
+from ffmpeg_utils import get_media_info
+
+@dataclass
+class ValidationResult:
+    status: str  # "PASS", "WARN", "FAIL"
+    reasons: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+    container: str = "Unknown"
+    vcodec: str = "None"
+    vtag: str = "N/A"
+    resolution: str = "N/A"
+    fps: str = "N/A"
+    vbitrate_kbps: int = 0
+    acodec: str = "None"
+    sample_rate: int = 0
+    channels: int = 0
+    abitrate_kbps: int = 0
+    streams_count: int = 0
+    file_size_mib: float = 0.0
+    max_video_packet: int = 0
+    max_audio_packet: int = 0
+
+    def generate_report(self) -> str:
+        lines = []
+        lines.append(f"SMS VALIDATION: {self.status}\n")
+        if self.reasons:
+            lines.append("FAILURE REASONS:")
+            for r in self.reasons:
+                lines.append(f"  • {r}")
+            lines.append("")
+
+        if self.warnings:
+            lines.append("WARNINGS:")
+            for w in self.warnings:
+                lines.append(f"  • {w}")
+            lines.append("")
+
+        lines.append(f"Container:             {self.container}")
+        lines.append(f"Video codec:           {self.vcodec}")
+        lines.append(f"Video tag:             {self.vtag}")
+        lines.append(f"Resolution:            {self.resolution}")
+        lines.append(f"Frame rate:            {self.fps}")
+        lines.append(f"Video bitrate:         {self.vbitrate_kbps:,} kbps" if self.vbitrate_kbps else "Video bitrate:         N/A")
+        lines.append(f"Audio codec:           {self.acodec}")
+        lines.append(f"Audio rate:            {self.sample_rate:,} Hz" if self.sample_rate else "Audio rate:            N/A")
+        lines.append(f"Audio channels:        {self.channels}" if self.channels else "Audio channels:        N/A")
+        lines.append(f"Audio bitrate:         {self.abitrate_kbps:,} kbps" if self.abitrate_kbps else "Audio bitrate:         N/A")
+        lines.append(f"Streams:               {self.streams_count}")
+        lines.append(f"File size:             {self.file_size_mib:.1f} MiB")
+        lines.append(f"Largest video packet:  {self.max_video_packet:,} bytes" if self.max_video_packet else "Largest video packet:  N/A")
+        lines.append(f"Largest audio packet:  {self.max_audio_packet:,} bytes" if self.max_audio_packet else "Largest audio packet:  N/A")
+
+        return "\n".join(lines)
+
+def scan_packet_sizes(ffprobe_path: str, file_path: str) -> Tuple[int, int]:
+    """Scans encoded media packets to find max video and max audio packet sizes."""
+    cmd = [
+        ffprobe_path,
+        "-v", "quiet",
+        "-print_format", "json",
+        "-show_packets",
+        file_path
+    ]
+    max_video_packet = 0
+    max_audio_packet = 0
+
+    try:
+        res = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        )
+        data = json.loads(res.stdout)
+        packets = data.get("packets", [])
+
+        # Build stream index to codec type map
+        # We also need stream info to know stream_index -> codec_type
+        probe_meta = get_media_info(ffprobe_path, file_path)
+        stream_types = {}
+        for idx, s in enumerate(probe_meta.get("streams", [])):
+            s_idx = s.get("index", idx)
+            stream_types[s_idx] = s.get("codec_type")
+
+        for pkt in packets:
+            st_idx = pkt.get("stream_index")
+            st_type = stream_types.get(st_idx)
+            size = int(pkt.get("size", 0))
+
+            if st_type == "video":
+                if size > max_video_packet:
+                    max_video_packet = size
+            elif st_type == "audio":
+                if size > max_audio_packet:
+                    max_audio_packet = size
+
+    except Exception:
+        pass
+
+    return max_video_packet, max_audio_packet
+
+def validate_converted_file(
+    ffprobe_path: str,
+    file_path: str,
+    preset_name: Optional[str] = None
+) -> ValidationResult:
+    """Performs full post-conversion validation of the generated file."""
+    result = ValidationResult(status="PASS")
+
+    if not os.path.exists(file_path):
+        result.status = "FAIL"
+        result.reasons.append("Output file does not exist.")
+        return result
+
+    file_size_bytes = os.path.getsize(file_path)
+    result.file_size_mib = file_size_bytes / (1024 * 1024)
+
+    # 1. File Size check
+    if file_size_bytes >= SIZE_4_0_GIB:
+        result.status = "FAIL"
+        result.reasons.append(f"File size ({result.file_size_mib:.1f} MiB) exceeds the 4 GiB SMS 32-bit ceiling.")
+
+    probe_info = get_media_info(ffprobe_path, file_path)
+    if "error" in probe_info:
+        result.status = "FAIL"
+        result.reasons.append(f"ffprobe failed: {probe_info['error']}")
+        return result
+
+    fmt = probe_info.get("format", {})
+    streams = probe_info.get("streams", [])
+
+    result.container = fmt.get("format_long_name", fmt.get("format_name", "Unknown")).split(",")[0].upper()
+    result.streams_count = len(streams)
+
+    if len(streams) > MAX_SMS_STREAMS:
+        result.status = "FAIL"
+        result.reasons.append(f"Stream count ({len(streams)}) exceeds the maximum SMS limit of {MAX_SMS_STREAMS}.")
+
+    video_stream = next((s for s in streams if s.get("codec_type") == "video"), None)
+    audio_stream = next((s for s in streams if s.get("codec_type") == "audio"), None)
+
+    # Validate Video
+    if video_stream:
+        v_name = video_stream.get("codec_name", "unknown")
+        result.vcodec = video_stream.get("codec_long_name", v_name)
+        result.vtag = video_stream.get("codec_tag_string", "N/A")
+        
+        w = int(video_stream.get("width", 0))
+        h = int(video_stream.get("height", 0))
+        result.resolution = f"{w}×{h}"
+
+        r_fps = video_stream.get("avg_frame_rate", "0/0")
+        if r_fps == "0/0" or not r_fps:
+            r_fps = video_stream.get("r_frame_rate", "0/0")
+        result.fps = r_fps
+
+        duration_sec = float(fmt.get("duration", 0.0))
+        v_bitrate = int(video_stream.get("bit_rate", 0)) // 1000
+        if v_bitrate <= 0 or v_bitrate > 50000:
+            if duration_sec > 0:
+                v_bitrate = int((file_size_bytes * 8) / (duration_sec * 1000))
+            else:
+                v_bitrate = int(fmt.get("bit_rate", 0)) // 1000
+        result.vbitrate_kbps = v_bitrate
+
+        # Unsupported video codecs
+        if v_name in ("h264", "hevc", "av1", "vp9", "vp8"):
+            result.status = "FAIL"
+            result.reasons.append(f"Unsupported video codec: {v_name.upper()}. SMS requires MPEG-1, MPEG-2, or MPEG-4 Part 2.")
+
+        # Resolution limits
+        if w > MAX_WIDTH or h > MAX_HEIGHT:
+            result.status = "FAIL"
+            result.reasons.append(f"Resolution {w}×{h} exceeds SMS maximum boundary of {MAX_WIDTH}×{MAX_HEIGHT}.")
+        elif w > 640 or h > 480:
+            if result.status != "FAIL":
+                result.status = "WARN"
+            result.warnings.append(f"Resolution {w}×{h} is above standard 640×480 and may cause performance drops on hardware.")
+
+        # Frame rate checks
+        fps_float = 0.0
+        if "/" in r_fps:
+            n, d = r_fps.split("/")
+            if float(d) > 0:
+                fps_float = float(n) / float(d)
+            n, d = r_fps.split("/")
+            if float(d) > 0:
+                fps_float = float(n) / float(d)
+        
+        if v_name in ("mpeg1video", "mpeg2video"):
+            valid_fps_values = [23.976, 24.0, 25.0, 29.97, 30.0, 50.0, 59.94, 60.0]
+            if not any(abs(fps_float - target) < 0.05 for target in valid_fps_values):
+                result.status = "FAIL"
+                result.reasons.append(f"Invalid frame rate ({r_fps}) for {v_name.upper()}.")
+
+        if fps_float > 30.0 and result.status != "FAIL":
+            result.status = "WARN"
+            result.warnings.append(f"High frame rate ({fps_float:.2f} fps) may impact smooth playback.")
+
+        # Bitrate check
+        if v_bitrate > 3000 and result.status != "FAIL":
+            result.status = "WARN"
+            result.warnings.append(f"High video bitrate ({v_bitrate} kbps) may strain PS2 USB/SMB read bandwidth.")
+
+    # Validate Audio
+    if audio_stream:
+        a_name = audio_stream.get("codec_name", "unknown")
+        result.acodec = audio_stream.get("codec_long_name", a_name)
+        result.sample_rate = int(audio_stream.get("sample_rate", 0))
+        result.channels = int(audio_stream.get("channels", 0))
+        result.abitrate_kbps = int(audio_stream.get("bit_rate", 0)) // 1000
+
+        valid_audio = ("mp3", "libmp3lame", "mp2", "aac", "ac3", "vorbis", "flac", "wmav1", "wmav2")
+        if not any(k in a_name.lower() for k in valid_audio):
+            result.status = "FAIL"
+            result.reasons.append(f"Unsupported audio codec: {a_name.upper()}.")
+
+    # Packet Scan
+    max_v_pkt, max_a_pkt = scan_packet_sizes(ffprobe_path, file_path)
+    result.max_video_packet = max_v_pkt
+    result.max_audio_packet = max_a_pkt
+
+    if max_v_pkt > MAX_VIDEO_PACKET_SIZE:
+        result.status = "FAIL"
+        result.reasons.append(f"Largest video packet ({max_v_pkt:,} bytes) exceeds maximum allowable 2 MiB ({MAX_VIDEO_PACKET_SIZE:,} bytes).")
+
+    if max_a_pkt > MAX_AUDIO_PACKET_SIZE:
+        result.status = "FAIL"
+        result.reasons.append(f"Largest audio packet ({max_a_pkt:,} bytes) exceeds maximum allowable 512 KiB ({MAX_AUDIO_PACKET_SIZE:,} bytes).")
+
+    return result

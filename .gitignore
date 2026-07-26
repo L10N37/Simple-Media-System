@@ -32,3 +32,8 @@ docs/stylesheets/html-single.xsl
 docs/stylesheets/profile.xsl
 docs/xsltproc.sh
 docs/xmllint.sh
+
+# PyInstaller / Build artifacts
+*.spec
+build/
+dist/
