@@ -54,6 +54,24 @@ ifeq ($(BDM),1)
   EE_CFLAGS += -DBDM
 endif
 
+# Diagnostic build: `make SMS_DIAG=1 all`.
+#
+# Turns SMS_ExitCrumb back on, so each stage of the boot / exit / UDPFS-start paths latches
+# an "E<nn> <what>" code on screen just BEFORE the call it names. If that call never returns,
+# the code stays on screen -- which is how a hard hang gets localised on hardware that has no
+# network and no memory card to log to. A tester photographs or films the screen and the last
+# code is the blocking call.
+#
+# Deliberately OFF by default: release builds must not flash diagnostic codes at users.
+ifeq ($(SMS_DIAG),1)
+  # -G0 as well: re-enabling the crumbs adds enough strings to push this tree past the
+  # GP-relative addressing window (-G8192 -mgpopt puts every object under 8 KB into small
+  # data, and the release build already sits close to the limit). Disabling small-data for
+  # the diagnostic build sidesteps that. It changes codegen slightly versus release, which is
+  # an acceptable trade for a build whose only job is to show WHERE execution stops.
+  EE_CFLAGS += -DSMS_DIAG -G0
+endif
+
 EE_OBJS := $(EE_OBJS:%=$(EE_OBJ_DIR)%)
 
 all: $(EE_OBJ_DIR) $(EE_BIN_DIR) $(EE_BIN)

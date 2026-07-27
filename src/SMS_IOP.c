@@ -266,20 +266,49 @@ int SifExecDecompModuleBuffer(void *ptr, u32 size, u32 arg_len, const char *args
  * Strings are kept short ( <= 18 chars, under "Loading boot browser" ) so the status
  * line never reallocs mid-teardown. */
 void SMS_ExitCrumb ( int aN, const char* apWhat ) {
-/* Exit-path diagnostic breadcrumbs -- DISABLED for release. They flashed "E<nn>" codes on
- * every exit while we hunted the UDPFS exit hang; now that it is fixed + hw-confirmed, they
- * are neutralised HERE ( one no-op ) rather than by ripping the ~25 CRUMB() calls out of the
- * boot-critical SMS_IOPReset -- so the boot AND exit paths stay byte-identical to the
- * hw-confirmed build, minus only the on-screen codes. The fix ( skip the dead reset on a
- * dev9 browser exit ) and the reset internals are untouched. To re-enable for future
- * debugging, restore the sprintf/GS_BGCOLOR/GUI_Status body. */
+
+/* On-screen diagnostic breadcrumb. OFF in release builds; build with SMS_DIAG=1 to enable.
+ *
+ * Why this exists at all, and why it beats a network log for boot/network faults: it is a
+ * pure EE-side GS write -- no SIF, no RPC, no IOP, no network, no memory card. It therefore
+ * still renders after SifExitRpc, after an IOP reboot, and on a console with nothing
+ * attached. It flushes synchronously, so a code printed immediately BEFORE a call stays
+ * latched on screen forever if that call never returns.
+ *
+ * That last property is the whole point: the last code visible IS the blocking call. This is
+ * how the UDPFS exit hang was found -- narrowing E10 vs E11 identified the exact spin.
+ *
+ * The border colour encodes the same number as a backstop if text rendering itself dies.
+ * Keep the strings short ( <= 18 chars ) so the status line never reallocs mid-teardown. */
+#ifdef SMS_DIAG
+
+ char lB[ 32 ];
+
+ sprintf ( lB, "E%02d %s", aN, apWhat );
+ GS_BGCOLOR() = ( unsigned int )( aN * 0x000A0A0A ) | 0x00000030;
+ GUI_Status ( lB );
+
+#else
  ( void )aN;
  ( void )apWhat;
+#endif
+
 }  /* end SMS_ExitCrumb */
 
 /* only on the EXIT reset: the boot reset ( afExit == 0, from main.c ) runs before the
  * GUI exists and must stay byte-identical. */
 #define CRUMB( n, s ) do { if ( afExit ) SMS_ExitCrumb ( ( n ), ( s ) ); } while ( 0 )
+
+/* Stage crumb for paths OUTSIDE the reset ( UDPFS bring-up, etc ). Compiles to NOTHING
+ * without SMS_DIAG -- deliberately a macro rather than a call to a no-op function, because
+ * the string literals themselves are data: five short ones were enough to push this tree's
+ * small-data section past the GP-relative addressing window and break the link. A diagnostic
+ * that is off must cost zero bytes, not almost zero. */
+#ifdef SMS_DIAG
+#define DIAG_CRUMB( n, s ) SMS_ExitCrumb ( ( n ), ( s ) )
+#else
+#define DIAG_CRUMB( n, s ) do { } while ( 0 )
+#endif
 
 void SMS_IOPReset ( int afExit ) {
 
@@ -493,6 +522,7 @@ int SMS_IOPStartNet ( int afStatus ) {
 
  if (  !( g_IOPFlags & SMS_IOPF_DEV9_IS )  ) return 0;
  if (  !( g_IOPFlags & SMS_IOPF_DEV9    )  ) {
+  DIAG_CRUMB ( 40, "dev9 init" );
   SMS_IOCtl ( g_pDEV9X, DEV9CTLINIT, NULL );
   g_IOPFlags |= SMS_IOPF_DEV9;
  }  /* end if */
@@ -908,6 +938,7 @@ int SMS_IOPStartUDPFS ( int afStatus ) {
   * turns a hardware test into five round-trips ( cf. the SMB self-diagnosing
   * "SMB FAIL [CONN|PROTO|LOGON]" in SMS_GUIDevMenu.c ). */
  GUI_Status ( lP2 );
+ DIAG_CRUMB ( 41, "udpfs smap" );
  if ( !s_fSmap ) {
   if (  SifExecDecompModuleBuffer ( &udpfs_smap_irx, size_udpfs_smap_irx, 0, NULL, &i ) < 0 || i  ) {
    GUI_Error ( lE2 );
@@ -921,6 +952,7 @@ int SMS_IOPStartUDPFS ( int afStatus ) {
  s_NetOwner = 2;
 
  GUI_Status ( lP3 );
+ DIAG_CRUMB ( 42, "udpfs stack" );
  if ( !s_fStack ) {
   sprintf ( lArg, "ip=%s", g_pDefIP );   /* single NUL-terminated arg token, argc-parsed by the module */
   if (  SifExecDecompModuleBuffer ( &udpfs_ministack_irx, size_udpfs_ministack_irx, strlen ( lArg ) + 1, lArg, &i ) < 0 || i  ) {
@@ -930,6 +962,7 @@ int SMS_IOPStartUDPFS ( int afStatus ) {
   s_fStack = 1;
  }  /* end if */
 
+ DIAG_CRUMB ( 43, "udpfs ioman" );
  if ( !s_fIoman ) {
   if (  SifExecDecompModuleBuffer ( &udpfs_ioman_irx, size_udpfs_ioman_irx, 0, NULL, &i ) < 0 || i  ) {
    GUI_Error ( lE4 );
@@ -954,6 +987,7 @@ int SMS_IOPStartUDPFS ( int afStatus ) {
   * offered ( it is gated on g_UdpfsFlags, not on the module flag ), so starting the PC
   * server and hitting Start again re-probes and connects. */
  GUI_Status ( lP4 );
+ DIAG_CRUMB ( 44, "udpfs probe" );
  for ( lTry = 0; lTry < 2; ++lTry ) {
 
   int lFD = fileXioDopen ( lUdpfs );
