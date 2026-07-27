@@ -2,8 +2,8 @@
 Preset selection and destination configuration widget with visual hints and recommendation badges.
 """
 from typing import Optional
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (
+from qt_compat import Qt, Signal
+from qt_compat import (
     QWidget, QFormLayout, QComboBox, QLabel, QHBoxLayout, QPushButton, QFileDialog, QVBoxLayout, QFrame
 )
 

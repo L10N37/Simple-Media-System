@@ -2,8 +2,8 @@
 Dependency setup dialog displayed when FFmpeg or ffprobe binaries are not found.
 """
 from typing import Tuple, Optional
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (
+from qt_compat import Qt
+from qt_compat import (
     QDialog, QVBoxLayout, QLabel, QHBoxLayout, QPushButton, QFileDialog, QMessageBox
 )
 

@@ -2,8 +2,8 @@
 Drag and drop file selection widget with format guidance.
 """
 import os
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (
+from qt_compat import Qt, Signal
+from qt_compat import (
     QFrame, QVBoxLayout, QLabel, QPushButton, QFileDialog
 )
 

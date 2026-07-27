@@ -3,8 +3,8 @@ Main Application Window for SMS Media Converter.
 """
 from pathlib import Path
 from typing import Dict, Optional, List
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (
+from qt_compat import Qt, Signal, dialog_exec
+from qt_compat import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QProgressBar, QPushButton, QMessageBox
 )
@@ -426,4 +426,4 @@ class MainWindow(QMainWindow):
         if item_id in self.queue_table.items_dict:
             item = self.queue_table.items_dict[item_id]
             dlg = DetailsDialog(item, self)
-            dlg.exec()
+            dialog_exec(dlg)

@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Dict, Any, Optional
-from PySide6.QtCore import QThread, Signal
+from qt_compat import QThread, Signal
 
 from config import SIZE_4_0_GIB, MSG_FILE_SIZE_APPROACHING_LIMIT
 from ffmpeg_utils import (

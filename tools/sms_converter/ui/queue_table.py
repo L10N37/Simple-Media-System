@@ -3,8 +3,8 @@ Batch queue table view displaying items, duration, file sizes, and conversion st
 """
 from dataclasses import dataclass, field
 from typing import Dict, Optional, List
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (
+from qt_compat import Qt, Signal
+from qt_compat import (
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QMenu
 )
 from validator import ValidationResult

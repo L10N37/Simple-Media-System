@@ -1,8 +1,8 @@
 """
 Dialog showing complete FFmpeg console log and post-conversion SMS validation report.
 """
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (
+from qt_compat import Qt
+from qt_compat import (
     QDialog, QVBoxLayout, QTabWidget, QTextEdit, QHBoxLayout, QPushButton, QFileDialog
 )
 from ui.queue_table import QueueItem

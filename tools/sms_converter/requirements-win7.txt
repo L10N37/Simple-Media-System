@@ -1,0 +1,17 @@
+# Windows 7 build pins.
+#
+# Every line here is a hard platform ceiling, not a preference -- newer versions of each of
+# these dropped Windows 7 support outright, so raising any one of them silently produces an
+# .exe that cannot start on the machines this file exists to serve.
+#
+#   PySide2      Qt 5. Qt 6 / PySide6 require Windows 10.
+#   PyInstaller  <6. PyInstaller 6 dropped its Windows 7 bootloader.
+#
+# The interpreter is pinned separately in CI to Python 3.8 -- the last CPython release with
+# Windows 7 support (3.9 dropped it).
+#
+# The app itself is binding-agnostic: everything imports Qt through qt_compat.py, which
+# prefers PySide6 and falls back to PySide2. Nothing here changes app behaviour.
+
+PySide2>=5.15,<6
+PyInstaller>=5.0,<6

@@ -2,8 +2,8 @@
 Application launcher and Qt environment initialization.
 """
 import sys
-from PySide6.QtWidgets import QApplication
-from PySide6.QtGui import QPalette, QColor
+from qt_compat import QApplication, dialog_exec, app_exec, DIALOG_ACCEPTED
+from qt_compat import QPalette, QColor
 from ffmpeg_utils import find_ffmpeg_binaries
 from ui.setup_dialog import SetupDialog
 from ui.main_window import MainWindow
@@ -33,7 +33,7 @@ def run_app():
 
     if not ffmpeg_path or not ffprobe_path:
         setup_dlg = SetupDialog()
-        if setup_dlg.exec() == SetupDialog.DialogCode.Accepted:
+        if dialog_exec(setup_dlg) == DIALOG_ACCEPTED:
             ffmpeg_path = setup_dlg.ffmpeg_path
             ffprobe_path = setup_dlg.ffprobe_path
         else:
@@ -42,4 +42,4 @@ def run_app():
     # 2. Launch Main Window
     window = MainWindow(ffmpeg_path, ffprobe_path)
     window.show()
-    sys.exit(app.exec())
+    sys.exit(app_exec(app))

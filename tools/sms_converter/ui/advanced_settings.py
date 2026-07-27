@@ -2,8 +2,8 @@
 Collapsible advanced video and audio settings panel with hints and tooltips.
 """
 from typing import Dict, Any
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (
+from qt_compat import Qt, Signal
+from qt_compat import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QGroupBox, QFormLayout,
     QComboBox, QSpinBox, QCheckBox, QLabel, QFrame
 )
