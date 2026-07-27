@@ -336,7 +336,7 @@ void SMS_IOPReset ( int afExit ) {
  * SAME reason on ANY bus-mastering module, not just smap -- usbd/OHCI included. Arming
  * SIF0 going into the reset is exactly as valid there as it was for dev9. The boot reset
  * ( afExit==0 ) is untouched, so this cannot regress boot. */
- if ( afExit ) SifInitRpc ( 0 );
+ if ( afExit ) SifInitRpc ( 0 );   /* EXEC and SWITCH: arm SIF0 going into the reset */
 
 /* On an EXIT reset, use the EMPTY arg -- NOT s_pUDNL ("rom0:UDNL rom0:EELOADCNF"). This
  * is THE udpfs/network exit-hang fix. The UDNL variant runs a long IOP-kernel reload on
@@ -361,7 +361,7 @@ void SMS_IOPReset ( int afExit ) {
  * loader uses with live bus masters ( OPL system.c, wLaunchELF-R3Z, NHDDL, neutrino ).
  * Nothing is lost: SMS re-loads its own IOP modules right below, and SMS_EExec then calls
  * SMS_IOPStartUSB itself. Boot ( afExit==0 ) keeps s_pUDNL byte-identical. */
- while(  !SifIopReset( afExit ? "" : s_pUDNL, 0 )  ){};
+ while(  !SifIopReset( afExit ? "" : s_pUDNL, 0 )  ){};   /* EXEC and SWITCH take the short, bus-master-tolerant reset */
 
  FlushCache(0);
  FlushCache(2);
@@ -443,7 +443,13 @@ void SMS_IOPReset ( int afExit ) {
  CRUMB ( 20, "bdmfs" );
  SifExecDecompModuleBuffer ( &bdmfs_fatfs_irx, size_bdmfs_fatfs_irx, 0, NULL, &i );
 
- if ( !afExit ) SifExecDecompModuleBuffer ( &sio2man_irx, size_sio2man_irx, 0, NULL, &i );
+/* sio2man: loaded on BOOT and on a MID-SESSION reset, skipped only on the exec exit.
+ * The test is `!= 1` rather than `!afExit` so the two long-standing paths keep their exact
+ * behaviour ( boot 0 still loads it, exec-exit 1 still skips it ) while the new mid-session
+ * reset ( 2 ) gets it back -- without sio2man there is no mcman/mcserv/padman, i.e. no
+ * memory card and no controller, which is fatal when SMS keeps running afterwards. The
+ * exec exit does not need it because it is handing the machine to another ELF. */
+ if ( afExit != SMS_IOPRESET_EXEC ) SifExecDecompModuleBuffer ( &sio2man_irx, size_sio2man_irx, 0, NULL, &i );
 
  CRUMB ( 21, "mcman" );
  SifExecDecompModuleBuffer ( &mcman_irx, size_mcman_irx, 0, NULL, &i );

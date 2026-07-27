@@ -28,6 +28,17 @@
 #define SMS_IOPF_ATA      0x00004000
 #define SMS_IOPF_ILINK    0x00008000
 #define SMS_IOPF_MMCE     0x00010000
+/* SMS_IOPReset modes. Historically this argument was a bare 0/1 "afExit" flag; the third
+ * value was added for the in-place network-stack switch and the two originals keep their
+ * exact meaning, so every existing call site is unaffected.
+ *   BOOT    reloads the IOP kernel via s_pUDNL, loads sio2man.
+ *   EXEC    the "Exit to -> EXEC0/EXEC1" path: short reset, skips sio2man ( handing over ).
+ *   SWITCH  mid-session: short reset like EXEC ( a live bus master must not meet the long
+ *           UDNL reload ), but KEEPS sio2man because SMS keeps running afterwards. */
+#define SMS_IOPRESET_BOOT    0
+#define SMS_IOPRESET_EXEC    1
+#define SMS_IOPRESET_SWITCH  2
+
 #define SMS_IOPF_DS34USB  0x00020000
 #define SMS_IOPF_DS34BT   0x00040000
 #define SMS_IOPF_UDPFS    0x00080000
