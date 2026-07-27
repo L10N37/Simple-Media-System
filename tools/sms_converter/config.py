@@ -146,8 +146,65 @@ PRESETS: Dict[str, Preset] = {
         ext=".mp4",
         description="320x240 at a low bitrate - roughly a quarter the file size of the 640x480 presets. For memory cards, small USB drives, or when a full-size file will not play smoothly."
     ),
-    "AAC Audio Only (.m4a)": Preset(
-        name="AAC Audio Only (.m4a)",
+    # ----------------------------------------------------------------------------------
+    # AUDIO-ONLY targets.
+    #
+    # Every container here is one SMS opens directly (verified against the PS2 source:
+    # .mp3/.mpa/.mp2, .ogg, .wma, .m4a/.aac, .ac3 and .flac are all accepted by the
+    # browser and have a decoder). Video is dropped with -vn, which also strips any
+    # embedded cover art -- SMS would not show it and some muxers choke on it.
+    #
+    # Bitrates are higher than the video presets' audio tracks on purpose: with no video
+    # competing for space there is no reason to economise, and these are the files people
+    # listen to closely.
+    # ----------------------------------------------------------------------------------
+    "MP3 Audio [RECOMMENDED for music]": Preset(
+        name="MP3 Audio [RECOMMENDED for music]",
+        vcodec=None,
+        vtag=None,
+        width=None,
+        height=None,
+        fps=None,
+        vbitrate_kbps=None,
+        acodec="libmp3lame",
+        abitrate_kbps=192,
+        sample_rate=48000,
+        channels=2,
+        ext=".mp3",
+        description="Start here for music. Plays everywhere, small files, and the format SMS handles most cheaply. 192 kbps is transparent for almost all listening."
+    ),
+    "FLAC Audio [Lossless - exact copy]": Preset(
+        name="FLAC Audio [Lossless - exact copy]",
+        vcodec=None,
+        vtag=None,
+        width=None,
+        height=None,
+        fps=None,
+        vbitrate_kbps=None,
+        acodec="flac",
+        abitrate_kbps=0,
+        sample_rate=48000,
+        channels=2,
+        ext=".flac",
+        description="Keeps every bit of the original - no quality is thrown away. Files are roughly 4x an MP3, so use it when you have the space and care about the difference."
+    ),
+    "Ogg Vorbis Audio [Open format]": Preset(
+        name="Ogg Vorbis Audio [Open format]",
+        vcodec=None,
+        vtag=None,
+        width=None,
+        height=None,
+        fps=None,
+        vbitrate_kbps=None,
+        acodec="libvorbis",
+        abitrate_kbps=192,
+        sample_rate=48000,
+        channels=2,
+        ext=".ogg",
+        description="Slightly better quality than MP3 at the same size, and patent-free. Pick it if you prefer open formats; pick MP3 if you want the most universally playable file."
+    ),
+    "AAC Audio (.m4a)": Preset(
+        name="AAC Audio (.m4a)",
         vcodec=None,
         vtag=None,
         width=None,
@@ -155,11 +212,11 @@ PRESETS: Dict[str, Preset] = {
         fps=None,
         vbitrate_kbps=None,
         acodec="aac",
-        abitrate_kbps=128,
+        abitrate_kbps=192,
         sample_rate=48000,
         channels=2,
         ext=".m4a",
-        description="Music only, no video. Use for albums, soundtracks and anything you just want to listen to."
+        description="Music only, in the same family as the MP4 video presets. Good quality per megabyte; choose MP3 instead if the file also needs to play on older devices."
     ),
 }
 
@@ -178,4 +235,6 @@ AUDIO_CODECS_MAP = {
     "AAC-LC [RECOMMENDED for MP4]": "aac",
     "MP2 [RECOMMENDED for MPEG-1/2]": "mp2",
     "AC-3 / Dolby Digital": "ac3",
+    "FLAC [lossless]": "flac",
+    "Ogg Vorbis": "libvorbis",
 }

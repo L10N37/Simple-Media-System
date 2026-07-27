@@ -291,6 +291,13 @@ def build_ffmpeg_cmd(
         ".mpeg": "mpeg",
         ".mp4": "mp4",
         ".m4a": "mp4",
+        # Audio-only targets. Each of these is a container SMS opens directly, so the muxer
+        # is named explicitly rather than left to ffmpeg's extension guess -- the output path
+        # carries a ".partial" suffix while encoding, which defeats that guess entirely.
+        ".mp3": "mp3",
+        ".flac": "flac",
+        ".ogg": "ogg",
+        ".ac3": "ac3",
     }
     fmt_flag = format_map.get(ext)
     if fmt_flag:

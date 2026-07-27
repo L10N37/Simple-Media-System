@@ -72,7 +72,9 @@ def test_all_presets():
     os.remove(input_file)
     test_dir.rmdir()
 
-    print("\n[E2E] ALL 6 HARDWARE-CONFIRMED PRESETS CONVERTED AND VALIDATED SUCCESSFULLY!")
+    # Counted, not hardcoded: the loop above already iterates PRESETS, so a literal here goes
+    # stale the moment a preset is added and quietly under-reports what was actually tested.
+    print(f"\n[E2E] ALL {len(PRESETS)} PRESETS CONVERTED AND VALIDATED SUCCESSFULLY!")
 
 if __name__ == "__main__":
     test_all_presets()
