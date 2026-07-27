@@ -73,7 +73,14 @@ class TestSMSConverter(unittest.TestCase):
         cmd = build_ffmpeg_cmd(ff, "input.mp4", "output.avi.partial", settings)
 
         self.assertIn("-c:v", cmd)
-        self.assertIn("mpeg4", cmd)
+        # Either encoder is correct here: both produce MPEG-4 Part 2 that SMS decodes, and
+        # which one is chosen depends on whether THIS ffmpeg build has libxvid (real Xvid is
+        # preferred when present -- measurably better at the same bitrate). Asserting one
+        # specific name would make the suite fail on half the machines it runs on.
+        self.assertTrue(
+            "mpeg4" in cmd or "libxvid" in cmd,
+            f"expected an MPEG-4 Part 2 encoder, got: {cmd}",
+        )
         self.assertIn("-vtag", cmd)
         self.assertIn("XVID", cmd)
         self.assertIn("-map", cmd)
