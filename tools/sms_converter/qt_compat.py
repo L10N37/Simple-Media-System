@@ -78,6 +78,8 @@ QScrollArea = QtWidgets.QScrollArea
 QTextEdit = QtWidgets.QTextEdit
 QDialogButtonBox = QtWidgets.QDialogButtonBox
 QStyle = QtWidgets.QStyle
+QMenu = QtWidgets.QMenu
+QTabWidget = QtWidgets.QTabWidget
 
 # --- normalised bits ------------------------------------------------------------------
 

@@ -82,5 +82,57 @@ class TestSMSConverter(unittest.TestCase):
         self.assertIn("-sn", cmd)
         self.assertIn("-progress", cmd)
 
+class TestQtCompatShim(unittest.TestCase):
+    """Guard the Qt binding shim.
+
+    The Windows 7 build routes every Qt import through qt_compat, so a name the shim
+    forgets to re-export is not a lint nit -- the app dies at import on BOTH bindings.
+    That is exactly what happened: QMenu and QTabWidget were missed, and nothing caught
+    it because the suite never imported the UI modules. It does now.
+    """
+
+    def test_every_imported_name_is_exported(self):
+        import io
+        import os
+        import re
+        import qt_compat
+
+        base = os.path.dirname(os.path.abspath(__file__))
+        wanted = set()
+        for root, _dirs, names in os.walk(base):
+            if "__pycache__" in root:
+                continue
+            for n in names:
+                if not n.endswith(".py") or n == "qt_compat.py":
+                    continue
+                src = io.open(os.path.join(root, n), encoding="utf-8").read()
+                for m in re.finditer(
+                    r"from qt_compat import \(([^)]*)\)|from qt_compat import ([^\(\n]+)", src
+                ):
+                    body = m.group(1) or m.group(2)
+                    for tok in body.replace("\n", " ").split(","):
+                        tok = tok.strip()
+                        # Identifiers only: this scan reads THIS file too, and the regex
+                        # literal just above would otherwise be collected as a "name".
+                        if tok.isidentifier():
+                            wanted.add(tok)
+
+        self.assertTrue(wanted, "found no qt_compat imports -- the scan is broken")
+        missing = sorted(w for w in wanted if not hasattr(qt_compat, w))
+        self.assertEqual(missing, [], f"qt_compat is missing re-exports: {missing}")
+
+    def test_ui_modules_actually_import(self):
+        """Import every UI module. A missing shim export only shows up here."""
+        import importlib
+
+        for mod in (
+            "ui.main_window", "ui.queue_table", "ui.preset_selector",
+            "ui.drop_zone", "ui.advanced_settings", "ui.details_dialog",
+            "ui.setup_dialog",
+        ):
+            with self.subTest(module=mod):
+                importlib.import_module(mod)
+
+
 if __name__ == "__main__":
     unittest.main()
