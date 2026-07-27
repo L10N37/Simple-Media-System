@@ -239,7 +239,7 @@ class MainWindow(QMainWindow):
                 not settings.get("qpel") and
                 not settings.get("gmc")
             )
-            self.preset_selector.set_badge_state(is_match and preset.is_hardware_confirmed)
+            self.preset_selector.set_badge_state(is_match)
 
         self._recalculate_estimates()
 

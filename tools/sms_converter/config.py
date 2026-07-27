@@ -4,8 +4,17 @@ Configuration and constants for SMS Media Converter.
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict
 
-LABEL_HARDWARE_CONFIRMED = "✓ Hardware-Confirmed on real PS2 hardware"
-LABEL_CUSTOM_PROFILE = "⚠️ Custom Specification — performance not hardware-confirmed"
+# Settings-state badge.
+#
+# This deliberately does NOT claim anything about hardware compatibility. Every format this
+# tool can output is already known-good for SMS -- that is precisely why the output list is
+# restricted to these presets -- so a "works on real hardware" badge told the user nothing
+# and merely implied the opposite might be possible.
+#
+# What IS worth surfacing is whether the user has edited away from the preset in Advanced
+# Settings, because that is the only way to land on values the presets would not have chosen.
+LABEL_PRESET_DEFAULTS = "✓ Using the recommended settings for this format"
+LABEL_CUSTOM_SETTINGS = "✎ Custom settings — edited from the recommended preset"
 
 # Resolution Limits for SMS
 MAX_WIDTH = 1024
@@ -59,7 +68,6 @@ class Preset:
     sample_rate: int = 48000
     channels: int = 2
     ext: str = ".avi"
-    is_hardware_confirmed: bool = True
     description: str = ""
 
 PRESETS: Dict[str, Preset] = {
@@ -76,8 +84,7 @@ PRESETS: Dict[str, Preset] = {
         sample_rate=48000,
         channels=2,
         ext=".avi",
-        is_hardware_confirmed=True,
-        description="Best overall preset for PS2 hardware. Maximum smoothness over USB 1.1 and SMB network."
+        description="Start here. Best picture per megabyte, so files stay small and stream well over USB or a network share. Decoded in software, which the PS2 handles comfortably at 640x480."
     ),
     "MPEG-2 [High Compatibility - DVD Standard]": Preset(
         name="MPEG-2 [High Compatibility - DVD Standard]",
@@ -92,8 +99,7 @@ PRESETS: Dict[str, Preset] = {
         sample_rate=48000,
         channels=2,
         ext=".mpg",
-        is_hardware_confirmed=True,
-        description="Standard DVD-compatible MPEG-2 video stream with MP2 audio."
+        description="Use if the Xvid preset stutters. The PS2's IPU chip decodes MPEG-2 in hardware, so the CPU barely works and playback is the smoothest available. Trade-off: noticeably larger files for the same quality."
     ),
     "MPEG-1 [Maximum Compatibility - VCD Standard]": Preset(
         name="MPEG-1 [Maximum Compatibility - VCD Standard]",
@@ -108,8 +114,7 @@ PRESETS: Dict[str, Preset] = {
         sample_rate=48000,
         channels=2,
         ext=".mpg",
-        is_hardware_confirmed=True,
-        description="VCD-style legacy MPEG-1 video stream with minimal CPU decoding overhead."
+        description="The most forgiving option, also decoded by the IPU chip rather than the CPU. Picture quality tops out lower, but it is the lightest load of all - try it if everything else struggles."
     ),
     "MPEG-4 MP4 [RECOMMENDED for MP4 files]": Preset(
         name="MPEG-4 MP4 [RECOMMENDED for MP4 files]",
@@ -124,8 +129,7 @@ PRESETS: Dict[str, Preset] = {
         sample_rate=48000,
         channels=2,
         ext=".mp4",
-        is_hardware_confirmed=True,
-        description="Modern MP4 container with MPEG-4 video and AAC-LC audio."
+        description="The same video as the Xvid preset, in a modern .mp4 container with AAC audio. Choose this if you want .mp4 files; choose Xvid AVI if you want the longest-proven path."
     ),
     "MPEG-4 MP4 [Small - 320x240 Low Bitrate]": Preset(
         name="MPEG-4 MP4 [Small - 320x240 Low Bitrate]",
@@ -140,8 +144,7 @@ PRESETS: Dict[str, Preset] = {
         sample_rate=48000,
         channels=2,
         ext=".mp4",
-        is_hardware_confirmed=True,
-        description="Compact file size for memory cards or low-capacity USB drives."
+        description="320x240 at a low bitrate - roughly a quarter the file size of the 640x480 presets. For memory cards, small USB drives, or when a full-size file will not play smoothly."
     ),
     "AAC Audio Only (.m4a)": Preset(
         name="AAC Audio Only (.m4a)",
@@ -156,8 +159,7 @@ PRESETS: Dict[str, Preset] = {
         sample_rate=48000,
         channels=2,
         ext=".m4a",
-        is_hardware_confirmed=True,
-        description="Audio-only export formatted for SMS music playback."
+        description="Music only, no video. Use for albums, soundtracks and anything you just want to listen to."
     ),
 }
 

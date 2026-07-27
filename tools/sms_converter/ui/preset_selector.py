@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QWidget, QFormLayout, QComboBox, QLabel, QHBoxLayout, QPushButton, QFileDialog, QVBoxLayout, QFrame
 )
 
-from config import PRESETS, LABEL_HARDWARE_CONFIRMED, LABEL_CUSTOM_PROFILE
+from config import PRESETS, LABEL_PRESET_DEFAULTS, LABEL_CUSTOM_SETTINGS
 
 class PresetSelectorWidget(QWidget):
     preset_changed = Signal(str, object)   # preset_name, Preset object or None
@@ -38,8 +38,8 @@ class PresetSelectorWidget(QWidget):
             }
         """)
         self.combo_preset.setToolTip(
-            "Select a PlayStation 2 hardware-tested export preset.\n"
-            "• Xvid-Compatible AVI is recommended for maximum performance over USB and SMB network shares."
+            "Choose the output format. Every option here plays on SMS.\n"
+            "• Xvid-Compatible AVI is the safest all-round choice, and the smoothest over USB and SMB."
         )
         for name in PRESETS.keys():
             self.combo_preset.addItem(name)
@@ -58,10 +58,10 @@ class PresetSelectorWidget(QWidget):
         self.lbl_preset_desc.setWordWrap(True)
 
         # 3. Quality / Confirmation Badge Label (Pill Style)
-        self.label_badge = QLabel(LABEL_HARDWARE_CONFIRMED)
+        self.label_badge = QLabel(LABEL_PRESET_DEFAULTS)
         self.label_badge.setToolTip(
-            "Indicates whether your output profile is hardware-tested on real PS2 consoles.\n"
-            "Standard presets guarantee hardware performance."
+            "Shows whether these values still match the recommended preset.\n"
+            "Editing anything in Advanced Settings switches this to Custom."
         )
         self.set_badge_state(True)
 
@@ -86,7 +86,7 @@ class PresetSelectorWidget(QWidget):
         preset_box.addWidget(self.lbl_preset_desc)
 
         layout.addRow("Output Format:", preset_box)
-        layout.addRow("Quality Profile:", self.label_badge)
+        layout.addRow("Settings:", self.label_badge)
         layout.addRow("Save Location:", save_layout)
 
         self.custom_dir_path: Optional[str] = None
@@ -94,9 +94,14 @@ class PresetSelectorWidget(QWidget):
         # Trigger initial description
         self._on_preset_changed(0)
 
-    def set_badge_state(self, is_hardware_confirmed: bool):
-        if is_hardware_confirmed:
-            self.label_badge.setText(LABEL_HARDWARE_CONFIRMED)
+    def set_badge_state(self, is_preset_defaults: bool):
+        """Reflect whether the current values still match the chosen preset.
+
+        This says nothing about hardware compatibility: every format offered here is already
+        known-good for SMS, which is why the output list is restricted to these presets.
+        """
+        if is_preset_defaults:
+            self.label_badge.setText(LABEL_PRESET_DEFAULTS)
             self.label_badge.setStyleSheet("""
                 QLabel {
                     background-color: #22543D;
@@ -109,7 +114,7 @@ class PresetSelectorWidget(QWidget):
                 }
             """)
         else:
-            self.label_badge.setText(LABEL_CUSTOM_PROFILE)
+            self.label_badge.setText(LABEL_CUSTOM_SETTINGS)
             self.label_badge.setStyleSheet("""
                 QLabel {
                     background-color: #7B341E;
@@ -135,7 +140,7 @@ class PresetSelectorWidget(QWidget):
         name = self.combo_preset.currentText()
         preset = PRESETS.get(name)
         if preset:
-            self.set_badge_state(preset.is_hardware_confirmed)
+            self.set_badge_state(True)   # freshly selected preset == its own defaults
             self.lbl_preset_desc.setText(f"💡 {preset.description}")
         self.preset_changed.emit(name, preset)
 
