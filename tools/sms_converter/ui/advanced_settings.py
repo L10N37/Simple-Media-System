@@ -166,11 +166,15 @@ class AdvancedSettingsWidget(QWidget):
             "means decoding forward from the previous keyframe, so at 25 fps an interval of "
             "300 can mean chewing through 12 seconds of video before playback resumes -- on a "
             "294 MHz CPU that is a long stare at a frozen screen.\n\n"
-            "Measured on a 640x480 test clip at a fixed 1000 kbps: going from 300 down to 50 "
-            "cost about 0.4% in file size and actually scored slightly BETTER quality, while "
-            "cutting worst-case seek work from 12 seconds to 2.\n\n"
-            "50 (about 2 seconds) is a good balance. Raise it toward 300 if you only ever "
-            "watch straight through and want every last byte; lower it if you scrub a lot."
+            "Measured at a fixed 1000 kbps on footage with normal, smooth motion:\n"
+            "     12 frames  ->  2.18 MB   SSIM 0.924    0.5 s seek\n"
+            "     50 frames  ->  1.95 MB   SSIM 0.940    2 s seek\n"
+            "    300 frames  ->  1.86 MB   SSIM 0.945   12 s seek\n\n"
+            "Going from 12 to 50 is the big win: 11% smaller AND better quality, for 1.5 s of "
+            "extra seek delay. Past that it flattens -- 300 saves only another 4% but costs ten "
+            "more seconds every time you jump.\n\n"
+            "50 sits at that knee. Raise it toward 300 if you only ever watch straight through "
+            "and want the smallest files; lower it if you scrub around a lot."
         )
         self.spin_gop.valueChanged.connect(self._on_control_changed)
 

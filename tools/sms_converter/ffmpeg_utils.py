@@ -293,9 +293,16 @@ def build_ffmpeg_cmd(
         cmd.extend(["-bf", str(bframes)])
 
         # Keyframe interval (GOP). Distinct from B-frames, and routinely confused with it:
-        # B-frames is 0-4 and controls prediction; this is in the hundreds and controls how
-        # often a self-contained frame is written -- which is what makes seeking on the PS2
-        # fast or slow, since a seek decodes forward from the previous keyframe.
+        # B-frames is 0-4 and controls prediction; this is in the tens/hundreds and controls
+        # how often a self-contained frame is written -- which is what makes seeking on the
+        # PS2 fast or slow, since a seek decodes forward from the previous keyframe.
+        #
+        # On real footage a LONGER interval is genuinely better for both size and quality
+        # (measured at 1000 kbps on smooth motion: 12 -> 2.18 MB/SSIM 0.924, 300 -> 1.86 MB/
+        # SSIM 0.945). An earlier note here claimed the opposite because it was measured only
+        # on testsrc2, whose hard edges and constant motion are pathological for prediction.
+        # The default of 50 is therefore a SEEK-LATENCY compromise, not a quality win: 12->50
+        # buys 11% size for 1.5 s of seek, while 50->300 buys only 4% more for another 10 s.
         gop = settings.get("gop")
         if gop:
             cmd.extend(["-g", str(int(gop))])
