@@ -262,6 +262,14 @@ def build_ffmpeg_cmd(
         bframes = settings.get("bframes", 0)
         cmd.extend(["-bf", str(bframes)])
 
+        # Keyframe interval (GOP). Distinct from B-frames, and routinely confused with it:
+        # B-frames is 0-4 and controls prediction; this is in the hundreds and controls how
+        # often a self-contained frame is written -- which is what makes seeking on the PS2
+        # fast or slow, since a seek decodes forward from the previous keyframe.
+        gop = settings.get("gop")
+        if gop:
+            cmd.extend(["-g", str(int(gop))])
+
         if settings.get("qpel", False):
             cmd.extend(["-qpel", "1"])
         
