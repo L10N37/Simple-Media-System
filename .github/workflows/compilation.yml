@@ -59,6 +59,18 @@ jobs:
         ( cd dist && zip -9 "Simple-Media-System-${GITHUB_SHA::8}.zip" Simple-Media-System.elf Simple-Media-System-packed.elf )
         ls -la dist
 
+    # Diagnostic build, made AFTER the release one is already copied into dist/ so the
+    # release ELF is never rebuilt. Same source with SMS_DIAG=1: each stage of the boot /
+    # UDPFS / exit paths latches an "E<nn> <what>" code on screen just BEFORE the call it
+    # names, and if that call never returns the code stays on screen. A tester on hardware
+    # with no network and no memory card photographs the screen, and the last code IS the
+    # blocking call. Shipped ALONGSIDE the release ELF, never instead of it.
+    - name: Build diagnostic ELF (SMS_DIAG=1)
+      run: |
+        docker run --rm -v "$PWD":/src -w /src ps2dev/ps2dev:v1.0           sh -c 'apk add --no-cache build-base git zip && rm -rf obj bin && make SMS_DIAG=1 all'
+        cp bin/SMS.elf dist/Simple-Media-System-DIAG.elf
+        ls -la dist
+
     # Every build (push / PR / tag) leaves a downloadable artifact for that commit.
     - name: Upload build artifact
       if: success()
@@ -78,7 +90,7 @@ jobs:
         printf 'Latest development build of Simple-Media-System -- auto-updated on every push to master.\n\nCommit: %s\nBuilt:  %s UTC\n\nSimple-Media-System.elf         -- standard ELF.\nSimple-Media-System-packed.elf  -- same build, self-extracting ( ~half the size, decompresses at boot ).\nSMS-Media-Converter.exe         -- standalone Windows desktop media converter app.\nSMS-Media-Converter-Linux.zip   -- Linux desktop media converter app.\n\nFlash / run either to test.\n' \
           "$GITHUB_SHA" "$(date -u +'%Y-%m-%d %H:%M')" > notes.md
         gh release delete rolling --yes --cleanup-tag 2>/dev/null || true
-        gh release create rolling dist/Simple-Media-System.elf dist/Simple-Media-System-packed.elf dist/*.zip \
+        gh release create rolling dist/Simple-Media-System.elf dist/Simple-Media-System-packed.elf dist/Simple-Media-System-DIAG.elf dist/*.zip \
           --prerelease --target "$GITHUB_SHA" \
           --title "Rolling build (latest master)" --notes-file notes.md
 
