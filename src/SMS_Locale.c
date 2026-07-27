@@ -388,6 +388,11 @@ static char s_pNLSmbShare   [] __attribute__(   (  section( ".data" ), aligned( 
 static char s_pNLSmbTitle   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "SMB server";
 static char s_pNLStartSMB   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start SMB server support";
 static char s_pNLStartHOST  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Start HOST ( ps2dev ) support";
+/* The three network MODES. SMS can run exactly one network stack per boot, so these are a
+ * single choice presented as three rows -- selecting one clears the other two. "Autostart
+ * network" ( string 34 ) stays for the non-BDM build, which has only HOST. */
+static char s_pNLAutoHost   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart HOST ( ps2dev )";
+static char s_pNLAutoSMB    [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart SMB";
 
 static SMString s_SMStringDef[] __attribute__(   (  section( ".data" )  )   ) = {
  { sizeof ( s_pAvailableMedia  ) - 1, s_pAvailableMedia  },
@@ -698,7 +703,9 @@ static SMString s_SMStringDef[] __attribute__(   (  section( ".data" )  )   ) = 
  { sizeof ( s_pNLSmbShare      ) - 1, s_pNLSmbShare      },   /* 304 */
  { sizeof ( s_pNLSmbTitle      ) - 1, s_pNLSmbTitle      },   /* 305 */
  { sizeof ( s_pNLStartSMB      ) - 1, s_pNLStartSMB      },   /* 306 */
- { sizeof ( s_pNLStartHOST     ) - 1, s_pNLStartHOST     }    /* 307 */
+ { sizeof ( s_pNLStartHOST     ) - 1, s_pNLStartHOST     },   /* 307 */
+ { sizeof ( s_pNLAutoHost      ) - 1, s_pNLAutoHost      },   /* 308 */
+ { sizeof ( s_pNLAutoSMB       ) - 1, s_pNLAutoSMB       }    /* 309 */
 };
 
 static unsigned char s_XLTLatin1[ 256 ] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = {

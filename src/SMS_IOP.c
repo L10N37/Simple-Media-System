@@ -1482,14 +1482,32 @@ void SMS_IOPInit ( void ) {
  SPU_Initialize ();
 
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD ) SMS_IOPStartHDD ( 1 );
- if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_NET ) SMS_IOPStartNet ( 1 );
+
+/* NETWORK: exactly one stack, chosen through the mode accessor rather than by testing the
+ * raw bits. It used to read SMS_DF_AUTO_NET here and SMS_DF_AUTO_UDPFS further down, which
+ * meant a config with both set -- writable by any older build, since the bits are
+ * independent -- started HOST/SMB and then hit SMS_IOPStartUDPFS's `s_NetOwner == 1` guard,
+ * which returns 0 SILENTLY. The user got no network drive and no explanation.
+ * Going through SMS_ConfigNetMode makes that unrepresentable: it resolves such a config the
+ * same way the console actually behaved, and it is the same value the menu paints from, so
+ * the lit row is always the stack that really starts. */
+ switch (  SMS_ConfigNetMode ()  ) {
+
+  case SMS_NETMODE_HOST :
+  case SMS_NETMODE_SMB  : SMS_IOPStartNet ( 1 ); break;   /* one function; SMS_DF_SMB picks smbman vs ps2host */
+#ifdef BDM
+  case SMS_NETMODE_UDPFS: SMS_IOPStartUDPFS ( 1 ); break;
+#endif
+  default               : break;                          /* SMS_NETMODE_OFF */
+
+ }  /* end switch */
+
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_USB ) SMS_IOPStartUSB ( 1 );
 #ifdef BDM
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_MX4SIO ) SMS_IOPStartMX4SIO ( 1 );
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_ATA    ) SMS_IOPStartATA    ( 1 );
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_ILINK  ) SMS_IOPStartILINK  ( 1 );
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_MMCE   ) SMS_IOPStartMMCE   ( 1 );
- if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_UDPFS  ) SMS_IOPStartUDPFS  ( 1 );
 #endif
 
  GUI_Status ( STR_INITIALIZING_SMS.m_pStr );

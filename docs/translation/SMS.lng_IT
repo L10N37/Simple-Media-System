@@ -306,3 +306,5 @@ Share ( optional )
 SMB server
 Start SMB server support
 Start HOST ( ps2dev ) support
+Autostart HOST ( ps2dev )
+Autostart SMB

@@ -75,6 +75,8 @@ static void _autoata_handler    ( GUIMenu*, int );
 static void _autoilink_handler  ( GUIMenu*, int );
 static void _automce_handler    ( GUIMenu*, int );
 static void _autoudpfs_handler  ( GUIMenu*, int );
+static void _autohost_handler   ( GUIMenu*, int );
+static void _autosmb_handler    ( GUIMenu*, int );
 #endif
 static void _autohdd_handler  ( GUIMenu*, int );
 static void _starthost_handler ( GUIMenu*, int );
@@ -223,18 +225,28 @@ static GUIMenuItem s_DevMenu[ 28 ] __attribute__(   (  section( ".data" )  )   )
  * in this file first. */
  {                   0, &STR_NETWORK_SETTINGS,    0, 0, _network_handler,    0, 0 },   /*  0 */
  { MENU_ITEM_TYPE_TEXT, &STR_CONTROLLER_SLOT2,    0, 0, _cntslot_handler,    0, 0 },   /*  1 */
- {                   0, &STR_AUTOSTART_NETWORK,   0, 0, _autonet_handler,    0, 0 },   /*  2 */
- {                   0, &STR_AUTOSTART_USB,       0, 0, _autousb_handler,    0, 0 },   /*  3 */
- {                   0, &STR_AUTOSTART_HDD,       0, 0, _autohdd_handler,    0, 0 },   /*  4  HDD APA */
- {                   0, &STR_AUTOSTART_HDD_BDM,   0, 0, _autoata_handler,    0, 0 },   /*  5  HDD BDM */
- {                   0, &STR_AUTOSTART_MX4SIO,    0, 0, _automx4sio_handler, 0, 0 },   /*  6 */
- {                   0, &STR_AUTOSTART_ILINK,     0, 0, _autoilink_handler,  0, 0 },   /*  7 */
- {                   0, &STR_AUTOSTART_MMCE,      0, 0, _automce_handler,    0, 0 },   /*  8 */
- {                   0, &STR_DISABLE_CDVD,        0, 0, _cdvd_handler,       0, 0 },   /*  9 */
- { MENU_ITEM_TYPE_TEXT, &STR_CDVD_SPEED,          0, 0, _cdvd_spd_handler,   0, 0 },   /* 10 */
- { MENU_ITEM_TYPE_TEXT, &STR_DIRECTIONAL_BUTTONS, 0, 0, _dirbtn_handler,     0, 0 },   /* 11 */
- {                   0, &STR_AUTOSTART_UDPFS,     0, 0, _autoudpfs_handler,  0, 0 }    /* 12 */
+ {                   0, &STR_AUTOSTART_USB,       0, 0, _autousb_handler,    0, 0 },   /*  2 */
+ {                   0, &STR_AUTOSTART_ILINK,     0, 0, _autoilink_handler,  0, 0 },   /*  3 */
+ {                   0, &STR_AUTOSTART_MX4SIO,    0, 0, _automx4sio_handler, 0, 0 },   /*  4 */
+ {                   0, &STR_AUTOSTART_MMCE,      0, 0, _automce_handler,    0, 0 },   /*  5 */
+ {                   0, &STR_AUTOSTART_HDD,       0, 0, _autohdd_handler,    0, 0 },   /*  6  HDD APA */
+ {                   0, &STR_AUTOSTART_HDD_BDM,   0, 0, _autoata_handler,    0, 0 },   /*  7  HDD BDM */
+ {                   0, &STR_AUTOSTART_HOST,      0, 0, _autohost_handler,   0, 0 },   /*  8  net mode */
+ {                   0, &STR_AUTOSTART_SMB,       0, 0, _autosmb_handler,    0, 0 },   /*  9  net mode */
+ {                   0, &STR_AUTOSTART_UDPFS,     0, 0, _autoudpfs_handler,  0, 0 },   /* 10  net mode */
+ {                   0, &STR_DISABLE_CDVD,        0, 0, _cdvd_handler,       0, 0 },   /* 11 */
+ { MENU_ITEM_TYPE_TEXT, &STR_CDVD_SPEED,          0, 0, _cdvd_spd_handler,   0, 0 },   /* 12 */
+ { MENU_ITEM_TYPE_TEXT, &STR_DIRECTIONAL_BUTTONS, 0, 0, _dirbtn_handler,     0, 0 }    /* 13 */
 };
+
+/* Row indices for the three NETWORK MODE rows. They are named because selecting any one of
+ * them repaints ALL THREE ( picking a mode clears the other two ), so unlike every other row
+ * these indices are needed away from their own handler. Keeping them here means the group
+ * has exactly ONE definition to move if the menu is ever reordered again. */
+#define DEVROW_NET_FIRST  8
+#define DEVROW_HOST       8
+#define DEVROW_SMB        9
+#define DEVROW_UDPFS     10
 #else
 static GUIMenuItem s_DevMenu[ 12 ] __attribute__(   (  section( ".data" )  )   ) = {
  {                   0, &STR_NETWORK_SETTINGS,    0, 0, _network_handler,  0, 0 },
@@ -552,7 +564,7 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
  GUIMenuState* lpState = GUI_MenuPushState ( apMenu );
 #ifdef BDM
- unsigned int  lSize   = 12;   /* 13 static rows ( 0..12 ) incl. the appended Autostart UDPFS */
+ unsigned int  lSize   = 13;   /* 14 static rows ( 0..13 ); dynamic Start rows append after */
 #else
  unsigned int  lSize   = 7;
 #endif
@@ -563,22 +575,28 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
   s_DevMenu[ 1 ].m_IconRight = ( unsigned int )&STR_REMOTE_CONTROL;
  else s_DevMenu[ 1 ].m_IconRight = ( unsigned int )&STR_NONE;
 
-/* These indices MUST match the s_DevMenu row order above. Rows 2 and 3 are the same in
- * both layouts ( Autostart Network, Autostart USB ), so they are assigned once, outside
- * the #ifdef; the rest differ between BDM and non-BDM and live inside the branches. */
+/* These indices MUST match the s_DevMenu row order above -- and the two layouts now diverge
+ * from row 2 onwards, so EVERY row is assigned inside its own branch. Do not hoist any back
+ * out. tools/check_devmenu.py cross-checks all of this against the array and the handlers. */
+#ifdef BDM
+ s_DevMenu[  2 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_USB    ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[  3 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_ILINK  ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[  4 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_MX4SIO ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[  5 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_MMCE   ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[  6 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD    ? GUICON_ON : GUICON_OFF;  /* HDD APA */
+ s_DevMenu[  7 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_ATA    ? GUICON_ON : GUICON_OFF;  /* HDD BDM */
+/* The three network rows are ONE choice, so they are painted from the single derived mode
+ * rather than from three independent bits. That is what makes an inherited two-stacks-at-once
+ * config ( which older builds could write ) display honestly instead of lighting two rows. */
+ s_DevMenu[ DEVROW_HOST  ].m_IconRight = SMS_ConfigNetMode () == SMS_NETMODE_HOST  ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[ DEVROW_SMB   ].m_IconRight = SMS_ConfigNetMode () == SMS_NETMODE_SMB   ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[ DEVROW_UDPFS ].m_IconRight = SMS_ConfigNetMode () == SMS_NETMODE_UDPFS ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[ 11 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_CDVD        ? GUICON_ON : GUICON_OFF;
+ s_DevMenu[ 12 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed ];
+ s_DevMenu[ 13 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );
+#else
  s_DevMenu[ 2 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_NET ? GUICON_ON   : GUICON_OFF;
  s_DevMenu[ 3 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_USB ? GUICON_ON   : GUICON_OFF;
-#ifdef BDM
- s_DevMenu[  4 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD    ? GUICON_ON : GUICON_OFF;  /* HDD APA */
- s_DevMenu[  5 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_ATA    ? GUICON_ON : GUICON_OFF;  /* HDD BDM */
- s_DevMenu[  6 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_MX4SIO ? GUICON_ON : GUICON_OFF;
- s_DevMenu[  7 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_ILINK  ? GUICON_ON : GUICON_OFF;
- s_DevMenu[  8 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_MMCE   ? GUICON_ON : GUICON_OFF;
- s_DevMenu[  9 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_CDVD        ? GUICON_ON : GUICON_OFF;
- s_DevMenu[ 10 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed ];
- s_DevMenu[ 11 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );
- s_DevMenu[ 12 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_UDPFS ? GUICON_ON : GUICON_OFF;
-#else
  s_DevMenu[ 4 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD ? GUICON_ON   : GUICON_OFF;
  s_DevMenu[ 5 ].m_IconRight = g_Config.m_NetworkFlags & SMS_DF_CDVD     ? GUICON_ON   : GUICON_OFF;
  s_DevMenu[ 6 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed ];
@@ -1311,46 +1329,96 @@ setNone:
 
 }  /* end _cntslot_handler */
 
+#ifdef BDM
+/* Select one of the three network modes, or switch it off by re-picking the lit one.
+ *
+ * This cannot use _switch_flag: that toggles ONE bit and repaints ONE row, whereas picking a
+ * network mode necessarily changes up to three rows at once, because turning HOST on has to
+ * turn SMB and UDPFS off. The console can only ever run one network stack per boot -- one
+ * NIC, ownership claimed before any module loads, and nothing in the tree can unload an IOP
+ * module -- so presenting these as three independent toggles would let the user express a
+ * state the hardware cannot enter. SMS_ConfigSetNetMode enforces that, and repainting all
+ * three rows here is what makes the menu tell the truth about it.
+ *
+ * Re-selecting the active mode clears it. Without that there would be no way back to "no
+ * networking" once any mode had been picked. */
+static void _switch_netmode ( GUIMenu* apMenu, unsigned int aMode ) {
+
+ GUIMenuState* lpState = ( GUIMenuState* )( unsigned int )apMenu -> m_pState -> m_pTail -> m_Param;
+ unsigned int  lMode;
+
+ SMS_ConfigSetNetMode (  SMS_ConfigNetMode () == aMode ? SMS_NETMODE_OFF : aMode  );
+
+ lMode = SMS_ConfigNetMode ();
+
+ lpState -> m_pItems[ DEVROW_HOST  ].m_IconRight = lMode == SMS_NETMODE_HOST  ? GUICON_ON : GUICON_OFF;
+ lpState -> m_pItems[ DEVROW_SMB   ].m_IconRight = lMode == SMS_NETMODE_SMB   ? GUICON_ON : GUICON_OFF;
+ lpState -> m_pItems[ DEVROW_UDPFS ].m_IconRight = lMode == SMS_NETMODE_UDPFS ? GUICON_ON : GUICON_OFF;
+
+ apMenu -> Redraw ( apMenu );
+
+}  /* end _switch_netmode */
+
+static void _autohost_handler ( GUIMenu* apMenu, int aDir ) {
+
+ _switch_netmode ( apMenu, SMS_NETMODE_HOST );
+
+}  /* end _autohost_handler */
+
+static void _autosmb_handler ( GUIMenu* apMenu, int aDir ) {
+
+ _switch_netmode ( apMenu, SMS_NETMODE_SMB );
+
+}  /* end _autosmb_handler */
+#endif
+
 static void _autonet_handler ( GUIMenu* apMenu, int aDir ) {
 
+/* non-BDM only: that build has no SMB ( SMS_IOPStartNet compiles it out ) and no UDPFS, so
+ * its single "Autostart network" row IS the HOST mode and a plain bit toggle is correct.
+ * The BDM build reaches HOST through _autohost_handler above. */
  _switch_flag ( apMenu, 2, &g_Config.m_NetworkFlags, SMS_DF_AUTO_NET );
 
 }  /* end _autonet_handler */
 
 static void _autousb_handler ( GUIMenu* apMenu, int aDir ) {
 
- _switch_flag ( apMenu, 3, &g_Config.m_NetworkFlags, SMS_DF_AUTO_USB );
+#ifdef BDM
+ _switch_flag ( apMenu, 2, &g_Config.m_NetworkFlags, SMS_DF_AUTO_USB );   /* USB heads the autostart block */
+#else
+ _switch_flag ( apMenu, 3, &g_Config.m_NetworkFlags, SMS_DF_AUTO_USB );   /* non-BDM keeps Network at row 2 */
+#endif
 
 }  /* end _autousb_handler */
 
 #ifdef BDM
 static void _automx4sio_handler ( GUIMenu* apMenu, int aDir ) {
 
- _switch_flag ( apMenu, 6, &g_Config.m_NetworkFlags, SMS_DF_AUTO_MX4SIO );  /* MX4SIO row is index 6 in the BDM menu */
+ _switch_flag ( apMenu, 4, &g_Config.m_NetworkFlags, SMS_DF_AUTO_MX4SIO );  /* MX4SIO is row [4] */
 
 }  /* end _automx4sio_handler */
 
 static void _autoata_handler ( GUIMenu* apMenu, int aDir ) {
 
- _switch_flag ( apMenu, 5, &g_Config.m_NetworkFlags, SMS_DF_AUTO_ATA );
+ _switch_flag ( apMenu, 7, &g_Config.m_NetworkFlags, SMS_DF_AUTO_ATA );   /* HDD BDM is row [7] */
 
 }  /* end _autoata_handler */
 
 static void _autoilink_handler ( GUIMenu* apMenu, int aDir ) {
 
- _switch_flag ( apMenu, 7, &g_Config.m_NetworkFlags, SMS_DF_AUTO_ILINK );  /* i.LINK row is index 7 */
+ _switch_flag ( apMenu, 3, &g_Config.m_NetworkFlags, SMS_DF_AUTO_ILINK );  /* i.LINK is row [3] */
 
 }  /* end _autoilink_handler */
 
 static void _automce_handler ( GUIMenu* apMenu, int aDir ) {
 
- _switch_flag ( apMenu, 8, &g_Config.m_NetworkFlags, SMS_DF_AUTO_MMCE );  /* MMCE row is index 8 */
+ _switch_flag ( apMenu, 5, &g_Config.m_NetworkFlags, SMS_DF_AUTO_MMCE );  /* MMCE is row [5] */
 
 }  /* end _automce_handler */
 
 static void _autoudpfs_handler ( GUIMenu* apMenu, int aDir ) {
 
- _switch_flag ( apMenu, 12, &g_Config.m_NetworkFlags, SMS_DF_AUTO_UDPFS );   /* appended after the CDVD/dir rows -> row index 12 */
+ _switch_netmode ( apMenu, SMS_NETMODE_UDPFS );   /* one of the three mutually exclusive network modes */
 
 }  /* end _autoudpfs_handler */
 #endif
@@ -1358,7 +1426,7 @@ static void _autoudpfs_handler ( GUIMenu* apMenu, int aDir ) {
 static void _autohdd_handler ( GUIMenu* apMenu, int aDir ) {
 
 #ifdef BDM
- _switch_flag ( apMenu, 4, &g_Config.m_NetworkFlags, SMS_DF_AUTO_HDD );  /* HDD-APA row is index 4 in both layouts */
+ _switch_flag ( apMenu, 6, &g_Config.m_NetworkFlags, SMS_DF_AUTO_HDD );  /* HDD APA is row [6] in the BDM menu */
 #else
  _switch_flag ( apMenu, 4, &g_Config.m_NetworkFlags, SMS_DF_AUTO_HDD );
 #endif
@@ -1620,7 +1688,7 @@ static void _editipc_handler ( GUIMenu* apMenu, int aDir ) {
 static void _cdvd_handler ( GUIMenu* apMenu, int aDir ) {
 
 #ifdef BDM
- _switch_flag ( apMenu, 9, &g_Config.m_NetworkFlags, SMS_DF_CDVD );   /* CDVD is row [9] in the BDM menu */
+ _switch_flag ( apMenu, 11, &g_Config.m_NetworkFlags, SMS_DF_CDVD );   /* CDVD is row [11] in the BDM menu */
 #else
  _switch_flag ( apMenu, 5, &g_Config.m_NetworkFlags, SMS_DF_CDVD );
 #endif
@@ -1636,7 +1704,7 @@ static void _cdvd_spd_handler ( GUIMenu* apMenu, int aDir ) {
  else if ( lSpeed > 2 ) lSpeed = 0;
 
 #ifdef BDM
- s_DevMenu[ 10 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed = lSpeed ];   /* CDVD-speed is row [10] */
+ s_DevMenu[ 12 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed = lSpeed ];   /* CDVD-speed is row [12] */
 #else
  s_DevMenu[ 6 ].m_IconRight = ( unsigned int )s_Speeds[ g_Config.m_CDVDSpeed = lSpeed ];
 #endif
@@ -1649,7 +1717,7 @@ static void _dirbtn_handler ( GUIMenu* apMenu, int aDir ) {
 
  g_Config.m_BrowserFlags ^= SMS_BF_DIRB;
 #ifdef BDM
- s_DevMenu[ 11 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );   /* dir-buttons is row [11] */
+ s_DevMenu[ 13 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );   /* dir-buttons is row [13] */
 #else
  s_DevMenu[ 7 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );
 #endif

@@ -72,6 +72,18 @@ def preprocess(text, bdm):
     return "\n".join(out)
 
 
+def parse_row_consts(text):
+    """Resolve `#define DEVROW_X n` so named indices are checked like literal ones.
+
+    The network-mode rows are addressed by name because selecting one repaints all three,
+    so their indices are needed away from their own handler. Without resolving them here the
+    checker would report those rows as unpainted -- a false alarm, which is exactly as
+    corrosive as a false pass.
+    """
+    return {m.group(1): int(m.group(2))
+            for m in re.finditer(r"#define\s+(DEVROW_\w+)\s+(\d+)", text)}
+
+
 def parse_array(text):
     """Return [(index, str_name, is_text_row, handler)] for the one visible s_DevMenu."""
     m = re.search(r"static GUIMenuItem s_DevMenu\[\s*\d+\s*\][^=]*=\s*\{", text)
@@ -122,6 +134,11 @@ def audit(text, label):
     for i, nm, t, h in rows:
         handler_rows.setdefault(h, []).append(i)
 
+    consts = parse_row_consts(text)
+
+    def resolve(tok):
+        return int(tok) if tok.isdigit() else consts.get(tok, -1)
+
     errs, checked = [], 0
     spans = func_spans(text)
 
@@ -142,8 +159,8 @@ def audit(text, label):
                 errs.append(f"{label}: {hname} _switch_flag puts a GUICON into TEXT row "
                             f"{idx} ({by_index[idx][1]}) -- crash risk")
 
-        for m in re.finditer(r"s_DevMenu\[\s*(\d+)\s*\]\.m_IconRight\s*=\s*([^;]+);", body):
-            idx, rhs = int(m.group(1)), m.group(2)
+        for m in re.finditer(r"s_DevMenu\[\s*(\w+)\s*\]\.m_IconRight\s*=\s*([^;]+);", body):
+            idx, rhs = resolve(m.group(1)), m.group(2)
             checked += 1
             if idx not in by_index:
                 errs.append(f"{label}: {hname} writes row {idx}, out of range")
@@ -160,8 +177,8 @@ def audit(text, label):
     painted = {}
     if "_device_handler" in spans:
         s, e = spans["_device_handler"]
-        for m in re.finditer(r"s_DevMenu\[\s*(\d+)\s*\]\.m_IconRight\s*=\s*([^;]+);", text[s:e]):
-            painted[int(m.group(1))] = m.group(2)
+        for m in re.finditer(r"s_DevMenu\[\s*(\w+)\s*\]\.m_IconRight\s*=\s*([^;]+);", text[s:e]):
+            painted[resolve(m.group(1))] = m.group(2)
             checked += 1
     else:
         errs.append(f"{label}: _device_handler not found")
@@ -175,6 +192,11 @@ def audit(text, label):
             kind = "pointer" if is_pointer_rhs(rhs) else "GUICON"
             errs.append(f"{label}: status block writes a {kind} into "
                         f"{'TEXT' if is_text else 'plain'} row {idx} ({nm}) -- crash risk")
+
+    # _switch_netmode paints the three network rows as a group via lpState->m_pItems[],
+    # not s_DevMenu[], so credit those rows to it.
+    for m in re.finditer(r"m_pItems\[\s*(DEVROW_\w+)\s*\]", text):
+        painted.setdefault(resolve(m.group(1)), "grouped netmode paint")
 
     for i, nm, t, h in rows:
         if i not in painted and h in handler_rows and h != "_network_handler":
