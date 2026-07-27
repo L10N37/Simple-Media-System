@@ -251,17 +251,37 @@ int smap_transmit(void *header, uint16_t headersize, const void *data, uint16_t 
             DelayThread(1000);
     }
 
-    while (1) {
-        WaitSema(tx_sema);
-        int r = HandleTxReqs(&SmapDriverData, header, headersize, data, datasize);
-        SignalSema(tx_sema);
-        if (r >= 0)
-            break;
+    /* BOUNDED. This used to be `while (1)` with a FIXME, and the failure mode was a hard
+     * lock of the whole console: HandleTxReqs returns -1 when the TX descriptor ring is full
+     * and -2 when the FIFO has no room, and if the ring never drains -- link down, cable out,
+     * PHY never negotiated -- neither ever becomes >= 0, so this span never exits.
+     *
+     * That is not a theoretical concern. The EE reaches here through a SYNCHRONOUS SIF RPC
+     * (fileXioDopen on "udpfs:" during discovery), so an IOP thread stuck in this loop leaves
+     * the EE blocked in that RPC with no timeout: a frozen screen, no error, power-cycle only.
+     * Reported from a PSX with an IP outside the LAN's subnet.
+     *
+     * SMAP_TX_MAX_WAIT * 100us = ~1 second. On a working 100Mbps link the ring drains a 1 KiB
+     * packet in tens of microseconds, so this cannot fire in normal operation -- it only ever
+     * trips when the hardware genuinely is not transmitting, and then we drop the packet and
+     * let the caller fail instead of taking the machine down with us. UDP is lossy by
+     * definition; the discovery retry above this is the correct place to recover. */
+#define SMAP_TX_MAX_WAIT 10000
 
-        // Wait for about 1KiB (at a speed of 100Mbps)
-        // FIXME! We want a blocking write, this works but it's not ideal.
-        DelayThread(100);
+    {
+        int lWait;
+
+        for (lWait = 0; lWait < SMAP_TX_MAX_WAIT; lWait++) {
+            WaitSema(tx_sema);
+            int r = HandleTxReqs(&SmapDriverData, header, headersize, data, datasize);
+            SignalSema(tx_sema);
+            if (r >= 0)
+                return 0;
+
+            // Wait for about 1KiB (at a speed of 100Mbps)
+            DelayThread(100);
+        }
     }
 
-    return 0;
+    return -1;   /* TX wedged: drop this packet rather than hang the console */
 }
