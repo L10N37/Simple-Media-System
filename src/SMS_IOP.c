@@ -17,6 +17,8 @@
 #include "SMS_IOP.h"
 #include "SMS_Data.h"
 #include "SMS_Config.h"
+
+extern char g_pBootDir[];   /* SMS_Config.c: "<dev>/path/" on a non-mc boot, empty on mc */
 #include "SMS_GUI.h"
 #include "SMS_PAD.h"
 #include "SMS_Locale.h"
@@ -1316,13 +1318,38 @@ void SMS_IOPInit ( void ) {
  char        lBuff[ 64 ];
  ee_thread_t lThreadParam;
 
-/* IPCONFIG.DAT ( mc0:-pinned ) is read HERE, ahead of config resolution -- it used to
- * be read after it, but a boot from the UDPFS network drive needs this PS2's static IP
- * before the drive can be brought back up to re-load SMS.cfg from it. Pure mc read:
- * mcman/mcserv are up since SMS_IOPReset, and nothing between the two positions ever
- * consumed g_pDefIP/g_pDefMask/g_pDefGW ( first consumer is the config-time udpfs
- * start, then the auto-start section ). */
- lFD = fioOpen ( g_pIPConf, O_RDONLY );
+/* IPCONFIG.DAT is read HERE, ahead of config resolution -- a boot from the UDPFS network
+ * drive needs this PS2's static IP before the drive can be brought up to re-load SMS.cfg
+ * from it. Nothing between the two positions consumes g_pDefIP/g_pDefMask/g_pDefGW.
+ *
+ * CWD FIRST, memory card second. This used to be a bare mc0: read, which left anyone
+ * running a console with NO MEMORY CARD unable to set an IP at all -- reported from a PSX
+ * (DESR-7100) with no card fitted: the built-in default address was outside the tester's
+ * subnet, UDPFS could never reach a server, and there was no way to correct it because the
+ * only file SMS would read lived on hardware that was not present. wLaunchELF-R3Z already
+ * allows its config off-card, which is why that gap showed up in comparison.
+ *
+ * So look next to the ELF first ( same place SMS.cfg and every other asset now live -- see
+ * SMS_ConfigAssetPath ), then fall back to the card. Probing costs one fioOpen that simply
+ * errors on an absent/unmounted device; we are past GUI_Initialize here, so that is safe.
+ * An on-card IPCONFIG.DAT keeps working exactly as before when no CWD copy exists. */
+ lFD = -1;
+
+ if ( g_pBootDir[ 0 ] ) {
+
+  char lIPCwd[ 128 ];
+
+  if (  strlen ( g_pBootDir ) + 13 < sizeof ( lIPCwd )  ) {
+
+   strcpy ( lIPCwd, g_pBootDir );
+   strcat ( lIPCwd, "IPCONFIG.DAT" );
+   lFD = fioOpen ( lIPCwd, O_RDONLY );
+
+  }  /* end if */
+
+ }  /* end if */
+
+ if ( lFD < 0 ) lFD = fioOpen ( g_pIPConf, O_RDONLY );
 
  if ( lFD >= 0 ) {
 

@@ -17,6 +17,8 @@
 #include "SMS_Locale.h"
 #include "SMS_GUIcons.h"
 #include "SMS_Config.h"
+
+extern char g_pBootDir[];   /* SMS_Config.c: "<dev>/path/" on a non-mc boot, empty on mc */
 #include "SMS_IOP.h"
 #include "SMS_MC.h"
 #include "SMS_FileDir.h"
@@ -1916,6 +1918,55 @@ static void _saveipc_handler ( GUIMenu* apMenu, int aDir ) {
 
  strncpy ( lDir, g_pIPConf, 13 );
  lDir[ 13 ] = '\x00';
+
+/* NO MEMORY CARD -> save beside the ELF instead of failing.
+ *
+ * Reported from a PSX (DESR-7100) running with no card fitted: the built-in default IP was
+ * outside the tester's subnet, so UDPFS could never find a server -- and there was no way to
+ * correct it, because both reading and writing IPCONFIG.DAT were pinned to mc0:. A card-less
+ * console could not be given an address at all.
+ *
+ * The boot reader now looks in the CWD first (SMS_IOP.c), so writing there is what makes the
+ * setting round-trip. Only taken when there is a usable CWD and no card: with a card present
+ * the on-card SYS-CONF path stays authoritative, because that is where the PS2 browser and
+ * every other title expect it, and quietly moving it would break those. */
+#ifdef BDM
+ if (  g_pBootDir[ 0 ] && !SMS_MCPresent ()  ) {
+
+  char lIPCwd[ 128 ];
+
+  if (  strlen ( g_pBootDir ) + 13 < sizeof ( lIPCwd )  ) {
+
+   int lFD;
+
+   strcpy ( lIPCwd, g_pBootDir );
+   strcat ( lIPCwd, "IPCONFIG.DAT" );
+
+   lFD = fioOpen ( lIPCwd, O_CREAT | O_WRONLY | O_TRUNC );
+
+   if ( lFD >= 0 ) {
+
+    int lLen = strlen ( lBuf );
+    int lWr  = fioWrite ( lFD, lBuf, lLen );
+
+    fioClose ( lFD );
+
+    if ( lWr == lLen ) {
+     GUI_Status ( STR_SAVING_IPCONFIG.m_pStr );
+     return;
+    }  /* end if */
+
+    sprintf ( lDiag, "IPCONFIG: CWD write %d", lWr );
+
+   } else sprintf ( lDiag, "IPCONFIG: CWD open %d", lFD );
+
+   GUI_Error ( lDiag );
+   return;
+
+  }  /* end if */
+
+ }  /* end if */
+#endif
 
 #ifdef BDM
  /* Gate on the fio-coherent card check ( SMS_MCPresent -> _mc_get_info, which now
