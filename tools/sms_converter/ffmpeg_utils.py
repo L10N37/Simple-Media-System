@@ -296,6 +296,21 @@ def build_ffmpeg_cmd(
     if fmt_flag:
         cmd.extend(["-f", fmt_flag])
 
+    # MP4/M4A: move the moov atom to the FRONT of the file.
+    #
+    # This is not a micro-optimisation on PS2 -- it is the difference between a file that
+    # opens and one the user assumes has hung. ffmpeg's default writes moov (the index)
+    # AFTER mdat (the data). SMS cannot seek past mdat to reach it: its skip helper is a
+    # sequential READ loop through a 4 KiB buffer, so a 700 MB movie costs ~170,000 device
+    # reads -- over USB 1.1 or SMB that is minutes of a seemingly frozen browser -- before
+    # a single frame is parsed. With +faststart the index is read immediately and playback
+    # starts at once.
+    #
+    # Cost: ffmpeg does a second pass at the end to relocate the atom, so encoding finishes
+    # slightly slower. That trade is overwhelmingly worth it for the target hardware.
+    if fmt_flag == "mp4":
+        cmd.extend(["-movflags", "+faststart"])
+
     # Progress output via pipe:1
     cmd.extend(["-progress", "pipe:1", "-nostats", output_file])
     return cmd
