@@ -128,6 +128,12 @@ static int s_AtaBusOwner;
 /* MMCE units ( bit0=mmce0:, bit1=mmce1: ) already announced to the device strip,
  * so a re-probe doesn't append a duplicate ( same idea as s_MassAdded ). */
 static unsigned int s_MmceAdded;
+
+/* UDPFS per-module residency. File scope ( not function-local statics ) so the in-place
+ * network-stack switch can clear them: after an IOP reset those modules are GONE, and a
+ * stale "already loaded" here would make SMS_IOPStartUDPFS skip the loads and then fail at
+ * the probe with no way back. */
+static int s_fSmap, s_fStack, s_fIoman;
 #else
 static char s_pSIO2MAN[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "rom0:SIO2MAN";
 static char s_pPADMAN [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "rom0:PADMAN";
@@ -816,6 +822,30 @@ int SMS_IOPStartATA ( int afStatus ) {
 int SMS_IOPNetOwnedBySMB   ( void ) { return s_NetOwner == 1; }
 int SMS_IOPNetOwnedByUDPFS ( void ) { return s_NetOwner == 2; }
 
+/* The network mode that is actually RUNNING right now, as opposed to the one saved in the
+ * config. The two differ exactly when the user has changed the setting since boot, which is
+ * the only case where an in-place switch is worth offering.
+ * s_NetOwner alone cannot tell HOST from SMB -- both claim owner 1 before either module
+ * loads -- so the residency flags decide which of the two actually came up. */
+unsigned int SMS_IOPNetLiveMode ( void ) {
+
+ if ( s_NetOwner == 2 ) return SMS_NETMODE_UDPFS;
+
+ if ( s_NetOwner == 1 ) {
+
+  if ( g_IOPFlags & SMS_IOPF_SMB ) return SMS_NETMODE_SMB;
+  if ( g_IOPFlags & SMS_IOPF_NET ) return SMS_NETMODE_HOST;
+
+/* Owner claimed but neither module up: a half-failed start. Report the mode the config asked
+ * for, so a retry is offered rather than the menu silently agreeing with a dead stack. */
+  return SMS_ConfigNetMode ();
+
+ }  /* end if */
+
+ return SMS_NETMODE_OFF;
+
+}  /* end SMS_IOPNetLiveMode */
+
 int SMS_IOPStartUDPFS ( int afStatus ) {
 
  int         i, lTry;
@@ -835,7 +865,6 @@ int SMS_IOPStartUDPFS ( int afStatus ) {
   * ( its RegisterLibraryEntries fails ), which is NOT an error -- its library is still
   * there. Without these, a retry after a later-stage failure would report a bogus
   * [SMAP]/[STACK] failure for a module that is in fact up. */
- static int  s_fSmap, s_fStack, s_fIoman;
 
  /* UDPFS ( "UDP File System", transport UDPRDMA, port 0xF5F6 / service 0xF5F5 ) serves
   * a PC FOLDER over UDP; it mounts as the iomanX device "udpfs:" -- NOT a BDM mass:
@@ -1541,6 +1570,97 @@ void SMS_IOPInit ( void ) {
  FlushCache ( 0 );
 
 }  /* end SMS_IOPInit */
+
+#ifdef BDM
+/* ---------------------------------------------------------------------------------------
+ * IN-PLACE NETWORK STACK SWITCH
+ *
+ * SMS can run exactly one network stack per boot -- one NIC, s_NetOwner claimed before any
+ * module loads, and nothing in the tree can unload an IOP module. Historically that meant a
+ * mode change only took effect on the NEXT launch, with nothing on screen to say so.
+ *
+ * wLaunchELF-R3Z solves the same problem by REBOOTING THE IOP in place rather than
+ * relaunching the app ( refs/wLaunchELF_R3Z/src/init.c: switchNetworkStack ->
+ * resetRuntimeDeviceState -> Reset ). Its rule is: if the requested stack is already the
+ * live one do nothing, and only reset when a DIFFERENT stack is already up. That is exactly
+ * the behaviour asked for here, so this mirrors it.
+ *
+ * The order below is not arbitrary:
+ *   1. SAVE FIRST. The reset drops every storage driver, so the config must already be on
+ *      disk before it happens -- otherwise a switch could lose the very setting that caused
+ *      it. ( This is also why sio2man is kept on a SWITCH reset: mc must come back. )
+ *   2. QUIESCE. The DS34 pad poller is an EE thread issuing SIF RPCs to ds34usb/ds34bt at
+ *      ~60Hz. An RPC in flight across an IOP reboot is the documented hang class, so we take
+ *      the poller's own mutex -- the one it holds around every read -- and keep it until the
+ *      new stack is up. R3Z does the same thing with stopDs34Input().
+ *   3. UNMOUNT what has a handle open ( PFS ), like R3Z's unmountAll().
+ *   4. RESET, short-arg, sio2man retained.
+ *   5. FORGET the residency state. SMS tracks loaded modules in g_IOPFlags and a handful of
+ *      statics; at boot those start zeroed, but MID-SESSION they are stale the moment the IOP
+ *      reboots. Leaving them set makes every later start a no-op against a module that is no
+ *      longer there. R3Z clears ~35 have_* flags at the same point for the same reason.
+ *   6. REBUILD: dev9 for the NIC, then the requested stack.
+ *
+ * Returns 1 if the switch was performed, 0 if it was unnecessary or refused.
+ * ------------------------------------------------------------------------------------- */
+int SMS_IOPNetSwitch ( unsigned int aMode ) {
+
+ int lPrev = s_NetOwner;
+
+/* Nothing is live -> the mode is a plain autostart preference and takes effect on the next
+ * launch. No reset, no prompt: resetting here would cost the user their mounted devices to
+ * achieve nothing. */
+ if ( !lPrev ) return 0;
+
+/* 1. Persist BEFORE anything is torn down. */
+ SMS_SaveConfig ();
+
+ GUI_Status ( STR_INITIALIZING_NETWORK.m_pStr );
+
+/* 2. Stop the pad poller touching the IOP across the reboot. */
+ SMS_PadDS34Lock ();
+
+/* 3. Release the PFS handle if the internal HDD is mounted. */
+ if ( g_PD >= 0 ) {
+  SMS_IOCtl ( g_pPFS, PFS_IOCTL_UMOUNT, NULL );
+  g_PD = -1;
+ }  /* end if */
+
+/* 4. Short, bus-master-tolerant reset that keeps sio2man ( mc + pads ). */
+ SMS_IOPReset ( SMS_IOPRESET_SWITCH );
+
+/* 5. Forget everything the reset invalidated. DEV9_IS and EURO are hardware/region FACTS,
+ *    not module residency, so they survive; every driver bit does not. */
+ g_IOPFlags &= ( SMS_IOPF_DEV9_IS | SMS_IOPF_EURO );
+
+ s_NetOwner    = 0;
+ s_AtaBusOwner = 0;
+ s_MassAdded   = 0;
+ s_MmceAdded   = 0;
+ g_Mx4sioMask  = 0;
+ g_AtaMask     = 0;
+ g_IlinkMask   = 0;
+ g_UdpfsFlags  = 0;
+ g_MmceFlags   = 0;
+ s_fSmap = s_fStack = s_fIoman = 0;
+
+/* 6. Bring the requested stack up. Each starter re-loads dev9 itself as needed. */
+ switch ( aMode ) {
+
+  case SMS_NETMODE_HOST :
+  case SMS_NETMODE_SMB  : SMS_IOPStartNet   ( 1 ); break;
+  case SMS_NETMODE_UDPFS: SMS_IOPStartUDPFS ( 1 ); break;
+  default               :                          break;   /* OFF -- leave the NIC idle */
+
+ }  /* end switch */
+
+ SMS_PadDS34Unlock ();
+
+ return 1;
+
+}  /* end SMS_IOPNetSwitch */
+#endif  /* BDM */
+
 
 int SMS_IOPQueryTotalFreeMemSize ( void ) {
 

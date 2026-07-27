@@ -393,6 +393,7 @@ static char s_pNLStartHOST  [] __attribute__(   (  section( ".data" ), aligned( 
  * network" ( string 34 ) stays for the non-BDM build, which has only HOST. */
 static char s_pNLAutoHost   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart HOST ( ps2dev )";
 static char s_pNLAutoSMB    [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Autostart SMB";
+static char s_pNLNetSwitch  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "Network is already running. Restart it now to apply?";
 
 static SMString s_SMStringDef[] __attribute__(   (  section( ".data" )  )   ) = {
  { sizeof ( s_pAvailableMedia  ) - 1, s_pAvailableMedia  },
@@ -705,7 +706,8 @@ static SMString s_SMStringDef[] __attribute__(   (  section( ".data" )  )   ) = 
  { sizeof ( s_pNLStartSMB      ) - 1, s_pNLStartSMB      },   /* 306 */
  { sizeof ( s_pNLStartHOST     ) - 1, s_pNLStartHOST     },   /* 307 */
  { sizeof ( s_pNLAutoHost      ) - 1, s_pNLAutoHost      },   /* 308 */
- { sizeof ( s_pNLAutoSMB       ) - 1, s_pNLAutoSMB       }    /* 309 */
+ { sizeof ( s_pNLAutoSMB       ) - 1, s_pNLAutoSMB       },   /* 309 */
+ { sizeof ( s_pNLNetSwitch     ) - 1, s_pNLNetSwitch     }    /* 310 */
 };
 
 static unsigned char s_XLTLatin1[ 256 ] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = {

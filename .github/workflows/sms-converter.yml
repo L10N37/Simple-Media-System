@@ -169,6 +169,15 @@ jobs:
       with:
         python-version: "3.8"
 
+    # The unit suite includes a binary-detection test that needs ffmpeg on PATH, exactly as
+    # the modern job does. Installing it here keeps BOTH jobs running the identical suite --
+    # the point of this job is to prove the Qt5 fallback behaves the same, which is only
+    # meaningful if it is held to the same tests.
+    - name: Install Windows FFmpeg via Choco
+      run: |
+        choco install ffmpeg --no-progress
+        ffmpeg -version
+
     - name: Install Windows 7 compatible dependencies
       run: |
         python -m pip install --upgrade pip

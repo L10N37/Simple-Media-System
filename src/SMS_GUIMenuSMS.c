@@ -1357,6 +1357,24 @@ static void _switch_netmode ( GUIMenu* apMenu, unsigned int aMode ) {
 
  apMenu -> Redraw ( apMenu );
 
+/* If a DIFFERENT stack is already running, offer to apply the change now. Only then: with
+ * nothing up, the setting is a plain autostart preference for the next launch and a reset
+ * would cost the user their mounted devices to achieve nothing. Re-selecting the live mode
+ * is likewise a no-op. This mirrors R3Z's switchNetworkStack, which resets only when the
+ * live stack differs from the requested one.
+ * Declining is safe and leaves the choice saved -- it simply takes effect on next launch --
+ * so the prompt can never trap the user in a state they cannot get out of. */
+ if (   SMS_IOPNetLiveMode () != SMS_NETMODE_OFF && SMS_IOPNetLiveMode () != lMode   ) {
+
+  if (  GUI_Question ( STR_NET_SWITCH_ASK.m_pStr )  ) {
+
+   SMS_IOPNetSwitch ( lMode );
+   GUI_Redraw ( GUIRedrawMethod_Redraw );
+
+  }  /* end if */
+
+ }  /* end if */
+
 }  /* end _switch_netmode */
 
 static void _autohost_handler ( GUIMenu* apMenu, int aDir ) {

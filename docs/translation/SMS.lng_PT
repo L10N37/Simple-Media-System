@@ -308,3 +308,4 @@ Start SMB server support
 Start HOST ( ps2dev ) support
 Autostart HOST ( ps2dev )
 Autostart SMB
+Network is already running. Restart it now to apply?

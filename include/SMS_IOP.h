@@ -43,6 +43,11 @@
 #define SMS_IOPF_DS34BT   0x00040000
 #define SMS_IOPF_UDPFS    0x00080000
 
+/* In-place network-stack switch ( R3Z's mechanic ): reboots the IOP without relaunching SMS.
+ * Returns 1 if it actually switched, 0 when no stack was live and the mode is simply an
+ * autostart preference for the next launch. BDM only. */
+int SMS_IOPNetSwitch ( unsigned int );
+
 #define SMS_SIF_CMD_SMB_CONNECT    0
 #define SMS_SIF_CMD_USB_CONNECT    1
 #define SMS_SIF_CMD_USB_DISCONNECT 2
@@ -79,6 +84,7 @@ int  SMS_IOPStartDS34BT      ( int                                    );
 int  SMS_IOPStartUDPFS       ( int                                    );
 int  SMS_IOPNetOwnedBySMB    ( void                                   );
 int  SMS_IOPNetOwnedByUDPFS  ( void                                   );
+unsigned int SMS_IOPNetLiveMode ( void                             );
 int  SMS_IOPStartHDD         ( int                                    );
 void SMS_IOPRefreshMass      ( void                                   );
 void SMS_IOPSetXLT           ( void                                   );
