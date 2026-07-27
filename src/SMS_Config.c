@@ -640,6 +640,101 @@ int SMS_LoadConfig ( void  ) {
 
 }  /* end SMS_LoadCondig */
 
+/* Write the memory-card save icon ( icon.sys + SMS.icn ) into apDir, which must be a
+ * directory path ending in a separator, e.g. "mc0:/APPS/SMS/".
+ *
+ * WHY THIS IS A HELPER NOW. The PS2 browser only draws a proper icon for a memory-card
+ * folder that contains a valid icon.sys; without one the folder shows as a bare/ugly entry.
+ * SMS used to write it, but only from the fixed mc?:/SMS libmc save path -- so once config
+ * moved to CWD ( settings live next to the ELF ), a user who INSTALLS SMS ONTO A MEMORY CARD
+ * and boots from it got a working config and no icon at all. That is the case this restores:
+ * the CWD save now emits the icon too whenever the CWD happens to be on a card.
+ *
+ * The icon.sys View/Copy/Del fields name "SMS.icn" RELATIVELY, so the exact same bytes are
+ * valid in any directory -- which is what makes one helper serve both save paths.
+ *
+ * Written only when absent ( the fioOpen probe ): the icon never changes, so rewriting ~2KB
+ * on every settings save would be pure wear on the card for no benefit.
+ *
+ * The legacy fixed-mc save further down deliberately keeps its OWN inline copy of this and
+ * is NOT routed through here: it writes via slightly different path spellings ( "mc0:SMS/..."
+ * vs "mc0:/SMS/..." ) on the fragile libmc route, and that path currently works. Rewiring it
+ * would risk a regression for zero user-visible gain, so the small duplication stays. */
+static void _write_mc_icon ( const char* apDir ) {
+
+ static char lIcoSys[ 64 ] __attribute__(   (  section( ".bss" )  )   );
+ static char lIcoBin[ 64 ] __attribute__(   (  section( ".bss" )  )   );
+
+ int lLen = strlen ( apDir );
+ int lFD;
+
+ if (  lLen <= 0 || lLen + 9 >= ( int )sizeof ( lIcoSys )  ) return;
+
+ strcpy ( lIcoSys, apDir ); strcpy ( lIcoSys + lLen, "icon.sys" );
+ strcpy ( lIcoBin, apDir ); strcpy ( lIcoBin + lLen, "SMS.icn"  );
+
+ lFD = fioOpen ( lIcoSys, O_RDONLY );
+
+ if ( lFD >= 0 ) { fioClose ( lFD ); return; }   /* already there -> nothing to do */
+
+ {
+  static int lBgClr[ 4 ][ 4 ] __attribute__(   (  section( ".data" )  )    ) = {
+   {  68,  23, 116,  0 },
+   { 255, 255, 255,  0 },
+   { 255, 255, 255,  0 },
+   {  68,  23, 116,  0 }
+  };
+  static float lLightDir[ 3 ][ 4 ] __attribute__(   (  section( ".data" )  )    ) = {
+   {  0.5F,  0.5F,  0.5F, 0.0F },
+   {  0.0F, -0.4F, -0.1F, 0.0F },
+   { -0.5F, -0.5F,  0.5F, 0.0F }
+  };
+  static float lLightCol[ 3 ][ 4 ] __attribute__(   (  section( ".data" )  )    ) = {
+   { 0.3F, 0.3F, 0.3F, 0.0F },
+   { 0.4F, 0.4F, 0.4F, 0.0F },
+   { 0.5F, 0.5F, 0.5F, 0.0F }
+  };
+  static float lAmb[ 4 ] __attribute__(   (  section( ".data" )  )    ) = { 0.5F, 0.5F, 0.5F, 0.0F };
+
+  SMS_MCIcon lIcon; memset (  &lIcon, 0, sizeof ( SMS_MCIcon )  );
+
+  strcpy ( lIcon.m_Header, s_pPS2D );
+  strcpy_sjis (  ( short* )&lIcon.m_Title, s_pSMS + 1  );
+
+  lIcon.m_Offset =   16;
+  lIcon.m_Trans  = 0x60;
+
+  memcpy (  lIcon.m_ClrBg,    lBgClr,    sizeof ( lBgClr    )  );
+  memcpy (  lIcon.m_LightDir, lLightDir, sizeof ( lLightDir )  );
+  memcpy (  lIcon.m_LightCol, lLightCol, sizeof ( lLightCol )  );
+  memcpy (  lIcon.m_LightAmb, lAmb,      sizeof ( lAmb      )  );
+
+  strcpy ( lIcon.m_View, s_pSMSICN );
+  strcpy ( lIcon.m_Copy, s_pSMSICN );
+  strcpy ( lIcon.m_Del,  s_pSMSICN );
+
+  lFD = fioOpen ( lIcoSys, O_WRONLY | O_CREAT );
+
+  if ( lFD >= 0 ) {
+
+   fioWrite (  lFD, &lIcon, sizeof ( lIcon )  );
+   fioClose ( lFD );
+
+   lFD = fioOpen ( lIcoBin, O_WRONLY | O_CREAT );
+
+   if ( lFD >= 0 ) {
+
+    fioWrite (  lFD, g_IconSMS, sizeof ( g_IconSMS )  );
+    fioClose ( lFD );
+
+   }  /* end if */
+
+  }  /* end if */
+
+ }
+
+}  /* end _write_mc_icon */
+
 int SMS_SaveConfig ( void ) {
 
  int retVal = 0;
@@ -693,6 +788,29 @@ int SMS_SaveConfig ( void ) {
    else sprintf ( g_SaveDiag, "Save: CWD write %d %s", lWr, s_pMC0SMC );   /* TEMP diag */
    fioClose ( lFD );
   } else sprintf ( g_SaveDiag, "Save: CWD open %d %s", lFD, s_pMC0SMC );   /* TEMP diag */
+
+/* SAVE ICON for an SMS installed ON a memory card. The CWD save deliberately bypasses the
+ * old fixed mc?:/SMS libmc path -- but that path was also the only thing that ever wrote
+ * icon.sys, so a card-installed SMS ended up with working settings and a bare, ugly folder
+ * in the PS2 browser. Emit the icon beside the config whenever the CWD is on a card.
+ * Only for "mc" -- USB / HDD / MX4SIO / UDPFS have no browser icon concept, and dropping
+ * two stray files next to the ELF there would be litter, not a feature.
+ * Gated on retVal so a card that just failed its config write is not handed more writes. */
+  if (  retVal && strncmp ( s_pMC0SMC, "mc", 2 ) == 0  ) {
+
+   static char lDir[ 64 ] __attribute__(   (  section( ".bss" )  )   );
+   int         i, lLast = -1;
+
+   for ( i = 0; s_pMC0SMC[ i ] && i < ( int )sizeof ( lDir ) - 1; ++i )
+    if ( s_pMC0SMC[ i ] == '/' || s_pMC0SMC[ i ] == ':' || s_pMC0SMC[ i ] == '\\' ) lLast = i;
+
+   if ( lLast >= 0 ) {
+    for ( i = 0; i <= lLast; ++i ) lDir[ i ] = s_pMC0SMC[ i ];
+    lDir[ lLast + 1 ] = '\x00';
+    _write_mc_icon ( lDir );
+   }  /* end if */
+
+  }  /* end if */
 
   return retVal;
 
