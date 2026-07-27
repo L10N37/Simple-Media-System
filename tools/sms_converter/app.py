@@ -1,12 +1,34 @@
 """
 Application launcher and Qt environment initialization.
 """
+import os
 import sys
 from qt_compat import QApplication, dialog_exec, app_exec, DIALOG_ACCEPTED
-from qt_compat import QPalette, QColor
+from qt_compat import QPalette, QColor, QIcon
 from ffmpeg_utils import find_ffmpeg_binaries
 from ui.setup_dialog import SetupDialog
 from ui.main_window import MainWindow
+
+
+def resource_path(*parts):
+    """Resolve a bundled asset both when run from source and from a PyInstaller --onefile exe.
+
+    A one-file build unpacks to a temporary directory at run time and exposes it as
+    sys._MEIPASS; the ordinary __file__ path points inside the archive and does not exist on
+    disk. Getting this wrong is silent -- the icon simply never appears -- so it is resolved
+    in one place.
+    """
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, *parts)
+
+
+def app_icon():
+    """The window/taskbar icon, or a null QIcon if the asset is missing.
+
+    Never raises: a missing icon must not stop the converter from starting.
+    """
+    path = resource_path("assets", "sms-converter.ico")
+    return QIcon(path) if os.path.exists(path) else QIcon()
 
 DARK_STYLESHEET = """
 QMainWindow, QDialog {
@@ -26,6 +48,8 @@ QToolTip {
 
 def run_app():
     app = QApplication(sys.argv)
+    # Set on the QApplication so every window, dialog and the taskbar entry inherit it.
+    app.setWindowIcon(app_icon())
     app.setStyleSheet(DARK_STYLESHEET)
 
     # 1. Search for FFmpeg binaries

@@ -47,24 +47,24 @@ class DropZoneWidget(QFrame):
         """)
 
         layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setAlignment(Qt.AlignCenter)
         layout.setSpacing(6)
 
         self.label_main = QLabel("📁 Drop ANY Audio or Video File Here")
         self.label_main.setObjectName("MainLabel")
-        self.label_main.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.label_main.setAlignment(Qt.AlignCenter)
 
         self.label_sub = QLabel("Supports MKV, MP4, AVI, MOV, WMV, FLV, TS, VOB, WEBM, MP3, AAC, FLAC & more")
         self.label_sub.setObjectName("SubLabel")
-        self.label_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.label_sub.setAlignment(Qt.AlignCenter)
 
         self.btn_browse = QPushButton("Browse Files…")
-        self.btn_browse.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_browse.setCursor(Qt.PointingHandCursor)
         self.btn_browse.clicked.connect(self._open_file_dialog)
 
         layout.addWidget(self.label_main)
         layout.addWidget(self.label_sub)
-        layout.addWidget(self.btn_browse, 0, Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.btn_browse, 0, Qt.AlignCenter)
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():

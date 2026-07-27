@@ -45,7 +45,11 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(12)
 
         # 0. Guidance Banner
-        self.banner = QLabel("💡 Converts ANY video or audio file for PlayStation 2 Simple Media System (SMS). Hardware-recommended defaults are pre-selected.")
+        self.banner = QLabel("💡 Drop in any video or audio file and it comes out ready to play on a PlayStation 2 running SMS. The recommended settings are already chosen.")
+        # Without word wrap this single long line sets the window's minimum WIDTH to its own
+        # rendered width -- 820px measured -- so the resize(750, 680) below could never take
+        # effect and the window could not be narrowed. Wrapping drops that floor to ~512.
+        self.banner.setWordWrap(True)
         self.banner.setStyleSheet("""
             QLabel {
                 background-color: #2B6CB0;
@@ -61,6 +65,13 @@ class MainWindow(QMainWindow):
         # 1. Drop Zone
         self.drop_zone = DropZoneWidget()
         self.drop_zone.files_dropped.connect(self._on_files_added)
+
+        # Accept drops on the WHOLE window, not just the drop zone. Once the queue has files
+        # the user's attention is on the table, and dropping there is the natural gesture --
+        # it previously did nothing at all, silently, because drop_zone was the only widget
+        # with setAcceptDrops. The affordance was obvious for the first file and misleading
+        # for every one after it.
+        self.setAcceptDrops(True)
 
         # 2. Preset Selector
         self.preset_selector = PresetSelectorWidget()
@@ -164,9 +175,18 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.preset_selector)
         main_layout.addWidget(self.advanced_settings)
         main_layout.addWidget(self.queue_table, 1)
-        main_layout.addLayout(size_layout)
-        main_layout.addWidget(self.progress_bar)
-        main_layout.addWidget(self.lbl_status_msg)
+
+        # Status, progress and the size estimate share ONE row instead of three stacked
+        # full-width rows. They are three short left-aligned strings that are idle most of the
+        # time, and each was consuming a full row plus spacing -- roughly 90px of chrome that
+        # the queue table (the only widget allowed to grow) was paying for. Merged, that space
+        # goes to the file list, which is what the user is actually reading.
+        status_row = QHBoxLayout()
+        status_row.addLayout(size_layout)
+        status_row.addWidget(self.progress_bar, 1)
+        status_row.addWidget(self.lbl_status_msg)
+        main_layout.addLayout(status_row)
+
         main_layout.addLayout(btn_layout)
 
         # Initialize defaults
@@ -176,6 +196,31 @@ class MainWindow(QMainWindow):
         )
 
     # --- Queue Management ---
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        """Window-level drop. Reuses the same path as the drop zone so behaviour is identical."""
+        import os as _os
+        files = [
+            u.toLocalFile() for u in event.mimeData().urls()
+            if u.toLocalFile() and _os.path.isfile(u.toLocalFile())
+        ]
+        if files:
+            self._on_files_added(files)
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
     def _on_files_added(self, file_paths: List[str]):
         for fp in file_paths:
             item_id = str(Path(fp).resolve())

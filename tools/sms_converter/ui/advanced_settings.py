@@ -5,7 +5,7 @@ from typing import Dict, Any
 from qt_compat import Qt, Signal
 from qt_compat import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QGroupBox, QFormLayout,
-    QComboBox, QSpinBox, QCheckBox, QLabel, QFrame
+    QComboBox, QSpinBox, QCheckBox, QLabel, QFrame, QScrollArea
 )
 
 from config import (
@@ -27,7 +27,7 @@ class AdvancedSettingsWidget(QWidget):
         self.btn_toggle = QPushButton("[ Advanced Settings ▼ ]")
         self.btn_toggle.setCheckable(True)
         self.btn_toggle.setChecked(False)
-        self.btn_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_toggle.setCursor(Qt.PointingHandCursor)
         self.btn_toggle.setToolTip("Click to expand or collapse fine-grained custom video and audio encoding options.")
         self.btn_toggle.setStyleSheet("""
             QPushButton {
@@ -46,7 +46,7 @@ class AdvancedSettingsWidget(QWidget):
 
         # 2. Collapsible Container
         self.container = QFrame()
-        self.container.setFrameShape(QFrame.Shape.StyledPanel)
+        self.container.setFrameShape(QFrame.StyledPanel)
         self.container.setStyleSheet("""
             QFrame {
                 background-color: #2D3748;
@@ -70,12 +70,13 @@ class AdvancedSettingsWidget(QWidget):
                 color: #CBD5E0;
             }
         """)
-        self.container.hide()
+        # visibility is owned by self.scroll ( created below ); the container itself stays shown
 
         container_layout = QHBoxLayout(self.container)
 
         # --- Video Group ---
         grp_video = QGroupBox("Video Settings")
+        self.grp_video = grp_video
         v_layout = QFormLayout(grp_video)
 
         self.combo_vcodec = QComboBox()
@@ -240,16 +241,36 @@ class AdvancedSettingsWidget(QWidget):
         self.label_res_warning.hide()
 
         main_layout.addWidget(self.btn_toggle)
-        main_layout.addWidget(self.container)
+
+        # The settings container goes inside a scroll area rather than straight into the
+        # layout. Added directly, its full sizeHint height became part of the WINDOW's
+        # minimum: expanded, the window could not be smaller than 958px tall, while a
+        # 1366x768 laptop has roughly 728px of usable height -- so the Convert button sat
+        # below the bottom of the screen and the window could not be shrunk to reach it,
+        # because that was a floor and not a preference.
+        # Wrapped, the panel keeps its natural size when there is room and scrolls when there
+        # is not, which is the behaviour a settings panel should have had anyway.
+        self.scroll = QScrollArea()
+        self.scroll.setWidget(self.container)
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setVisible(False)
+        main_layout.addWidget(self.scroll)
         main_layout.addWidget(self.label_res_warning)
 
     def load_preset(self, preset: Preset):
         """Populates control values from preset data."""
         self._block_signals(True)
         if preset.vcodec is None:
-            # Audio only
+            # Audio-only preset: hide the entire Video Settings group, not just neutralise the
+            # codec combo. Eleven video controls that cannot affect the output were still
+            # taking their full width and height, which is a quarter of the presets paying a
+            # ~170px penalty for dead controls -- and that height is what pushes the expanded
+            # window past the bottom of a 1366x768 screen.
+            self.grp_video.setVisible(False)
             self.combo_vcodec.setCurrentIndex(0)
         else:
+            self.grp_video.setVisible(True)
             for display_name, ff_name in VIDEO_CODECS_MAP.items():
                 if ff_name == preset.vcodec:
                     if preset.vtag == "XVID":
@@ -333,12 +354,14 @@ class AdvancedSettingsWidget(QWidget):
         }
 
     def _toggle_collapse(self):
+        # Toggle the SCROLL AREA, not the container: the container now lives inside it, so
+        # hiding the container alone would leave an empty scroll frame occupying the space.
         if self.btn_toggle.isChecked():
             self.btn_toggle.setText("[ Advanced Settings ▲ ]")
-            self.container.show()
+            self.scroll.show()
         else:
             self.btn_toggle.setText("[ Advanced Settings ▼ ]")
-            self.container.hide()
+            self.scroll.hide()
 
     def _on_resolution_changed(self):
         w = self.spin_width.value()

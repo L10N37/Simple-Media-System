@@ -60,7 +60,7 @@ jobs:
     - name: Build Single Standalone Executable (Windows)
       if: runner.os == 'Windows'
       run: |
-        pyinstaller --noconfirm --onefile --windowed --name "SMS-Media-Converter" --paths "tools/sms_converter" tools/sms_converter/main.py
+        pyinstaller --noconfirm --onefile --windowed --name "SMS-Media-Converter" --icon "tools/sms_converter/assets/sms-converter.ico" --add-data "tools/sms_converter/assets;assets" --paths "tools/sms_converter" tools/sms_converter/main.py
         mkdir dist-artifact
         copy dist\SMS-Media-Converter.exe dist-artifact\SMS-Media-Converter.exe
 
@@ -201,7 +201,7 @@ jobs:
     # A trailing backslash is not a line continuation there and would truncate the build.
     - name: Build Windows 7 Executable
       run: |
-        pyinstaller --noconfirm --onefile --windowed --name "SMS-Media-Converter-Win7" --paths "tools/sms_converter" tools/sms_converter/main.py
+        pyinstaller --noconfirm --onefile --windowed --name "SMS-Media-Converter-Win7" --icon "tools/sms_converter/assets/sms-converter.ico" --add-data "tools/sms_converter/assets;assets" --paths "tools/sms_converter" tools/sms_converter/main.py
         mkdir dist-artifact
         copy dist\SMS-Media-Converter-Win7.exe dist-artifact\SMS-Media-Converter-Win7.exe
 
