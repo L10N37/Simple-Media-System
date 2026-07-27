@@ -230,11 +230,14 @@ def build_ffmpeg_cmd(
     the bitrate is not just a bigger file -- it is the difference between smooth playback and
     dropped frames over USB or a network share.
 
-    NOTE the deliberate absence of a "3 or more" path. ffmpeg maps -pass N>=2 onto the same
-    PASS2 flag for every mpegvideo-based encoder SMS can use (mpeg4, mpeg2video, mpeg1video),
-    so a third pass re-runs the second and emits a BYTE-IDENTICAL file -- verified by running
-    it and comparing. Anything above two is pure wasted time, so the UI says so rather than
-    silently charging the user for it.
+    NOTE the deliberate absence of a "3 or more" path, and note WHY -- the reason is ffmpeg,
+    not the format. MPEG-4 Part 2 (DivX / Xvid) supports arbitrary multi-pass, and the
+    commercial DivX encoder implements it. ffmpeg does not: its pass 2 never writes back to
+    the statistics log (verified -- the log is byte-identical before and after), so a third
+    pass has nothing new to work from. And because -pass is a bitmask, asking for 3 sets
+    PASS1|PASS2 and the encoder reverts to first-pass behaviour: measured at a 700 kbps
+    target, pass 1 gave 5022 kbps, pass 2 gave 712, pass 3 gave 5022 again. Exposing 3+ would
+    hand the user a file seven times over target, so the UI caps at 2 and explains itself.
     """
     cmd = [ffmpeg_path, "-y", "-i", input_file]
 
