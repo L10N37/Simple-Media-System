@@ -49,6 +49,23 @@
 #define SMS_DF_AUTO_MMCE   0x00008000
 #define SMS_DF_AUTO_UDPFS  0x00010000
 
+/* NETWORK MODE. SMS offers three network stacks -- HOST ( ps2host ), SMB ( smbman ) and
+ * UDPFS -- and the console can run exactly ONE of them per boot. They all drive the single
+ * SMAP NIC, ownership is claimed before any module loads ( s_NetOwner, SMS_IOP.c ), and
+ * there is no module-unload primitive anywhere in the tree, so the choice is settled for
+ * the whole session the moment one starts.
+ *
+ * These are NOT new stored config bits, and deliberately so: SMS.cfg is a raw struct blob
+ * behind a hard `m_Version == 14` gate that reads exactly 892 bytes ( SMS_Config.c ), so
+ * adding a field or bumping the version would silently discard EVERY existing user's
+ * settings. The mode is therefore DERIVED from the three bits that already encode it --
+ * see SMS_ConfigNetMode -- which also means every config ever written maps to exactly the
+ * mode that console really booted, with no migration step and nothing to get out of sync. */
+#define SMS_NETMODE_OFF    0
+#define SMS_NETMODE_HOST   1
+#define SMS_NETMODE_SMB    2
+#define SMS_NETMODE_UDPFS  3
+
 #define SMS_PF_SUBS   0x00000001
 #define SMS_PF_TIME   0x00000002
 #define SMS_PF_BLUR   0x00000004
@@ -139,6 +156,8 @@ void SMS_SetMCSlot  ( char                );
 void SMS_ConfigSetCWD ( const char*       );
 int  SMS_ConfigOnFS ( void                );
 const char* SMS_ConfigPath ( void         );
+unsigned int SMS_ConfigNetMode    ( void         );
+void         SMS_ConfigSetNetMode ( unsigned int );
 int  SMS_ConfigFallback  ( void           );
 void SMS_ConfigUseFSPath ( const char*    );
 void SMS_ConfigClearFS   ( void           );

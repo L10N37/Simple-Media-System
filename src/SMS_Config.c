@@ -431,6 +431,53 @@ int SMS_ConfigOnFS ( void ) { return s_CfgOnFS; }   /* 1 = booted from a filesys
 
 const char* SMS_ConfigPath ( void ) { return s_pMC0SMC; }   /* the SMS.cfg path derived from argv[0]; its device prefix ( mmce/mass/pfs ) tells us what to mount for the config */
 
+/* The active network mode, DERIVED from the legacy bits rather than stored.
+ *
+ * The three stacks are mutually exclusive on real hardware -- one NIC, ownership claimed
+ * before any module loads, and no unload primitive exists -- but the config has always
+ * encoded them as INDEPENDENT bits, which lets a saved file ask for two at once. That is
+ * not hypothetical: the autostart block runs SMS_IOPStartNet before SMS_IOPStartUDPFS, and
+ * a UDPFS start refuses silently ( `return 0`, no message ) once SMB/host owns the NIC. So
+ * a user with both bits set gets HOST/SMB and a UDPFS that never explains itself.
+ *
+ * Reading the mode through one accessor removes that whole class: AUTO_NET wins over
+ * AUTO_UDPFS here for the same reason it wins at runtime, so what the menu SHOWS is what
+ * the console will actually DO. The HOST/SMB split reads SMS_DF_SMB, which is not merely an
+ * autostart hint -- SMS_IOPStartNet branches on that exact bit to choose smbman vs ps2host.
+ *
+ * Deriving rather than storing also means there is no migration and no second source of
+ * truth to drift: see the note in SMS_Config.h about the version-14 fixed-size blob. */
+unsigned int SMS_ConfigNetMode ( void ) {
+
+ if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_NET )
+  return ( g_Config.m_NetworkFlags & SMS_DF_SMB ) ? SMS_NETMODE_SMB : SMS_NETMODE_HOST;
+
+ if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_UDPFS ) return SMS_NETMODE_UDPFS;
+
+ return SMS_NETMODE_OFF;
+
+}  /* end SMS_ConfigNetMode */
+
+/* Select a network mode, clearing the other two. Every caller must go through here: setting
+ * the bits by hand is what allowed the impossible two-stacks-at-once state in the first
+ * place. Clearing all three up front makes this total -- any mode reachable from any other,
+ * including back to OFF -- and idempotent, so it is safe on the config-load path where
+ * SMS_LoadConfig runs more than once per boot. */
+void SMS_ConfigSetNetMode ( unsigned int aMode ) {
+
+ g_Config.m_NetworkFlags &= ~(  SMS_DF_AUTO_NET | SMS_DF_SMB | SMS_DF_AUTO_UDPFS  );
+
+ switch ( aMode ) {
+
+  case SMS_NETMODE_HOST : g_Config.m_NetworkFlags |= SMS_DF_AUTO_NET;                   break;
+  case SMS_NETMODE_SMB  : g_Config.m_NetworkFlags |= ( SMS_DF_AUTO_NET | SMS_DF_SMB );  break;
+  case SMS_NETMODE_UDPFS: g_Config.m_NetworkFlags |= SMS_DF_AUTO_UDPFS;                 break;
+  default               :                                                               break;   /* OFF */
+
+ }  /* end switch */
+
+}  /* end SMS_ConfigSetNetMode */
+
 int SMS_ConfigFallback ( void ) { return s_CfgFallback; }   /* 1 = SMB/host/cdrom boot: SMS_IOPInit must resolve an attached FS device for config */
 
 /* The FS-fallback resolver ( SMS_IOPInit, non-re-mountable boot ) found a writable
