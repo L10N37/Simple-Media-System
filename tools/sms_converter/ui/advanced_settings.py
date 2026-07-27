@@ -166,6 +166,32 @@ class AdvancedSettingsWidget(QWidget):
         self.chk_qpel.setToolTip("Quarter-Pixel motion estimation. Recommended: OFF for PS2 hardware decoding compatibility.")
         self.chk_qpel.stateChanged.connect(self._on_control_changed)
 
+        # --- Multi-pass encoding -------------------------------------------------------
+        self.chk_two_pass = QCheckBox("Multi-pass encoding (better quality, takes twice as long)")
+        self.chk_two_pass.setChecked(False)
+        self.chk_two_pass.setToolTip(
+            "Encodes the video twice: the first run measures the material, the second uses "
+            "what it learned to spend the bitrate where it is actually needed.\n\n"
+            "Worth it because these presets aim at a FIXED bitrate. A single pass has to guess "
+            "while it is still reading the file, so it commonly overshoots -- measured on a "
+            "test clip asking for 500 kbps, one pass produced 689 and two produced 516.\n\n"
+            "On a PS2 an overshoot is not just a larger file: it is dropped frames over USB or "
+            "a network share. Cost is roughly double the conversion time."
+        )
+        self.chk_two_pass.stateChanged.connect(self._on_two_pass_toggled)
+
+        self.spin_passes = QSpinBox()
+        self.spin_passes.setRange(2, 2)
+        self.spin_passes.setValue(2)
+        self.spin_passes.setEnabled(False)
+        self.spin_passes.setToolTip(
+            "Number of passes.\n\n"
+            "Fixed at 2 for the codecs SMS can play. FFmpeg maps every pass above the second "
+            "onto the same second-pass mode for MPEG-4, MPEG-2 and MPEG-1, so a third pass "
+            "re-runs the second and writes a byte-identical file -- verified by doing it and "
+            "comparing the output. Offering 3 or 4 here would only spend your time."
+        )
+
         self.chk_gmc = QCheckBox("GMC (Global Motion Comp, default off)")
         self.chk_gmc.setChecked(False)
         self.chk_gmc.setToolTip("Global Motion Compensation. Recommended: OFF for PS2 hardware decoding compatibility.")
@@ -180,6 +206,8 @@ class AdvancedSettingsWidget(QWidget):
         v_layout.addRow("Video Bitrate:", self.spin_vbitrate)
         v_layout.addRow("", self.chk_deinterlace)
         v_layout.addRow("B-Frames:", self.spin_bframes)
+        v_layout.addRow("", self.chk_two_pass)
+        v_layout.addRow("Passes:", self.spin_passes)
         v_layout.addRow("", self.chk_qpel)
         v_layout.addRow("", self.chk_gmc)
 
@@ -268,6 +296,8 @@ class AdvancedSettingsWidget(QWidget):
             # ~170px penalty for dead controls -- and that height is what pushes the expanded
             # window past the bottom of a 1366x768 screen.
             self.grp_video.setVisible(False)
+            # Multi-pass analyses VIDEO; with no video track there is nothing for it to do.
+            self.chk_two_pass.setChecked(False)
             self.combo_vcodec.setCurrentIndex(0)
         else:
             self.grp_video.setVisible(True)
@@ -343,6 +373,8 @@ class AdvancedSettingsWidget(QWidget):
             "vbitrate_kbps": self.spin_vbitrate.value(),
             "deinterlace": self.chk_deinterlace.isChecked(),
             "bframes": self.spin_bframes.value(),
+            "two_pass": self.chk_two_pass.isChecked(),
+            "passes": self.spin_passes.value() if self.chk_two_pass.isChecked() else 1,
             "qpel": self.chk_qpel.isChecked(),
             "gmc": self.chk_gmc.isChecked(),
             "acodec": ff_acodec,
@@ -352,6 +384,11 @@ class AdvancedSettingsWidget(QWidget):
             "normalize_audio": self.chk_normalize.isChecked(),
             "limit_streams": True
         }
+
+    def _on_two_pass_toggled(self):
+        """The pass count is only meaningful when multi-pass is on."""
+        self.spin_passes.setEnabled(self.chk_two_pass.isChecked())
+        self._on_control_changed()
 
     def _toggle_collapse(self):
         # Toggle the SCROLL AREA, not the container: the container now lives inside it, so

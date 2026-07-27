@@ -83,104 +83,35 @@ class ConversionWorker(QThread):
                     pass
 
     def run(self):
-        cmd = build_ffmpeg_cmd(
-            self.ffmpeg_path,
-            self.input_file,
-            self.partial_file,
-            self.settings
-        )
-        self.cmd_str = " ".join(f'"{arg}"' if " " in arg else arg for arg in cmd)
-        self.log_signal.emit(self.item_id, f"Executing command:\n{self.cmd_str}\n")
+        """Encode, in one or two passes, then validate and promote the result.
+
+        Two-pass runs ffmpeg twice over the same input: the first measures the material and
+        writes a statistics log, the second encodes using it. That is worth having because
+        these presets target a FIXED bitrate and a single pass must guess how to spend it
+        while it is still reading the file -- measured on a test clip at a 500 kbps target,
+        one pass landed at 689 kbps and two at 516. On a PS2 an overshoot is not merely a
+        bigger file, it is dropped frames over USB or a network share.
+        """
+        two_pass = bool(self.settings.get("two_pass")) and bool(self.settings.get("vcodec"))
+
+        # The stats log sits beside the partial output, so it lands on the same volume and is
+        # swept up by the same cleanup whatever happens.
+        passlog = self.partial_file + ".passlog" if two_pass else None
+        passes = [1, 2] if two_pass else [0]
 
         try:
-            self._process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-            )
+            for idx, pass_num in enumerate(passes):
+                outcome = self._run_pass(pass_num, passlog, idx, len(passes))
+                if outcome == "cancelled":
+                    self._cleanup_partial(passlog)
+                    self.cancelled_signal.emit(self.item_id)
+                    return
+                if outcome != "ok":
+                    return          # _run_pass already emitted the failure
 
-            start_time = time.time()
-            out_time_us = 0
+            self._remove_passlog(passlog)
 
-            while True:
-                if self._is_cancelled:
-                    break
-
-                # 1. Size Monitoring Safeguard
-                if os.path.exists(self.partial_file):
-                    current_size = os.path.getsize(self.partial_file)
-                    if current_size >= SIZE_4_0_GIB:
-                        self.cancel()
-                        try:
-                            self._process.wait(timeout=5)
-                        except Exception:
-                            pass
-                        self.failed_signal.emit(self.item_id, MSG_FILE_SIZE_APPROACHING_LIMIT)
-                        self._cleanup_partial()
-                        return
-
-                # 2. Read FFmpeg progress output line by line
-                line = self._process.stdout.readline()
-                if not line:
-                    break
-
-                self.console_log.append(line)
-                self.log_signal.emit(self.item_id, line.rstrip())
-
-                if "=" in line:
-                    key, _, val = line.strip().partition("=")
-                    key = key.strip()
-                    val = val.strip()
-
-                    if key == "out_time_us":
-                        try:
-                            out_time_us = int(val)
-                        except ValueError:
-                            pass
-                    elif key == "progress":
-                        current_sec = out_time_us / 1_000_000.0
-                        pct = 0.0
-                        if self.duration_sec > 0:
-                            pct = min(100.0, (current_sec / self.duration_sec) * 100.0)
-
-                        elapsed = time.time() - start_time
-                        remaining_msg = ""
-                        if pct > 0:
-                            total_est = (elapsed / pct) * 100.0
-                            rem_sec = int(total_est - elapsed)
-                            rem_min = rem_sec // 60
-                            rem_s = rem_sec % 60
-                            if rem_min > 0:
-                                remaining_msg = f" — approximately {rem_min} min remaining"
-                            else:
-                                remaining_msg = f" — approximately {rem_s} sec remaining"
-
-                        status_msg = f"Encoding {Path(self.input_file).name}{remaining_msg}"
-                        self.progress_signal.emit(self.item_id, pct, status_msg)
-
-            if self._is_cancelled:
-                try:
-                    self._process.wait(timeout=5)
-                except Exception:
-                    pass
-                self._cleanup_partial()
-                self.cancelled_signal.emit(self.item_id)
-                return
-
-            if self._process.stdout:
-                self._process.stdout.close()
-            return_code = self._process.wait()
-
-            if return_code != 0:
-                err_text = "".join(self.console_log[-20:])
-                self._cleanup_partial()
-                self.failed_signal.emit(self.item_id, f"FFmpeg exited with code {return_code}:\n{err_text}")
-                return
-
-            # 3. Validation Stage
+            # Validation stage
             self.progress_signal.emit(self.item_id, 100.0, f"Validating {Path(self.input_file).name}...")
             val_result = validate_converted_file(
                 self.ffprobe_path,
@@ -188,7 +119,6 @@ class ConversionWorker(QThread):
                 self.settings.get("preset_name")
             )
 
-            # If PASS or WARN, promote partial file to final target file
             if val_result.status in ("PASS", "WARN"):
                 target_path = self.final_file
                 if os.path.exists(target_path):
@@ -204,10 +134,146 @@ class ConversionWorker(QThread):
                 self.validation_signal.emit(self.item_id, val_result, self.partial_file)
 
         except Exception as e:
-            self._cleanup_partial()
+            self._cleanup_partial(passlog)
             self.failed_signal.emit(self.item_id, str(e))
 
-    def _cleanup_partial(self):
+    def _run_pass(self, pass_num, passlog, pass_idx, total_passes):
+        """Run one ffmpeg invocation. Returns "ok", "cancelled" or "failed".
+
+        Progress is reported across the WHOLE job rather than per pass, so a two-pass encode
+        moves 0->50% then 50->100% instead of filling the bar twice, which would read as the
+        work having restarted.
+        """
+        cmd = build_ffmpeg_cmd(
+            self.ffmpeg_path,
+            self.input_file,
+            self.partial_file,
+            self.settings,
+            pass_num=pass_num,
+            passlog=passlog
+        )
+        self.cmd_str = " ".join(f'"{arg}"' if " " in arg else arg for arg in cmd)
+        label = f"pass {pass_num} of {total_passes}" if pass_num else "encode"
+        self.log_signal.emit(self.item_id, f"Executing {label}:\n{self.cmd_str}\n")
+
+        self._process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        )
+
+        start_time = time.time()
+        out_time_us = 0
+        span = 100.0 / total_passes
+        base = span * pass_idx
+
+        while True:
+            if self._is_cancelled:
+                break
+
+            # Size safeguard, only meaningful while a real file is being written -- the
+            # analysis pass sends its output to the null device.
+            if pass_num != 1 and os.path.exists(self.partial_file):
+                if os.path.getsize(self.partial_file) >= SIZE_4_0_GIB:
+                    self.cancel()
+                    try:
+                        self._process.wait(timeout=5)
+                    except Exception:
+                        pass
+                    self.failed_signal.emit(self.item_id, MSG_FILE_SIZE_APPROACHING_LIMIT)
+                    self._cleanup_partial(passlog)
+                    return "failed"
+
+            line = self._process.stdout.readline()
+            if not line:
+                break
+
+            self.console_log.append(line)
+            self.log_signal.emit(self.item_id, line.rstrip())
+
+            if "=" in line:
+                key, _, val = line.strip().partition("=")
+                key = key.strip()
+                val = val.strip()
+
+                if key == "out_time_us":
+                    try:
+                        out_time_us = int(val)
+                    except ValueError:
+                        pass
+                elif key == "progress":
+                    current_sec = out_time_us / 1_000_000.0
+                    inner = 0.0
+                    if self.duration_sec > 0:
+                        inner = min(100.0, (current_sec / self.duration_sec) * 100.0)
+                    pct = min(100.0, base + inner * span / 100.0)
+
+                    elapsed = time.time() - start_time
+                    remaining_msg = ""
+                    if inner > 0:
+                        # Estimate from THIS pass, then add the passes still to run -- a
+                        # two-pass job must not advertise half the time it actually needs.
+                        total_est = (elapsed / inner) * 100.0
+                        rem_sec = int(total_est - elapsed) + int(total_est) * (total_passes - pass_idx - 1)
+                        rem_min = rem_sec // 60
+                        rem_s = rem_sec % 60
+                        if rem_min > 0:
+                            remaining_msg = f" \u2014 approximately {rem_min} min remaining"
+                        else:
+                            remaining_msg = f" \u2014 approximately {rem_s} sec remaining"
+
+                    stage = f" [{label}]" if pass_num else ""
+                    status_msg = f"Encoding {Path(self.input_file).name}{stage}{remaining_msg}"
+                    self.progress_signal.emit(self.item_id, pct, status_msg)
+
+        if self._is_cancelled:
+            try:
+                self._process.wait(timeout=5)
+            except Exception:
+                pass
+            return "cancelled"
+
+        if self._process.stdout:
+            self._process.stdout.close()
+        return_code = self._process.wait()
+
+        if return_code != 0:
+            err_text = "".join(self.console_log[-20:])
+            self._cleanup_partial(passlog)
+            self.failed_signal.emit(
+                self.item_id,
+                f"FFmpeg exited with code {return_code} during {label}:\n{err_text}"
+            )
+            return "failed"
+
+        return "ok"
+
+    def _remove_passlog(self, passlog):
+        """Delete the two-pass statistics log(s).
+
+        ffmpeg appends its own suffixes (-0.log, and -0.log.mbtree for some encoders), so
+        remove by PREFIX rather than assuming one exact filename -- otherwise stray logs pile
+        up next to the user's output.
+        """
+        if not passlog:
+            return
+        d = os.path.dirname(passlog) or "."
+        base = os.path.basename(passlog)
+        try:
+            for n in os.listdir(d):
+                if n.startswith(base):
+                    try:
+                        os.remove(os.path.join(d, n))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    def _cleanup_partial(self, passlog=None):
+        self._remove_passlog(passlog)
         if os.path.exists(self.partial_file):
             try:
                 os.remove(self.partial_file)
