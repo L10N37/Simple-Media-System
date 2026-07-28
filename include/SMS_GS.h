@@ -1260,6 +1260,7 @@ extern "C" {
 GSParams*     GS_Params          ( void                                                                        );
 void          GS_Reset           ( GSInterlaceMode, GSVideoMode, GSFieldMode                                   );
 void          GS_InitDC          ( GSDC*, GSPixelFormat, int, int, int, int                                    );
+void          GS_DisplayOffsets  ( GSVideoMode, int*, int*                                                     );
 void          GS_SetDC           ( GSDC*, int                                                                  );
 unsigned int  GS_InitGC          ( int, GSGC*, GSPixelFormat, int, int, GSZTest                                );
 void          GS_SetGC           ( GSGC*                                                                       );

@@ -1186,13 +1186,19 @@ static void _init_set_dc ( void ) {
  int lHDI        = lMode == GSVideoMode_DTV_1920x1080I;
  int lColorDepth = g_Config.m_ColorDepth || lHDI ? GSPixelFormat_PSMCT16
                                                  : GSPixelFormat_PSMCT24;
+ int lDX, lDY;
 
  if ( lMode == GSVideoMode_Default ) lMode = g_pBXDATASYS[ 6 ] == 'E' ? GSVideoMode_PAL : GSVideoMode_NTSC;
 
  _check_dc_offset ();
 
+/* Same derived offsets GSContext_Init uses. This is the live "Adjust image" path, so without
+ * it every nudge of the D-pad would drop the 720p centring and snap the canvas back to the top
+ * left, making the setting impossible to use in that mode. */
+ GS_DisplayOffsets ( lMode, &lDX, &lDY );
+
  GS_VSync ();
- GS_InitDC ( &g_GSCtx.m_DispCtx, lColorDepth, g_GSCtx.m_PWidth, g_GSCtx.m_PHeight, g_GSCtx.m_OffsetX, g_GSCtx.m_OffsetY );
+ GS_InitDC ( &g_GSCtx.m_DispCtx, lColorDepth, g_GSCtx.m_PWidth, g_GSCtx.m_PHeight, lDX, lDY );
  GS_SetDC (  &g_GSCtx.m_DispCtx, ( lMode <= GSVideoMode_PAL ) || lHDI  );
 
 }  /* end _init_set_dc */

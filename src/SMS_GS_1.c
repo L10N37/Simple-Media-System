@@ -35,11 +35,47 @@ GSContext g_GSCtx = {
 static GSLoadImage  s_CLUTLoadImage __attribute__(  (  aligned( 64 )  )   );
 static unsigned int s_CLUT[ 16 ]    __attribute__(  (  aligned( 64 )  )   );
 
+/* 720p draws a 1216x676 canvas into a 1280x720 raster, so 64 columns and 44 rows of the active
+ * area are never painted. GS_InitDC anchors the canvas at the START of active video ( its 720p
+ * arm adds 302 to DX and 24 to DY, SMS_GS_0.S ), which piles that entire shortfall onto the
+ * right edge and the bottom -- the asymmetric black bars in the 720p report. Splitting it
+ * centres the canvas so the unpainted margin is even on all four sides, which reads as a border
+ * rather than as a broken frame, and most sets overscan it away.
+ * This does NOT eliminate the margin. Painting the full 1280x720 would, but the canvas size is
+ * a VRAM compromise: at 720p the framebuffer already takes ~3.3 MB of 4 MB, and growing it eats
+ * the headroom the font glyphs and icons live in -- which is exactly the collision that caused
+ * the 1080i picket-fence text. Not worth risking for a border.
+ * Derived from the live canvas rather than hardcoded, because m_DispWH is user-editable per
+ * mode from the Display menu, so a fixed +32 / +22 would be wrong the moment anyone resizes it.
+ * Never shifts left or up -- a canvas at or beyond the raster gets no adjustment at all. The
+ * user's own m_OffsetX / m_OffsetY still apply on top, so "Adjust image" behaves as before, and
+ * since this is derived at init rather than stored, nothing is written into their config.
+ * SD modes take the aMode test and come out byte-identical. 1080i is deliberately excluded: its
+ * text is unreadable because the canvas is scanned out at half width ( g_XShift ), and moving
+ * the canvas does nothing for that. */
+void GS_DisplayOffsets ( GSVideoMode aMode, int* apDX, int* apDY ) {
+
+ *apDX = g_GSCtx.m_OffsetX;
+ *apDY = g_GSCtx.m_OffsetY;
+
+ if ( aMode == GSVideoMode_DTV_1280x720P ) {
+
+  int lPadX = (  1280 - ( int )g_GSCtx.m_PWidth   ) >> 1;
+  int lPadY = (   720 - ( int )g_GSCtx.m_PHeight  ) >> 1;
+
+  if ( lPadX > 0 ) *apDX += lPadX;
+  if ( lPadY > 0 ) *apDY += lPadY;
+
+ }  /* end if */
+
+}  /* end GS_DisplayOffsets */
+
 void GSContext_Init ( GSVideoMode aMode, GSZTest aZTest, GSDoubleBuffer aDblBuf ) {
 
  unsigned int lSize;
  int          lPixSize;
  int          lColorDepth;
+ int          lDX, lDY;
  int          lf16  = g_Config.m_ColorDepth;
  GSParams*    lpPar = GS_Params ();
 
@@ -74,8 +110,10 @@ void GSContext_Init ( GSVideoMode aMode, GSZTest aZTest, GSDoubleBuffer aDblBuf 
 
  g_GSCtx.m_OffsetY -= g_GSCtx.m_OffsetY & 1;
 
+ GS_DisplayOffsets ( aMode, &lDX, &lDY );
+
  GS_Reset ( GSInterlaceMode_On, aMode, GSFieldMode_Field );
- GS_InitDC ( &g_GSCtx.m_DispCtx, lColorDepth, g_GSCtx.m_PWidth, g_GSCtx.m_PHeight, g_GSCtx.m_OffsetX, g_GSCtx.m_OffsetY );
+ GS_InitDC ( &g_GSCtx.m_DispCtx, lColorDepth, g_GSCtx.m_PWidth, g_GSCtx.m_PHeight, lDX, lDY );
 
  GIF_MODE() = 0;
 
