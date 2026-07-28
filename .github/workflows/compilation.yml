@@ -87,8 +87,33 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        printf 'Latest development build of Simple-Media-System -- auto-updated on every push to master.\n\nCommit: %s\nBuilt:  %s UTC\n\nSimple-Media-System.elf         -- standard ELF.\nSimple-Media-System-packed.elf  -- same build, self-extracting ( ~half the size, decompresses at boot ).\nSMS-Media-Converter.exe         -- standalone Windows desktop media converter app.\nSMS-Media-Converter-Linux.zip   -- Linux desktop media converter app.\n\nFlash / run either to test.\n' \
-          "$GITHUB_SHA" "$(date -u +'%Y-%m-%d %H:%M')" > notes.md
+        cat > notes.md <<NOTES
+        Latest development build of Simple-Media-System -- auto-updated on every push to master.
+
+        Commit: $GITHUB_SHA
+        Built:  $(date -u +'%Y-%m-%d %H:%M') UTC
+
+        PLAYSTATION 2
+          Simple-Media-System.elf         Standard build. This is the one to use.
+          Simple-Media-System-packed.elf  Same build, self-extracting (~half the size,
+                                          decompresses at boot).
+          Simple-Media-System-DIAG.elf    Same build with on-screen diagnostics. Each stage of
+                                          boot / network start / exit flashes an "E<nn>" code
+                                          just BEFORE the step it names, and the code STAYS on
+                                          screen if that step never finishes -- so the last
+                                          code visible is the thing that hung. Needs no network
+                                          and no memory card. For reporting freezes; use the
+                                          standard ELF for normal play.
+
+        MEDIA CONVERTER (desktop app -- converts video/audio into formats SMS can play)
+          SMS-Media-Converter.exe         Windows 10/11.
+          SMS-Media-Converter-Win7.exe    Windows 7 (Qt5/Python 3.8 build; the standard exe
+                                          cannot start on Windows 7).
+          SMS-Media-Converter-Linux.zip   Linux.
+
+        Flash / run whichever you need.
+        NOTES
+        sed -i 's/^        //' notes.md
         gh release delete rolling --yes --cleanup-tag 2>/dev/null || true
         gh release create rolling dist/Simple-Media-System.elf dist/Simple-Media-System-packed.elf dist/Simple-Media-System-DIAG.elf dist/*.zip \
           --prerelease --target "$GITHUB_SHA" \
