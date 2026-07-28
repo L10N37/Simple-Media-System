@@ -163,6 +163,7 @@ static char s_pPS2FS  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )
 static char s_pPS2POff[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "POWEROFF";
 static char s_pUDNL   [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "rom0:UDNL rom0:EELOADCNF";
 static char s_pLIBSD  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "rom0:LIBSD";
+static int  s_fLIBSD;   /* rom0:LIBSD loaded? 0 on a PSX/DESR, whose BIOS has no such file */
 
 struct {
 
@@ -1576,7 +1577,24 @@ void SMS_IOPInit ( void ) {
  }  /* end else if */
 #endif
 
- SifLoadModule ( s_pLIBSD, 0, NULL );
+/* LIBSD, and whether AUDSRV can follow it.
+ *
+ * The result used to be discarded. On a PSX (DESR) that is fatal: the DESR BIOS has NO
+ * rom0:LIBSD -- its ROM carries PLIBSD (the XMB variant) and TLIBSD (testmode), neither
+ * interchangeable with the standard one -- so the load fails, AUDSRV cannot resolve its
+ * imports and never loads, no audio RPC server is ever registered, and SPU_Initialize then
+ * blocked forever waiting to bind to it. Diagnosed by israpps from a DESR-5000 ROM dump.
+ *
+ * Now the failure is detected and audio is simply skipped: no LIBSD means no AUDSRV, which
+ * means no SPU. Silence is a very small loss next to a console that will not finish booting,
+ * and every other device still comes up. ( SIF_BindRPC is separately bounded now, so even an
+ * unforeseen missing server degrades instead of hanging -- two independent guards, because
+ * this class of failure is invisible until it wedges someone's hardware. )
+ *
+ * A PSX could get audio back by shipping ps2sdk's own libsd as an embedded IRX rather than
+ * relying on the BIOS copy. That is the proper fix and is worth doing; it needs a build path
+ * and hardware to verify, so it is deliberately not bundled into a hang fix. */
+ s_fLIBSD = SifLoadModule ( s_pLIBSD, 0, NULL ) >= 0;
 
  SMS_IOPDVDVInit ();
 
@@ -1584,7 +1602,7 @@ void SMS_IOPInit ( void ) {
  * config-resolution block -- see the note there. AUDSRV stays here because it imports
  * the LIBSD library loaded just above; POWEROFF keeps its original slot. */
  DIAG_CRUMB ( 50, "AUDSRV" );
- _load_module ( 0, 1 );
+ if ( s_fLIBSD ) _load_module ( 0, 1 );   /* AUDSRV imports LIBSD; pointless and unsafe without it */
 /* E51/E52 bracket the POWEROFF load specifically. A PSX (DESR-7100) was reported hanging with
  * "Loading POWEROFF" on screen -- but that message is printed BEFORE the load, and the next
  * status update is some way past the DEV9 block below, so the stall could be either the
@@ -1612,7 +1630,7 @@ void SMS_IOPInit ( void ) {
  }  /* end if */
 
  DIAG_CRUMB ( 53, "SPU init" );
- SPU_Initialize ();
+ if ( s_fLIBSD ) SPU_Initialize ();   /* no LIBSD -> no AUDSRV -> nothing to bind to */
 
  DIAG_CRUMB ( 54, "HDD APA" );
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD ) SMS_IOPStartHDD ( 1 );
