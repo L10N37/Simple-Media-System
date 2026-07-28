@@ -605,41 +605,21 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
  s_DevMenu[ 7 ].m_IconRight = ( unsigned int )( g_Config.m_BrowserFlags & SMS_BF_DIRB ? &STR_REMOTE_CONTROL : &STR_GAMEPAD );
 #endif
 
- if ( g_IOPFlags & SMS_IOPF_DEV9_IS ) {
-
-/* The accessor term covers the gap the flags can't: udpfs claims the NIC ( s_NetOwner )
- * the moment its smap loads, BEFORE SMS_IOPF_UDPFS is set -- so a partially-failed
- * Start UDPFS ( smap up, later module failed ) leaves the NIC owned with no flag to
- * show for it, and this row could then only answer a bare "Error" ( SMS_IOPStartNet
- * refuses an owned NIC ). Mirror of the same fix on the Start-UDPFS row. */
-  if (   !(  g_IOPFlags & ( SMS_IOPF_NET | SMS_IOPF_SMB | SMS_IOPF_UDPFS )  ) && !SMS_IOPNetOwnedByUDPFS ()   ) {   /* hide SMB/network start when udpfs owns the NIC */
-/* Two explicit rows replace the old single "Start network support": SMS_IOPStartNet picks
- * SMB vs HOST from the SMS_DF_SMB config toggle, so a forced start just sets/clears that
- * bit before calling it ( same mutation the Network Settings protocol toggle performs --
- * deliberately persisted in g_Config, NOT saved, exactly like the toggle ).
- * Start SMB is BDM-only ( smbman is compiled in under #ifdef BDM -- in a non-BDM build the
- * flag would silently start HOST anyway ) and gated on SMS_IOPF_SMBINFO ( a server is
- * configured -- same gate _netprot_handler uses ), otherwise the row could only fail. */
-#ifdef BDM
-   if ( g_IOPFlags & SMS_IOPF_SMBINFO ) {
-
-    s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_SMB;
-    s_DevMenu[   lSize ].Handler       = _startsmb_handler;
-
-   }  /* end if */
-#endif
-
-   s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_HOST;
-   s_DevMenu[   lSize ].Handler       = _starthost_handler;
-
-  }  /* end if */
-
-  if (  !( g_IOPFlags & SMS_IOPF_HDD )  ) {
-   s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_HDD_NOW;
-   s_DevMenu[   lSize ].Handler       = _starthdd_handler;
-  }  /* end if */
-
- }  /* end if */
+/* START <device> rows, ordered the way Nad asked for ( item 3 of his batch ): the storage
+ * devices first, in the order people actually reach for them, and the network stacks last.
+ * Matches the autostart block above, so the two lists finally read the same way down.
+ *
+ * The DEV9 test used to WRAP the network rows and Start HDD APA together, which pinned all
+ * three to wherever that one block sat -- reordering was impossible without moving rows that
+ * have nothing to do with each other. It is applied PER ROW now, so each row sits on merit.
+ * Every gating condition is otherwise byte-for-byte what it was; only placement changed.
+ *
+ * Safe to reorder, unlike the static block above: these rows are appended with ++lSize and
+ * deliberately carry no m_IconRight, so not one of them owns a hardcoded index. That is the
+ * whole difference between this list and the autostart rows, where a reorder that misses a
+ * consumer paints the indicator on the wrong row ( which is exactly what happened the first
+ * time this was attempted -- _switch_flag was the consumer that got missed ).
+ * tools/check_devmenu.py verifies the static side; run it after touching either. */
 
  if (  !( g_IOPFlags & SMS_IOPF_UMS )  ) {   /* UMS ( usb-mass ) not USB ( usbd ): ds34usb now loads usbd alone at boot, so keep offering "Start USB" until the MASS stack is actually up */
 
@@ -649,9 +629,16 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
  }  /* end if */
 
 #ifdef BDM
+ if (  !( g_IOPFlags & SMS_IOPF_ILINK )  ) {
+
+  s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_ILINK;
+  s_DevMenu[   lSize ].Handler       = _startilink_handler;
+
+ }  /* end if */
+
 /* MX4SIO and MMCE drive the SAME SIO2 bus and neither module can be unloaded, so the
  * first to start owns it for the boot ( SMS_IOPStartMX4SIO / SMS_IOPStartMMCE each
- * refuse when the other holds it ).
+ * refuse when the other holds it ). Kept adjacent so that shared constraint is visible.
  * ALWAYS EMITTED ( both of them ). These two used to be hidden whenever EITHER was up,
  * which is how "there is no Start MMCE option" gets reported: an MMCE that is already
  * running takes its own row away, and so does an MX4SIO that has taken the bus. A row
@@ -673,24 +660,28 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
  }  /* end if */
 
- if (  !( g_IOPFlags & SMS_IOPF_ATA ) && ( g_IOPFlags & SMS_IOPF_DEV9_IS )  ) {
-
-  s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_HDD_BDM;
-  s_DevMenu[   lSize ].Handler       = _startata_handler;
-
- }  /* end if */
-
- if (  !( g_IOPFlags & SMS_IOPF_ILINK )  ) {
-
-  s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_ILINK;
-  s_DevMenu[   lSize ].Handler       = _startilink_handler;
-
- }  /* end if */
-
  if ( 1 ) {   /* always emitted -- see the MX4SIO/MMCE note above ( shown even when MX4SIO owns the shared SIO2 bus ) */
 
   s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_MMCE;
   s_DevMenu[   lSize ].Handler       = _startmce_handler;
+
+ }  /* end if */
+#endif
+
+/* HDD APA. The DEV9 term was inherited from the block that used to wrap this row; it is
+ * spelled out here so the row can stand on its own. */
+ if (  ( g_IOPFlags & SMS_IOPF_DEV9_IS ) && !( g_IOPFlags & SMS_IOPF_HDD )  ) {
+
+  s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_HDD_NOW;
+  s_DevMenu[   lSize ].Handler       = _starthdd_handler;
+
+ }  /* end if */
+
+#ifdef BDM
+ if (  !( g_IOPFlags & SMS_IOPF_ATA ) && ( g_IOPFlags & SMS_IOPF_DEV9_IS )  ) {
+
+  s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_HDD_BDM;
+  s_DevMenu[   lSize ].Handler       = _startata_handler;
 
  }  /* end if */
 
@@ -712,6 +703,34 @@ static void _device_handler ( GUIMenu* apMenu, int aDir ) {
 
  }  /* end if */
 #endif
+
+/* The network stacks go last, per Nad. The accessor term covers the gap the flags can't:
+ * udpfs claims the NIC ( s_NetOwner ) the moment its smap loads, BEFORE SMS_IOPF_UDPFS is
+ * set -- so a partially-failed Start UDPFS ( smap up, later module failed ) leaves the NIC
+ * owned with no flag to show for it, and these rows could then only answer a bare "Error"
+ * ( SMS_IOPStartNet refuses an owned NIC ). Mirror of the same fix on the Start-UDPFS row. */
+ if (  ( g_IOPFlags & SMS_IOPF_DEV9_IS ) &&
+       !(  g_IOPFlags & ( SMS_IOPF_NET | SMS_IOPF_SMB | SMS_IOPF_UDPFS )  ) && !SMS_IOPNetOwnedByUDPFS ()  ) {   /* hide SMB/network start when udpfs owns the NIC */
+/* Two explicit rows replace the old single "Start network support": SMS_IOPStartNet picks
+ * SMB vs HOST from the SMS_DF_SMB config toggle, so a forced start just sets/clears that
+ * bit before calling it ( same mutation the Network Settings protocol toggle performs --
+ * deliberately persisted in g_Config, NOT saved, exactly like the toggle ).
+ * Start SMB is BDM-only ( smbman is compiled in under #ifdef BDM -- in a non-BDM build the
+ * flag would silently start HOST anyway ) and gated on SMS_IOPF_SMBINFO ( a server is
+ * configured -- same gate _netprot_handler uses ), otherwise the row could only fail. */
+#ifdef BDM
+  if ( g_IOPFlags & SMS_IOPF_SMBINFO ) {
+
+   s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_SMB;
+   s_DevMenu[   lSize ].Handler       = _startsmb_handler;
+
+  }  /* end if */
+#endif
+
+  s_DevMenu[ ++lSize ].m_pOptionName = &STR_START_HOST;
+  s_DevMenu[   lSize ].Handler       = _starthost_handler;
+
+ }  /* end if */
 
 #ifdef BDM
  if (  g_IOPFlags & SMS_IOPF_DS34BT  ) {   /* Bluetooth driver up -> offer controller pairing */
