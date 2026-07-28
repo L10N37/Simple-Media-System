@@ -1,0 +1,23 @@
+[13:53:27] worker.run: preset='Xvid-Compatible AVI [RECOMMENDED - Best PS2 Performance]' vcodec='mpeg4' acodec='libmp3lame' ext='.avi' two_pass=False
+[13:53:27] ffmpeg cmd (encode): ffmpeg -y -i C:\Users\natha\AppData\Local\Temp\claude\C--Users-natha-Github-bounty\054a9584-50f5-4cb6-a8f2-3356b1ba7d69\scratchpad\in.mkv -map 0:v:0? -map 0:a:0? -sn -dn -map_metadata -1 -c:v libxvid -vtag XVID -b:v 1500k -r 30/1 -bf 0 -vf scale=640:480:force_original_aspect_ratio=decrease,pad=640:480:(ow-iw)/2:(oh-ih)/2:black,fps=fps=30/1,format=yuv420p -c:a libmp3lame -b:a 128k -ar 48000 -ac 2 -f avi -progress pipe:1 -nostats C:\Users\natha\AppData\Local\Temp\claude\C--Users-natha-Github-bounty\054a9584-50f5-4cb6-a8f2-3356b1ba7d69\scratchpad\o.avi.partial
+[13:53:27] about to Popen ffmpeg
+[13:53:27] ffmpeg started, pid=262652; reading progress
+[13:53:27] first ffmpeg output line received
+[13:53:27] encode finished; validating
+[13:53:27] worker.run: preset='MPEG-4 MP4 [RECOMMENDED for MP4 files]' vcodec='mpeg4' acodec='aac' ext='.mp4' two_pass=False
+[13:53:27] ffmpeg cmd (encode): ffmpeg -y -i C:\Users\natha\AppData\Local\Temp\claude\C--Users-natha-Github-bounty\054a9584-50f5-4cb6-a8f2-3356b1ba7d69\scratchpad\in.mkv -map 0:v:0? -map 0:a:0? -sn -dn -map_metadata -1 -c:v mpeg4 -b:v 1500k -r 30/1 -bf 0 -vf scale=640:480:force_original_aspect_ratio=decrease,pad=640:480:(ow-iw)/2:(oh-ih)/2:black,fps=fps=30/1,format=yuv420p -c:a aac -b:a 128k -ar 48000 -ac 2 -f mp4 -movflags +faststart -progress pipe:1 -nostats C:\Users\natha\AppData\Local\Temp\claude\C--Users-natha-Github-bounty\054a9584-50f5-4cb6-a8f2-3356b1ba7d69\scratchpad\o.mp4.partial
+[13:53:27] about to Popen ffmpeg
+[13:53:27] ffmpeg started, pid=263868; reading progress
+[13:53:27] first ffmpeg output line received
+[13:53:28] encode finished; validating
+[13:53:28] worker.run: preset='MPEG-4 MP4 [Small - 320x240 Low Bitrate]' vcodec='mpeg4' acodec='aac' ext='.mp4' two_pass=False
+[13:53:28] ffmpeg cmd (encode): ffmpeg -y -i C:\Users\natha\AppData\Local\Temp\claude\C--Users-natha-Github-bounty\054a9584-50f5-4cb6-a8f2-3356b1ba7d69\scratchpad\in.mkv -map 0:v:0? -map 0:a:0? -sn -dn -map_metadata -1 -c:v mpeg4 -b:v 600k -r 30/1 -bf 0 -vf scale=320:240:force_original_aspect_ratio=decrease,pad=320:240:(ow-iw)/2:(oh-ih)/2:black,fps=fps=30/1,format=yuv420p -c:a aac -b:a 128k -ar 48000 -ac 2 -f mp4 -movflags +faststart -progress pipe:1 -nostats C:\Users\natha\AppData\Local\Temp\claude\C--Users-natha-Github-bounty\054a9584-50f5-4cb6-a8f2-3356b1ba7d69\scratchpad\o.mp4.partial
+[13:53:28] about to Popen ffmpeg
+[13:53:28] ffmpeg started, pid=267592; reading progress
+[13:53:28] first ffmpeg output line received
+[13:53:28] encode finished; validating
+[13:53:42] worker.run: preset='MPEG-4 MP4 [RECOMMENDED for MP4 files]' vcodec='mpeg4' acodec='aac' ext='.mp4' two_pass=False
+[13:53:42] ffmpeg cmd (encode): ffmpeg -y -i does_not_exist.mkv -map 0:v:0? -map 0:a:0? -sn -dn -map_metadata -1 -c:v mpeg4 -b:v 1500k -r 30/1 -bf 0 -vf scale=640:480:force_original_aspect_ratio=decrease,pad=640:480:(ow-iw)/2:(oh-ih)/2:black,fps=fps=30/1,format=yuv420p -c:a aac -b:a 128k -ar 48000 -ac 2 -f mp4 -movflags +faststart -progress pipe:1 -nostats f.mp4.partial
+[13:53:42] about to Popen ffmpeg
+[13:53:42] ffmpeg started, pid=260468; reading progress
+[13:53:42] first ffmpeg output line received

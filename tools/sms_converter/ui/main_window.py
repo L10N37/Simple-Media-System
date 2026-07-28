@@ -9,6 +9,7 @@ from qt_compat import (
     QProgressBar, QPushButton, QMessageBox
 )
 
+import crash_log
 from config import (
     PRESETS, SIZE_3_8_GIB, SIZE_4_0_GIB, MSG_FILE_SIZE_APPROACHING_LIMIT, Preset
 )
@@ -368,6 +369,7 @@ class MainWindow(QMainWindow):
         item = self.queue_table.items_dict[next_id]
         self.queue_table.update_item_status(next_id, "Converting")
 
+        crash_log.breadcrumb("Convert pressed; building settings")
         settings = self.advanced_settings.get_settings_dict()
 
         # Add preset name metadata to settings
@@ -402,15 +404,26 @@ class MainWindow(QMainWindow):
         self.current_worker.failed_signal.connect(self._on_worker_failed)
         self.current_worker.cancelled_signal.connect(self._on_worker_cancelled)
 
+        crash_log.breadcrumb(f"starting worker thread for {Path(item.file_path).name}")
         self.current_worker.start()
 
     def _on_worker_progress(self, item_id: str, pct: float, status_msg: str):
         self.progress_bar.setValue(int(pct))
         self.lbl_status_msg.setText(status_msg)
 
+    # Kept bounded. This appends to a str on the GUI thread once per forwarded line, and a str
+    # += reallocates the whole buffer each time -- so an unbounded log is quadratic in both time
+    # and memory over a long encode. The worker no longer forwards the per-second progress
+    # block, which removes most of the traffic; this caps what is left. Only the tail is ever
+    # shown, so trimming the front loses nothing a user would look for.
+    _LOG_MAX_CHARS = 64 * 1024
+
     def _on_worker_log(self, item_id: str, log_line: str):
         if item_id in self.queue_table.items_dict:
-            self.queue_table.items_dict[item_id].console_log += log_line + "\n"
+            item = self.queue_table.items_dict[item_id]
+            item.console_log += log_line + "\n"
+            if len(item.console_log) > self._LOG_MAX_CHARS:
+                item.console_log = item.console_log[-self._LOG_MAX_CHARS:]
 
     def _on_worker_validation(self, item_id: str, result: ValidationResult, output_path: str):
         if item_id in self.queue_table.items_dict:

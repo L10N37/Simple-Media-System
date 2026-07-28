@@ -6,11 +6,25 @@ import sys
 import time
 import shutil
 import subprocess
+from collections import deque
 from pathlib import Path
 from typing import Dict, Any, Optional
 from qt_compat import QThread, Signal
 
+import crash_log
 from config import SIZE_4_0_GIB, MSG_FILE_SIZE_APPROACHING_LIMIT
+
+# The keys "-progress pipe:1" writes once per block. Recognised so they can drive the progress
+# bar without also being forwarded to the log pane -- see the note at the parse site.
+_PROGRESS_KEYS = frozenset({
+    "frame", "fps", "stream_0_0_q", "bitrate", "total_size", "out_time_us", "out_time_ms",
+    "out_time", "dup_frames", "drop_frames", "speed", "progress",
+})
+
+# Only the tail is ever used (the failure message quotes the last 20 lines), but this list used
+# to grow for the entire encode -- unbounded, on a build that may well be 32-bit. Keeping a
+# bounded window costs nothing and removes a slow leak from every long conversion.
+_CONSOLE_LOG_MAX = 400
 from ffmpeg_utils import (
     get_media_info, parse_media_summary, build_ffmpeg_cmd, generate_unique_output_path
 )
@@ -66,7 +80,7 @@ class ConversionWorker(QThread):
 
         self._is_cancelled = False
         self._process: Optional[subprocess.Popen] = None
-        self.console_log = []
+        self.console_log = deque(maxlen=_CONSOLE_LOG_MAX)
         self.cmd_str = ""
 
     def cancel(self):
@@ -82,8 +96,14 @@ class ConversionWorker(QThread):
                 except Exception:
                     pass
 
+    @crash_log.guard("ConversionWorker.run")
     def run(self):
         """Encode, in one or two passes, then validate and promote the result.
+
+        NOTE the guard. This runs in a QThread, which PySide invokes from C++ -- so an
+        exception escaping here reaches NEITHER sys.excepthook NOR threading.excepthook, and
+        on a --windowed build that means it vanishes without a trace. That gap is why the
+        first crash-logging attempt produced an empty log on the Windows 7 report.
 
         Two-pass runs ffmpeg twice over the same input: the first measures the material and
         writes a statistics log, the second encodes using it. That is worth having because
@@ -93,6 +113,12 @@ class ConversionWorker(QThread):
         bigger file, it is dropped frames over USB or a network share.
         """
         two_pass = bool(self.settings.get("two_pass")) and bool(self.settings.get("vcodec"))
+
+        crash_log.breadcrumb(
+            "worker.run: preset=%r vcodec=%r acodec=%r ext=%r two_pass=%s"
+            % (self.settings.get("preset_name"), self.settings.get("vcodec"),
+               self.settings.get("acodec"), Path(self.final_file).suffix, two_pass)
+        )
 
         # The stats log sits beside the partial output, so it lands on the same volume and is
         # swept up by the same cleanup whatever happens.
@@ -112,6 +138,7 @@ class ConversionWorker(QThread):
             self._remove_passlog(passlog)
 
             # Validation stage
+            crash_log.breadcrumb("encode finished; validating")
             self.progress_signal.emit(self.item_id, 100.0, f"Validating {Path(self.input_file).name}...")
             val_result = validate_converted_file(
                 self.ffprobe_path,
@@ -154,7 +181,9 @@ class ConversionWorker(QThread):
         )
         self.cmd_str = " ".join(f'"{arg}"' if " " in arg else arg for arg in cmd)
         label = f"pass {pass_num} of {total_passes}" if pass_num else "encode"
+        crash_log.breadcrumb(f"ffmpeg cmd ({label}): {self.cmd_str}")
         self.log_signal.emit(self.item_id, f"Executing {label}:\n{self.cmd_str}\n")
+        crash_log.breadcrumb("about to Popen ffmpeg")
 
         self._process = subprocess.Popen(
             cmd,
@@ -169,6 +198,8 @@ class ConversionWorker(QThread):
         out_time_us = 0
         span = 100.0 / total_passes
         base = span * pass_idx
+        crash_log.breadcrumb(f"ffmpeg started, pid={self._process.pid}; reading progress")
+        _crumbed_first_line = False
 
         while True:
             if self._is_cancelled:
@@ -191,13 +222,28 @@ class ConversionWorker(QThread):
             if not line:
                 break
 
+            if not _crumbed_first_line:
+                # Proves ffmpeg launched AND produced output. If the trail stops between the
+                # "ffmpeg started" crumb and this one, the problem is the launch itself; if it
+                # stops just after, it is the first emit into the GUI thread.
+                crash_log.breadcrumb("first ffmpeg output line received")
+                _crumbed_first_line = True
+
             self.console_log.append(line)
-            self.log_signal.emit(self.item_id, line.rstrip())
 
             if "=" in line:
                 key, _, val = line.strip().partition("=")
                 key = key.strip()
                 val = val.strip()
+
+# Machine-readable progress is for the progress bar, not for the log pane. "-progress pipe:1"
+# emits this block roughly once a second, so forwarding it was sending ~12 signals per second
+# across threads and appending every one to a string on the GUI thread -- tens of thousands of
+# lines over a feature-length encode, for text nobody reads. Real ffmpeg messages, which are
+# the ones worth showing, still go through. Anything unrecognised is forwarded too, so a new
+# ffmpeg version cannot silently swallow an error by adding a key.
+                if key not in _PROGRESS_KEYS:
+                    self.log_signal.emit(self.item_id, line.rstrip())
 
                 if key == "out_time_us":
                     try:
@@ -212,6 +258,7 @@ class ConversionWorker(QThread):
                     pct = min(100.0, base + inner * span / 100.0)
 
                     elapsed = time.time() - start_time
+
                     remaining_msg = ""
                     if inner > 0:
                         # Estimate from THIS pass, then add the passes still to run -- a
@@ -228,6 +275,8 @@ class ConversionWorker(QThread):
                     stage = f" [{label}]" if pass_num else ""
                     status_msg = f"Encoding {Path(self.input_file).name}{stage}{remaining_msg}"
                     self.progress_signal.emit(self.item_id, pct, status_msg)
+            else:
+                self.log_signal.emit(self.item_id, line.rstrip())
 
         if self._is_cancelled:
             try:
@@ -241,7 +290,8 @@ class ConversionWorker(QThread):
         return_code = self._process.wait()
 
         if return_code != 0:
-            err_text = "".join(self.console_log[-20:])
+            # console_log is a bounded deque, which cannot be sliced.
+            err_text = "".join(list(self.console_log)[-20:])
             self._cleanup_partial(passlog)
             self.failed_signal.emit(
                 self.item_id,
