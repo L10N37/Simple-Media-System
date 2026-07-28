@@ -64,12 +64,15 @@ endif
 #
 # Deliberately OFF by default: release builds must not flash diagnostic codes at users.
 ifeq ($(SMS_DIAG),1)
-  # -G0 as well: re-enabling the crumbs adds enough strings to push this tree past the
-  # GP-relative addressing window (-G8192 -mgpopt puts every object under 8 KB into small
-  # data, and the release build already sits close to the limit). Disabling small-data for
-  # the diagnostic build sidesteps that. It changes codegen slightly versus release, which is
-  # an acceptable trade for a build whose only job is to show WHERE execution stops.
-  EE_CFLAGS += -DSMS_DIAG -G0
+  # -G4096, NOT -G0. Re-enabling the crumb bodies pushes this tree past the GP-relative
+  # addressing window at the release setting of -G8192, so the threshold has to come down --
+  # but only as far as it must. -G0 was tried first and disables small-data entirely, which is
+  # a large codegen change from the release build; a tester then reported the diagnostic ELF
+  # black-screening on a PSX while the release ELF booted, and a build that does not start is
+  # useless as a diagnostic. -G4096 is the largest value that still links, so objects under
+  # 4 KB stay GP-addressed exactly as in release and the two builds differ as little as
+  # possible. NOT confirmed as the black-screen cause -- it is the variable worth removing.
+  EE_CFLAGS += -DSMS_DIAG -G4096
 endif
 
 EE_OBJS := $(EE_OBJS:%=$(EE_OBJ_DIR)%)

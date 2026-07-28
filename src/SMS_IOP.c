@@ -1346,28 +1346,21 @@ int SMS_IOPStartDS34BT ( int afStatus ) {
 }  /* end SMS_IOPStartDS34BT */
 #endif  /* BDM */
 
-void SMS_IOPInit ( void ) {
-
- int         i, lFD;
- char        lBuff[ 64 ];
- ee_thread_t lThreadParam;
-
-/* IPCONFIG.DAT is read HERE, ahead of config resolution -- a boot from the UDPFS network
- * drive needs this PS2's static IP before the drive can be brought up to re-load SMS.cfg
- * from it. Nothing between the two positions consumes g_pDefIP/g_pDefMask/g_pDefGW.
+/* Load IPCONFIG.DAT into g_pDefIP / g_pDefMask / g_pDefGW.
  *
- * CWD FIRST, memory card second. This used to be a bare mc0: read, which left anyone
- * running a console with NO MEMORY CARD unable to set an IP at all -- reported from a PSX
- * (DESR-7100) with no card fitted: the built-in default address was outside the tester's
- * subnet, UDPFS could never reach a server, and there was no way to correct it because the
- * only file SMS would read lived on hardware that was not present. wLaunchELF-R3Z already
- * allows its config off-card, which is why that gap showed up in comparison.
+ * CWD first, memory card second, so a console with NO CARD can be given an address by
+ * dropping the file next to SMS.ELF. Returns 1 if a file was read.
  *
- * So look next to the ELF first ( same place SMS.cfg and every other asset now live -- see
- * SMS_ConfigAssetPath ), then fall back to the card. Probing costs one fioOpen that simply
- * errors on an absent/unmounted device; we are past GUI_Initialize here, so that is safe.
- * An on-card IPCONFIG.DAT keeps working exactly as before when no CWD copy exists. */
- lFD = -1;
+ * Safe to call more than once: it only overwrites the globals when it actually reads a file,
+ * so an early card read is never clobbered by a later CWD miss, and a later CWD hit correctly
+ * wins over the card (that is the file the user just edited next to the ELF).
+ *
+ * Both probes are bare fioOpens, which merely error on an absent or unmounted device. */
+static int _read_ipconfig ( void ) {
+
+ char lBuff[ 64 ];
+ int  lFD = -1;
+ int  i;
 
  if ( g_pBootDir[ 0 ] ) {
 
@@ -1385,31 +1378,54 @@ void SMS_IOPInit ( void ) {
 
  if ( lFD < 0 ) lFD = fioOpen ( g_pIPConf, O_RDONLY );
 
- if ( lFD >= 0 ) {
+ if ( lFD < 0 ) return 0;
 
-  memset (  lBuff, 0, sizeof ( lBuff )  );
-  i = fioRead (  lFD, lBuff, sizeof ( lBuff ) - 1  );
-  fioClose ( lFD );
+ memset (  lBuff, 0, sizeof ( lBuff )  );
+ i = fioRead (  lFD, lBuff, sizeof ( lBuff ) - 1  );
+ fioClose ( lFD );
 
-  if ( i > 0 ) {
+ if ( i <= 0 ) return 0;
 
-   char lChr;
+ {
+  char lChr;
 
-   lBuff[ i ] = '\x00';
+  lBuff[ i ] = '\x00';
 
-   for (  i = 0; (  ( lChr = lBuff[ i ] ) != '\0'  ); ++i  )
+  for (  i = 0; (  ( lChr = lBuff[ i ] ) != '\0'  ); ++i  )
 
-    if (  lChr == ' ' || lChr == '\r' || lChr == '\n' ) lBuff[ i ] = '\x00';
+   if (  lChr == ' ' || lChr == '\r' || lChr == '\n' ) lBuff[ i ] = '\x00';
 
-   strncpy ( g_pDefIP, lBuff, 15 );
-   i = strlen ( g_pDefIP ) + 1;
-   strncpy ( g_pDefMask, lBuff + i, 15 );
-   i += strlen ( g_pDefMask ) + 1;
-   strncpy ( g_pDefGW, lBuff + i, 15 );
+  strncpy ( g_pDefIP, lBuff, 15 );
+  i = strlen ( g_pDefIP ) + 1;
+  strncpy ( g_pDefMask, lBuff + i, 15 );
+  i += strlen ( g_pDefMask ) + 1;
+  strncpy ( g_pDefGW, lBuff + i, 15 );
+ }
 
-  }  /* end if */
+ return 1;
 
- }  /* end if */
+}  /* end _read_ipconfig */
+
+void SMS_IOPInit ( void ) {
+
+ int         i, lFD;
+ char        lBuff[ 64 ];
+ ee_thread_t lThreadParam;
+
+/* IPCONFIG.DAT, first attempt. Reads the memory card, plus a CWD probe that will only
+ * succeed if the boot device happens to already be mounted.
+ *
+ * It is read THIS early because a boot from the UDPFS network drive needs this PS2's static
+ * IP before the drive can be brought up at all -- that is a hard ordering constraint.
+ *
+ * But the boot device is NOT mounted yet: SMS resets the IOP in main.c, which drops every
+ * driver, and the boot device is only re-mounted during config resolution further down. So a
+ * CWD read here fails on exactly the card-less setups it was added for. _read_ipconfig is
+ * therefore called AGAIN after that mount, which is where a CWD file actually becomes
+ * readable. Diagnosed by GhostTownUS, who spotted that wLaunchELF-R3Z does not reset the IOP
+ * and so keeps its boot driver live -- which is why config-off-card works there and did not
+ * here. */
+ _read_ipconfig ();
 
 /* The DEV9 driver module ( index 1 -- SMS's dev9 v1.1 clone ) also loads ahead of
  * config resolution: it sets SMS_IOPF_DEV9_IS, which both the config-time udpfs start
@@ -1537,6 +1553,16 @@ void SMS_IOPInit ( void ) {
   SMS_LocaleInit ();   /* re-read SMS.lng now the boot device is mounted ( CWD-first ) */
   SMS_LocaleSet  ();
 
+/* IPCONFIG.DAT, second attempt -- for the SAME reason SMS.lng is re-read on the line above:
+ * the boot device only became mountable a few lines up. The early attempt near the top of
+ * this function runs before the IOP has any driver for it, so a CWD IPCONFIG.DAT could never
+ * be opened there. This is the point where it can.
+ *
+ * Only overwrites the address when a file is actually read, so a memory-card IPCONFIG picked
+ * up earlier survives if there is no CWD copy -- and a CWD copy correctly wins if there is
+ * one, since that is the file sitting next to the ELF the user just edited. */
+  _read_ipconfig ();
+
  } else if ( SMS_ConfigFallback () ) {   /* SMB / host / cdrom boot: config can't live on the boot device */
 
 /* Resolve an attached, writable USB / MMCE device to hold SMS.cfg ( pins the path
@@ -1557,8 +1583,18 @@ void SMS_IOPInit ( void ) {
 /* IPCONFIG read + the DEV9 module ( s_LoadParams index 1 ) were hoisted ABOVE the
  * config-resolution block -- see the note there. AUDSRV stays here because it imports
  * the LIBSD library loaded just above; POWEROFF keeps its original slot. */
+ DIAG_CRUMB ( 50, "AUDSRV" );
  _load_module ( 0, 1 );
+/* E51/E52 bracket the POWEROFF load specifically. A PSX (DESR-7100) was reported hanging with
+ * "Loading POWEROFF" on screen -- but that message is printed BEFORE the load, and the next
+ * status update is some way past the DEV9 block below, so the stall could be either the
+ * module's _start or the DEV9 work that follows. SifExecModuleBuffer is synchronous, so an
+ * IOP module whose _start never returns hangs the EE with no timeout. These two codes
+ * separate the cases; guessing between them would mean changing boot behaviour on hardware
+ * that cannot be tested here. */
+ DIAG_CRUMB ( 51, "POWEROFF" );
  _load_module ( 2, 1 );
+ DIAG_CRUMB ( 52, "past POWEROFF" );
 
  if ( g_IOPFlags & SMS_IOPF_DEV9_IS ) {
 #if NO_DEBUG
