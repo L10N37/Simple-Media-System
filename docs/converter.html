@@ -1,0 +1,159 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Media Converter &#183; SMS Docs</title>
+<meta name="description" content="SMS Media Converter: a desktop app that converts video and audio into formats SMS plays on a PS2. Presets, multi-pass encoding, keyframe interval, and Windows 10/11, Windows 7 and Linux builds.">
+<link rel="stylesheet" href="assets/style.css">
+</head><body data-base="">
+<header class="topbar">
+  <button class="menu-btn" aria-label="Menu">☰</button>
+  <a class="brand" href="index.html">
+    <span class="psbtns"><i class="tri">&#9651;</i><i class="cir">&#9711;</i><i class="cro">&#10005;</i><i class="squ">&#9633;</i></span>
+    SMS <small>DOCS</small></a>
+  <div class="search">
+    <span class="ico">🔎</span>
+    <input id="q" type="search" placeholder="Search devices, formats, settings, subtitles…  ( / )" autocomplete="off">
+    <kbd>/</kbd>
+    <div id="results"></div>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar">
+    <a href="index.html"><span class="em">🏠</span>Home</a>
+    <h4>Start</h4>
+    <a href="getting-started.html"><span class="em">🚀</span>Getting Started</a>
+    <a href="install.html"><span class="em">📥</span>Install &amp; First Boot</a>
+    <h4>Playing media</h4>
+    <a href="video.html"><span class="em">🎬</span>Video Playback</a>
+    <a href="audio.html"><span class="em">🎵</span>Audio &amp; Playlists</a>
+    <a href="pictures.html"><span class="em">🖼️</span>Pictures</a>
+    <a href="subtitles.html"><span class="em">💬</span>Subtitles</a>
+    <h4>Storage &amp; devices</h4>
+    <a href="devices.html"><span class="em">🗂️</span>Devices Overview</a>
+    <a href="usb.html"><span class="em">🔌</span>USB</a>
+    <a href="mx4sio.html"><span class="em">💠</span>MX4SIO (microSD)</a>
+    <a href="hdd.html"><span class="em">💽</span>Internal HDD</a>
+    <a href="ilink.html"><span class="em">🔗</span>i.LINK</a>
+    <a href="mmce.html"><span class="em">🧩</span>MMCE (SD2PSX)</a>
+    <a href="smb.html"><span class="em">🌐</span>SMB Network</a>
+    <a href="cd-dvd.html"><span class="em">💿</span>CD / DVD / CDDA</a>
+    <h4>Setup &amp; theming</h4>
+    <a href="settings.html"><span class="em">🔧</span>Settings Reference</a>
+    <a href="network.html"><span class="em">📡</span>Network Setup</a>
+    <a href="themes.html"><span class="em">🎨</span>Themes &amp; Skins</a>
+    <a href="converter.html" class="active"><span class="em">🎛️</span>Media Converter</a>
+    <h4>Reference</h4>
+    <a href="troubleshooting.html"><span class="em">🛠️</span>Troubleshooting</a>
+    <a href="building.html"><span class="em">🧰</span>Building from Source</a>
+    <a href="releases.html"><span class="em">📦</span>Releases &amp; Changelog</a>
+    <a href="credits.html"><span class="em">🙏</span>Credits &amp; Sources</a>
+  </nav>
+  <main class="content">
+<h1>Media Converter</h1>
+<p class="lead">A desktop app that turns video and audio files into formats a PlayStation&nbsp;2 running
+SMS can actually play. Drop a file in, pick a preset, get a file that works.</p>
+
+<div class="note"><p>Download it from the <a href="releases.html">releases page</a>. There are three
+builds: Windows&nbsp;10/11, Windows&nbsp;7, and Linux. It needs <b>FFmpeg</b> available — either on the
+system path or alongside the app.</p></div>
+
+<h2 id="why">Why convert at all</h2>
+<p>The PS2 decodes a specific and quite old set of formats, and most files downloaded today use none of
+them. In particular <b>H.264 will never play</b> — the console's video hardware handles MPEG&#8209;1 and
+MPEG&#8209;2 only, and everything else has to be decoded in software on a 294&nbsp;MHz CPU. Converting
+is not a workaround; it is how a modern file gets onto this machine at all.</p>
+
+<p>Every output option the app offers is one SMS is known to handle. That is why the list is short: it
+is not a general-purpose encoder with a PS2 mode, it only makes files that work.</p>
+
+<h2 id="presets">Presets</h2>
+<p>Each preset says what it is for and what it costs. If you are unsure, the first one is the right
+answer.</p>
+
+<h3>Video</h3>
+<table>
+<tr><th>Preset</th><th>When to use it</th></tr>
+<tr><td><b>Xvid&#8209;Compatible AVI</b><br><small>recommended</small></td><td>Start here. Best picture
+per megabyte, so files stay small and stream well over USB or a network share.</td></tr>
+<tr><td><b>MPEG&#8209;2</b> <small>(.mpg)</small></td><td>Use if the Xvid preset stutters. The PS2's IPU
+chip decodes MPEG&#8209;2 <em>in hardware</em>, so the CPU barely works and playback is the smoothest
+available. The trade is noticeably larger files.</td></tr>
+<tr><td><b>MPEG&#8209;1</b> <small>(.mpg)</small></td><td>The most forgiving option, also
+hardware&#8209;decoded. Picture quality tops out lower, but it is the lightest load of all.</td></tr>
+<tr><td><b>MPEG&#8209;4 MP4</b></td><td>The same video as the Xvid preset, in a modern
+<code>.mp4</code> container with AAC audio.</td></tr>
+<tr><td><b>MPEG&#8209;4 MP4, small</b></td><td>320&times;240 at a low bitrate — roughly a quarter the
+size. For memory cards, small USB drives, or when a full&#8209;size file will not play smoothly.</td></tr>
+</table>
+
+<h3>Audio</h3>
+<table>
+<tr><th>Preset</th><th>When to use it</th></tr>
+<tr><td><b>MP3</b> <small>recommended</small></td><td>Start here for music. Plays everywhere, small, and
+the format SMS handles most cheaply.</td></tr>
+<tr><td><b>FLAC</b></td><td>Lossless — an exact copy of the original. Roughly 4&times; the size of an
+MP3.</td></tr>
+<tr><td><b>Ogg Vorbis</b></td><td>Slightly better quality than MP3 at the same size, and
+patent&#8209;free.</td></tr>
+<tr><td><b>AAC</b> <small>(.m4a)</small></td><td>Good quality per megabyte; choose MP3 instead if the
+file also needs to play on older devices.</td></tr>
+</table>
+
+<h2 id="advanced">Advanced settings</h2>
+<p>The defaults are chosen to work. These are for when you have a reason.</p>
+
+<h3>Multi-pass encoding</h3>
+<p>Encodes the video twice: the first run measures the material, the second spends the bitrate where it
+is actually needed. It matters more here than in a general&#8209;purpose converter, because these presets
+aim at a <b>fixed bitrate</b> and a single pass has to guess how to spend it while still reading the
+file — so it commonly overshoots. Measured on a test clip asking for 800&nbsp;kbps, one pass produced
+959 and two produced 838.</p>
+<p>On a PS2 an overshoot is not merely a larger file: it is dropped frames over USB or a network share.
+The cost is roughly double the conversion time.</p>
+
+<div class="note"><p>The pass count is fixed at <b>2</b>. That is a limitation of FFmpeg, not of the
+format — MPEG&#8209;4 Part&nbsp;2 itself supports more, and the commercial DivX encoder implements them.
+FFmpeg's second pass never writes back to its statistics log, so a third pass has nothing new to work
+from; asking for one makes the encoder fall back to first&#8209;pass behaviour and badly overshoot.</p></div>
+
+<h3>Keyframe interval</h3>
+<p>How often a complete, self&#8209;contained frame is written; everything between keyframes is stored as
+differences. This is what decides <b>how fast seeking feels</b>: jumping to any point means decoding
+forward from the previous keyframe, so a long interval can mean many seconds of work on a 294&nbsp;MHz
+CPU before playback resumes.</p>
+<p>The default of 50 — about two seconds — sits at the knee of that curve. Raising it toward 300 saves
+only a few percent more file size but costs ten seconds or more on every jump.</p>
+
+<div class="warn"><p><b>Keyframe interval is not the same as B&#8209;frames.</b> The two are routinely
+confused. B&#8209;frames is a small number (0&#8211;4) controlling how frames are predicted from their
+neighbours; the keyframe interval is in the tens or hundreds and controls how often the picture is
+refreshed from scratch. Leave B&#8209;frames at <b>0</b> unless you have a reason — the PS2 decodes
+MPEG&#8209;4 in software, and B&#8209;frames are the first thing to cost it frames.</p></div>
+
+<h2 id="windows7">Windows 7</h2>
+<p>There is a separate <code>SMS-Media-Converter-Win7.exe</code>, because the standard build cannot start
+on Windows&nbsp;7 at all — Qt&nbsp;6 and Python&nbsp;3.9 both dropped support for it. The
+Windows&nbsp;7 build is the same application compiled against Qt&nbsp;5 and Python&nbsp;3.8. It is not a
+reduced version; the presets and validation are identical.</p>
+
+<h2 id="notes">Notes</h2>
+<ul class="checklist">
+<li><b>MP4 files are written front&#8209;loaded.</b> The index is placed at the start of the file, so SMS
+can begin playing immediately instead of reading through the whole file first.</li>
+<li><b>Real Xvid is used when available.</b> If your FFmpeg includes <code>libxvid</code>, the Xvid preset
+uses it rather than FFmpeg's built&#8209;in encoder.</li>
+<li><b>Output is checked after conversion</b> against the limits SMS actually has — resolution, stream
+count, packet size, and the 32&#8209;bit file&#8209;size ceiling.</li>
+</ul>
+</main>
+  <aside class="toc"><div class="toc-h">On this page</div><nav id="toc-nav"></nav></aside>
+</div>
+<footer>
+  <p><b>SMS — Simple Media System</b> documentation. SMS was created by <b>Eugene Plotnikov</b> and is maintained by
+  the <a href="https://github.com/ps2homebrew">ps2homebrew</a> community; this site documents an enhanced,
+  storage-focused fork. Built on the work of many contributors — see <a href="credits.html">Credits &amp; Sources</a>.</p>
+  <p class="prov-inline">A community fork, not an official release. PlayStation 2 is a trademark of Sony Interactive
+  Entertainment; this project is unaffiliated. Sister documentation: the
+  <a href="https://nathanneurotic.github.io/POPSLoader/">POPStarter docs</a> and the RiptOPL docs.</p>
+</footer>
+<script src="assets/app.js"></script>
+</body></html>

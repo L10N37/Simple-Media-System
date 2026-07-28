@@ -40,6 +40,7 @@
     <a href="settings.html"><span class="em">🔧</span>Settings Reference</a>
     <a href="network.html"><span class="em">📡</span>Network Setup</a>
     <a href="themes.html"><span class="em">🎨</span>Themes &amp; Skins</a>
+    <a href="converter.html"><span class="em">🎛️</span>Media Converter</a>
     <h4>Reference</h4>
     <a href="troubleshooting.html"><span class="em">🛠️</span>Troubleshooting</a>
     <a href="building.html"><span class="em">🧰</span>Building from Source</a>
@@ -61,6 +62,21 @@ copy it to a device your PS2 can boot from, and launch it with your usual homebr
 <a href="getting-started.html">Getting Started</a> to play your first file.</div>
 
 <h2 id="getting-a-build">Getting a build</h2>
+<h2 id="whats-in-a-release">What each release contains</h2>
+<table>
+<tr><th>File</th><th>What it is</th></tr>
+<tr><td><code>Simple-Media-System.elf</code></td><td>The standard build. This is the one to use.</td></tr>
+<tr><td><code>Simple-Media-System-packed.elf</code></td><td>The same build, self-extracting — about half the
+size, and decompresses itself at boot.</td></tr>
+<tr><td><code>Simple-Media-System-DIAG.elf</code></td><td>The same build with on-screen startup codes, for
+reporting a freeze. See <a href="troubleshooting.html#reporting">Reporting a freeze</a>.</td></tr>
+<tr><td><code>SMS-Media-Converter.exe</code></td><td>The <a href="converter.html">Media Converter</a> for
+Windows&nbsp;10/11.</td></tr>
+<tr><td><code>SMS-Media-Converter-Win7.exe</code></td><td>The converter for Windows&nbsp;7, which the standard
+build cannot run on.</td></tr>
+<tr><td><code>SMS-Media-Converter-Linux.zip</code></td><td>The converter for Linux.</td></tr>
+</table>
+
 <p>SMS ships as a single PlayStation 2 executable, <code>SMS.elf</code>. There is nothing to install into the
 system — it is a self-contained homebrew ELF that you launch like any other. The IOP driver modules it needs
 (for USB, MX4SIO, HDD, network and so on) are embedded inside the ELF itself, so the one file is everything.</p>

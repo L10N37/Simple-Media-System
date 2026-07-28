@@ -40,6 +40,7 @@
     <a href="settings.html"><span class="em">🔧</span>Settings Reference</a>
     <a href="network.html"><span class="em">📡</span>Network Setup</a>
     <a href="themes.html"><span class="em">🎨</span>Themes &amp; Skins</a>
+    <a href="converter.html"><span class="em">🎛️</span>Media Converter</a>
     <h4>Reference</h4>
     <a href="troubleshooting.html" class="active"><span class="em">🛠️</span>Troubleshooting</a>
     <a href="building.html"><span class="em">🧰</span>Building from Source</a>
@@ -226,6 +227,34 @@ until this is resolved. If you do use an HD mode and the desktop looks wrong, sw
 If none of the above matches your symptom, note exactly what you did, which device and file were involved, and what
 you saw on screen (a photo of the TV helps). That detail is what makes a problem fixable — vague "it doesn't work"
 reports are the hardest to act on.</div>
+
+<h2 id="reporting">Reporting a freeze</h2>
+<p>If SMS stops responding during startup and a power cycle is the only way out, there is a build that can
+tell us exactly where it stopped.</p>
+
+<p><b><code>Simple-Media-System-DIAG.elf</code></b>, published alongside every release, is the same code with
+one addition: before each step of startup it prints a short code such as <code>E44</code> in the status bar,
+naming the step it is <em>about</em> to perform. If that step never finishes, <b>the code stays on screen</b>.
+So the last code visible is the thing that hung.</p>
+
+<div class="note"><p>It needs no network and no memory card — the codes are drawn directly by the console's
+graphics hardware, so they still appear when almost nothing else is working. That is the whole point: it
+reports faults that a log file could not, because nothing was left running to write one.</p></div>
+
+<h3>How to use it</h3>
+<div class="steps">
+<div class="step"><h3>Run it</h3><p>Boot <code>Simple-Media-System-DIAG.elf</code> the same way you boot the
+normal ELF.</p></div>
+<div class="step"><h3>Watch the status bar</h3><p>Codes appear at the bottom of the screen as startup
+progresses. On a healthy console they flick past quickly and you end up at the file browser.</p></div>
+<div class="step"><h3>Note where it stops</h3><p>If it freezes, write down or photograph the last code shown.
+A recording is even better — it captures the order they appeared in.</p></div>
+<div class="step"><h3>Report it</h3><p>Open an issue with that code, your console model, and what was
+connected. One code usually identifies the exact call.</p></div>
+</div>
+
+<p>Use the standard ELF for normal playback — the diagnostic build is not faster or better, it simply talks
+more.</p>
 
 <h2 id="quick-reference">Quick reference</h2>
 <table data-sortable>

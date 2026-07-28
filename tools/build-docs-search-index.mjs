@@ -25,6 +25,7 @@ const pages = [
   ["settings.html", "Setup"],
   ["network.html", "Setup"],
   ["themes.html", "Setup"],
+  ["converter.html", "Setup"],
   ["troubleshooting.html", "Reference"],
   ["building.html", "Reference"],
   ["releases.html", "Reference"],

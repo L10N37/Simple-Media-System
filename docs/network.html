@@ -40,6 +40,7 @@
     <a href="settings.html"><span class="em">🔧</span>Settings Reference</a>
     <a href="network.html" class="active"><span class="em">📡</span>Network Setup</a>
     <a href="themes.html"><span class="em">🎨</span>Themes &amp; Skins</a>
+    <a href="converter.html"><span class="em">🎛️</span>Media Converter</a>
     <h4>Reference</h4>
     <a href="troubleshooting.html"><span class="em">🛠️</span>Troubleshooting</a>
     <a href="building.html"><span class="em">🧰</span>Building from Source</a>
@@ -55,7 +56,7 @@ entered from the pad; no hand-edited network file is required.</p>
 
 <div class="callout amber"><div class="h">⚠ Choose SMB/host or UDPFS for each boot</div>
 The two paths load different network stacks for the PS2's one EMAC3 Ethernet controller. Whichever starts first owns
-the NIC until reboot. Use <b>Autostart network</b> for SMB/host or <b>Autostart UDPFS</b> for UDPFS, not both.
+the NIC until reboot. The menu now enforces this: <b>Autostart HOST</b>, <b>Autostart SMB</b> and <b>Autostart UDPFS</b> are a single choice — turning one on turns the other two off, and selecting the one already lit switches networking off entirely.
 This does not conflict with MX4SIO or MMCE because those use SIO2, not Ethernet.</div>
 
 <h2 id="requirements">Requirements</h2>
@@ -69,22 +70,45 @@ This does not conflict with MX4SIO or MMCE because those use SIO2, not Ethernet.
 
 <h2 id="ip-config">Set the PS2's static IP on-screen</h2>
 <p>Open <b>Device settings → Network settings → Edit IPCONFIG.DAT</b>. Enter the PS2's own IP address,
-network mask and gateway one octet at a time, then choose <b>Save/Update IPCONFIG.DAT</b>. SMS writes the result to
-<code>mc0:/SYS-CONF/IPCONFIG.DAT</code>. UDPFS requires a valid static PS2 IP; SMB uses the same network
+network mask and gateway one octet at a time, then choose <b>Save/Update IPCONFIG.DAT</b>. With a memory card present SMS writes <code>mc0:/SYS-CONF/IPCONFIG.DAT</code>, the same place the PS2 browser and other software expect it. <b>With no memory card fitted</b> it writes <code>IPCONFIG.DAT</code> beside <code>SMS.ELF</code> instead, and reads it back from there on the next boot — so a console with no card can still be given an address. UDPFS requires a valid static PS2 IP; SMB uses the same network
 configuration.</p>
 <div class="steps">
 <div class="step"><h3>Choose an address</h3><p>Give the PS2 an unused static address on the same subnet as the
 server, such as <code>192.168.1.20</code> when the PC is <code>192.168.1.10</code>.</p></div>
 <div class="step"><h3>Enter mask and gateway</h3><p>For a typical home LAN the mask is
 <code>255.255.255.0</code>; use your router's address as the gateway. Match your actual network.</p></div>
-<div class="step"><h3>Save</h3><p>Choose <b>Save/Update IPCONFIG.DAT</b>. A memory card in the boot-selected slot is required for this
+<div class="step"><h3>Save</h3><p>Choose <b>Save/Update IPCONFIG.DAT</b>. A memory card in the boot-selected slot is used for this
 network file even when the general SMS configuration is saved beside the ELF.</p></div>
 </div>
+
+<h2 id="modes">Choosing a network mode</h2>
+<p>SMS can use the network in three different ways, and the console can only do <b>one of them per
+boot</b>. They all drive the same single network adapter, and an IOP module cannot be unloaded once
+it has claimed it — so the choice is settled the moment one starts.</p>
+
+<p>Because of that, the three autostart entries in <b>Device settings</b> behave as one setting
+rather than three switches:</p>
+
+<table>
+<tr><th>Mode</th><th>What it is for</th></tr>
+<tr><td><b>Autostart HOST</b></td><td><code>host:</code> access from a PC running ps2client — mainly a
+development convenience.</td></tr>
+<tr><td><b>Autostart SMB</b></td><td>A Windows / Samba / NAS file share. See <a href="smb.html">SMB</a>.</td></tr>
+<tr><td><b>Autostart UDPFS</b></td><td>A folder served over UDP from a PC. See <a href="#udpfs">UDPFS</a> below.</td></tr>
+</table>
+
+<div class="note"><p>Turning one on turns the other two off automatically. Selecting the one that is
+already lit switches networking off. Previously two could be enabled at the same time, and the
+second one simply failed with no message — that is no longer possible.</p></div>
+
+<p>If you change the mode while a network stack is already running, SMS offers to restart the
+network there and then. Accepting reboots the console's I/O processor in place, which takes a moment
+and leaves SMS running; declining is safe — the choice is saved either way and applies next launch.</p>
 
 <h2 id="smb">SMB network shares</h2>
 <p>The SMB browser stores a server address, share, user, password, client name and port. Add or edit the server
 from the SMB device using the on-screen keyboard; see <a href="smb.html">SMB Network</a> for the complete field
-reference. Start it with <b>Start SMB server support</b> or save <b>Autostart network</b>.</p>
+reference. Start it with <b>Start SMB support</b>, or set <b>Autostart SMB</b> to have it come up on every boot.</p>
 <div class="callout amber"><div class="h">⚠ SMB1 is required</div>
 SMS speaks SMB1/CIFS. Modern Windows disables SMB1 by default, so a Samba/NAS configuration that permits SMB1 is
 usually safer than enabling an obsolete protocol broadly on a general-purpose PC. Keep this service on a trusted
