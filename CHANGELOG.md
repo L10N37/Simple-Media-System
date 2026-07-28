@@ -1,6 +1,76 @@
 # Simple Media System (SMS)
 ## Changelog
 
+This fork's changes are listed first. The original SMS changelog by Eugene Plotnikov is
+preserved in full below the marked boundary, unmodified.
+
+---
+
+## Unreleased
+
+### Playback
+
+- **MP4 video now plays.** `.mp4` files previously opened as audio only — the video track was
+  discarded before it was ever looked at. MPEG-4 Part 2 (`mp4v`) video with AAC audio now
+  plays, seeks, and is treated as video throughout the browser. H.264 (`avc1`) is not
+  supported and cannot be: the PS2's IPU decodes MPEG-1/2 only.
+- **Continuous playback.** Finishing a song now continues into the rest of the folder.
+  Previously this only happened via the file context menu → *Play all*. Audio only —
+  videos deliberately do not chain into one another.
+- **FLAC** is supported (it always was; it simply was not documented).
+
+### Network
+
+- **The single "Autostart network" toggle became three exclusive choices** — HOST, SMB and
+  UDPFS. The console can only run one network stack per boot, and the menu now reflects that:
+  selecting one clears the other two. Previously two could be enabled at once, and the second
+  would fail silently with no message.
+- **Changing an active network mode offers to apply it immediately**, by resetting the IOP in
+  place rather than making you relaunch.
+- **`IPCONFIG.DAT` can live next to the ELF**, not only on the memory card. A console with no
+  memory card can now be given an IP address at all.
+
+### Devices & settings
+
+- Device-menu rows reordered so the autostart entries are contiguous and read in the same
+  order as the matching *Start …* entries.
+- **The memory-card save icon is written again** for installs that keep their settings beside
+  the ELF on a card, so the folder no longer shows up blank in the PS2 browser.
+
+### Console support
+
+- **PSX / DESR consoles boot, with sound.** Their BIOS has no `rom0:LIBSD`, so SMS now ships
+  its own copy of the sound driver and falls back to it. A retail PS2 is unaffected — the
+  BIOS module is still loaded first and used whenever present.
+- Two hangs fixed that could require a power cycle: an unbounded transmit retry in the network
+  driver, and an unbounded RPC bind wait.
+- **A diagnostic build** (`Simple-Media-System-DIAG.elf`) is published alongside each release.
+  It shows an `E<nn>` code on screen before each boot step and leaves it there if that step
+  never finishes, so a freeze can be reported precisely. It needs no network and no memory
+  card.
+
+### SMS Media Converter (new desktop app)
+
+- Converts video and audio into formats SMS can play, with presets that explain when to use
+  them and what they cost.
+- Audio-only output: MP3, FLAC, Ogg Vorbis and AAC.
+- Multi-pass encoding, and a keyframe-interval control (distinct from B-frames, which is a
+  different setting entirely).
+- Uses real Xvid (libxvid) when available.
+- MP4 output is written with `+faststart`, so the PS2 does not have to read the whole file
+  before playback can begin.
+- **Windows 7 build**, alongside Windows 10/11 and Linux. Qt 6 and Python 3.9+ both dropped
+  Windows 7, so that build pins Qt 5 and Python 3.8 — same source, no fork.
+
+---
+
+> ### 📜 Original project changelog
+>
+> Everything **below this line** is the original changelog of Simple Media System, preserved
+> unmodified. **Only the sections above reflect this fork's changes.**
+
+---
+
 Update (16-JUN-2005)
 --------------------
 STIO_XXX routines are implemented. Though not fully tested, but at least I was
