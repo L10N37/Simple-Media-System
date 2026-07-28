@@ -1611,8 +1611,10 @@ void SMS_IOPInit ( void ) {
 #endif  /* NO_DEBUG */
  }  /* end if */
 
+ DIAG_CRUMB ( 53, "SPU init" );
  SPU_Initialize ();
 
+ DIAG_CRUMB ( 54, "HDD APA" );
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_HDD ) SMS_IOPStartHDD ( 1 );
 
 /* NETWORK: exactly one stack, chosen through the mode accessor rather than by testing the
@@ -1623,6 +1625,7 @@ void SMS_IOPInit ( void ) {
  * Going through SMS_ConfigNetMode makes that unrepresentable: it resolves such a config the
  * same way the console actually behaved, and it is the same value the menu paints from, so
  * the lit row is always the stack that really starts. */
+ DIAG_CRUMB ( 55, "network" );
  switch (  SMS_ConfigNetMode ()  ) {
 
   case SMS_NETMODE_HOST :
@@ -1634,16 +1637,22 @@ void SMS_IOPInit ( void ) {
 
  }  /* end switch */
 
+ DIAG_CRUMB ( 56, "USB" );
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_USB ) SMS_IOPStartUSB ( 1 );
 #ifdef BDM
+ DIAG_CRUMB ( 57, "MX4SIO" );
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_MX4SIO ) SMS_IOPStartMX4SIO ( 1 );
+ DIAG_CRUMB ( 58, "HDD BDM" );
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_ATA    ) SMS_IOPStartATA    ( 1 );
+ DIAG_CRUMB ( 59, "iLink" );
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_ILINK  ) SMS_IOPStartILINK  ( 1 );
+ DIAG_CRUMB ( 60, "MMCE" );
  if ( g_Config.m_NetworkFlags & SMS_DF_AUTO_MMCE   ) SMS_IOPStartMMCE   ( 1 );
 #endif
 
  GUI_Status ( STR_INITIALIZING_SMS.m_pStr );
 
+ DIAG_CRUMB ( 61, "poweroff thr" );
  SMS_IOPSetSifCmdHandler ( _poweroff_handler, SMS_SIF_CMD_POWEROFF );
 
  lThreadParam.initial_priority   = 48;
@@ -1665,6 +1674,8 @@ void SMS_IOPInit ( void ) {
  else if (  RC_Load () && RC_Start ()  ) g_IOPFlags |= SMS_IOPF_RMMAN;
 
  FlushCache ( 0 );
+
+ DIAG_CRUMB ( 62, "IOP init done" );
 
 }  /* end SMS_IOPInit */
 
