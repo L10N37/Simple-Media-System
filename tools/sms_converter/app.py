@@ -44,6 +44,40 @@ QToolTip {
     border: 1px solid #4A5568;
     padding: 4px;
 }
+/* Buttons MUST state their own background.
+ *
+ * The QWidget rule above paints every widget's text light (#E2E8F0) -- including buttons.
+ * Without a matching background here, a QPushButton keeps whatever face the PLATFORM style
+ * gives it, and on Windows 7 (Qt 5, native Windows style) that face is light grey. Light
+ * text on light grey is what a tester photographed: the setup dialog's "Browse for FFmpeg
+ * Directory", "Re-check System" and "Exit" buttons were all but unreadable.
+ *
+ * It looked fine in development because Qt 6 on Windows 10 defaults to a dark face, so the
+ * inherited light text happened to land on something dark. Relying on that is the bug --
+ * anything this stylesheet recolours has to specify both halves of the contrast pair, or it
+ * is only correct on the machine it was written on.
+ *
+ * :disabled is spelled out for the same reason: the greyed state must stay legible rather
+ * than fading into the button face. */
+QPushButton {
+    background-color: #2D3748;
+    color: #E2E8F0;
+    border: 1px solid #4A5568;
+    border-radius: 4px;
+    padding: 6px 14px;
+}
+QPushButton:hover {
+    background-color: #3A4A63;
+    border-color: #63B3ED;
+}
+QPushButton:pressed {
+    background-color: #22303F;
+}
+QPushButton:disabled {
+    background-color: #232B3A;
+    color: #718096;
+    border-color: #2D3748;
+}
 """
 
 def run_app():

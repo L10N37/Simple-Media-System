@@ -378,7 +378,9 @@ def build_ffmpeg_cmd(
         ".ac3": "ac3",
     }
     fmt_flag = format_map.get(ext)
-    if fmt_flag:
+    # The analysis pass appends its own "-f" for the null device below, so emitting one here
+    # too put a duplicate -f on the command line and left the two spellings free to disagree.
+    if fmt_flag and pass_num != 1:
         cmd.extend(["-f", fmt_flag])
 
     # MP4/M4A: move the moov atom to the FRONT of the file.
@@ -393,7 +395,12 @@ def build_ffmpeg_cmd(
     #
     # Cost: ffmpeg does a second pass at the end to relocate the atom, so encoding finishes
     # slightly slower. That trade is overwhelmingly worth it for the target hardware.
-    if fmt_flag == "mp4":
+    #
+    # Skipped on the ANALYSIS pass: that pass writes to the null device, and relocating an
+    # atom requires seeking back into the output to rewrite it. Asking for it on a stream
+    # that cannot be seeked is at best wasted work and at worst a muxer error, and the
+    # analysis pass discards its output anyway -- only the statistics log survives it.
+    if fmt_flag == "mp4" and pass_num != 1:
         cmd.extend(["-movflags", "+faststart"])
 
     # Progress output via pipe:1
