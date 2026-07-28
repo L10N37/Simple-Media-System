@@ -60,10 +60,23 @@ def resolve_video_encoder(ffmpeg_path: str, vcodec: str, vtag: str) -> str:
     """Pick the encoder to actually run for a requested codec.
 
     When the user asks for Xvid, use REAL Xvid (libxvid) if this ffmpeg has it, instead of
-    ffmpeg's own built-in mpeg4. Both emit MPEG-4 Part 2 that SMS decodes, but libxvid is
-    measurably better: on a 640x480 clip, two-pass at 1000 kbps, SSIM 0.982 vs 0.968 at a
-    slightly SMALLER file and a bitrate closer to target. The preset is called
-    "Xvid-Compatible", so this also makes it honest.
+    ffmpeg's own built-in mpeg4. Both emit MPEG-4 Part 2 that SMS decodes.
+
+    THE REASON IS ROBUSTNESS, NOT QUALITY. An earlier version of this comment claimed libxvid
+    was measurably better (SSIM 0.982 vs 0.968); that came from a single synthetic testsrc2
+    clip and does not generalise. Re-measured across four content types it is a coin flip --
+    mpeg4 won two, libxvid won two, and the gaps were tiny (0.005-0.014 SSIM). libxvid is also
+    consistently 1.4x-3.7x SLOWER.
+
+    What decided it: ffmpeg's mpeg4 encoder can FAIL OUTRIGHT in two-pass mode on
+    high-entropy material -- "Nothing was written into output file... Conversion failed", a
+    zero-byte result -- where the same source single-passes fine and libxvid two-passes fine.
+    Reproduced on a 640x480 noise-like clip at 1200 kbps. Since two-pass is offered in the UI,
+    an encoder that can silently produce nothing is the worse trade, and paying encode time to
+    avoid a failed conversion is the right way round for a tool whose job is to make files
+    that work.
+
+    The preset is called "Xvid-Compatible", so using real Xvid also makes the name honest.
 
     Only the AVI/XVID path is switched. The .mp4 presets keep ffmpeg's mpeg4 deliberately --
     MP4 video support in SMS is new and its sample-entry handling was only just fixed, so
