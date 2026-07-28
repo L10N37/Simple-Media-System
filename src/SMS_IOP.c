@@ -81,6 +81,7 @@ extern unsigned char IEEE1394_bd_irx[];
 extern unsigned char mmceman_irx    [];
 extern unsigned char ds34usb_irx    [];
 extern unsigned char ds34bt_irx     [];
+extern unsigned char libsd_irx      [];
 extern unsigned char udpfs_smap_irx [];
 extern unsigned char udpfs_ministack_irx [];
 extern unsigned char udpfs_ioman_irx [];
@@ -103,6 +104,7 @@ extern unsigned int size_IEEE1394_bd_irx;
 extern unsigned int size_mmceman_irx;
 extern unsigned int size_ds34usb_irx;
 extern unsigned int size_ds34bt_irx;
+extern unsigned int size_libsd_irx;
 extern unsigned int size_udpfs_smap_irx;
 extern unsigned int size_udpfs_ministack_irx;
 extern unsigned int size_udpfs_ioman_irx;
@@ -1595,6 +1597,31 @@ void SMS_IOPInit ( void ) {
  * relying on the BIOS copy. That is the proper fix and is worth doing; it needs a build path
  * and hardware to verify, so it is deliberately not bundled into a hang fix. */
  s_fLIBSD = SifLoadModule ( s_pLIBSD, 0, NULL ) >= 0;
+
+#ifdef BDM
+/* FALLBACK: our own libsd when the BIOS has none.
+ *
+ * The console's copy is tried FIRST and is used whenever it exists, so a retail PS2 takes
+ * exactly the path it always did -- same module, same behaviour, and this embedded copy is
+ * never touched. It exists solely for machines whose BIOS lacks the file.
+ *
+ * That is the PSX / DESR: its ROM carries PLIBSD (XMB, v3.4) and TLIBSD (testmode, v1.4),
+ * neither a drop-in for the standard module, and no plain LIBSD at all. Without this those
+ * consoles run SMS with NO SOUND -- unacceptable for a media player, which is why the module
+ * is shipped rather than the failure merely being survived.
+ *
+ * ps2sdk's freesd exports libsd v1.4 with every ordinal SMS's AUDSRV imports
+ * ( {4,5,7,9,11,15,17,18,19,20,26,27} ) mapping to a real function, none a _retonly stub --
+ * checked by tools/build_libsd.sh, which is what makes it a genuine drop-in rather than a
+ * module that binds clean and then does nothing. */
+ if ( !s_fLIBSD ) {
+
+  int lRes;
+
+  s_fLIBSD = SifExecDecompModuleBuffer ( &libsd_irx, size_libsd_irx, 0, NULL, &lRes ) >= 0;
+
+ }  /* end if */
+#endif
 
  SMS_IOPDVDVInit ();
 
