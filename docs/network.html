@@ -77,8 +77,9 @@ configuration.</p>
 server, such as <code>192.168.1.20</code> when the PC is <code>192.168.1.10</code>.</p></div>
 <div class="step"><h3>Enter mask and gateway</h3><p>For a typical home LAN the mask is
 <code>255.255.255.0</code>; use your router's address as the gateway. Match your actual network.</p></div>
-<div class="step"><h3>Save</h3><p>Choose <b>Save/Update IPCONFIG.DAT</b>. A memory card in the boot-selected slot is used for this
-network file even when the general SMS configuration is saved beside the ELF.</p></div>
+<div class="step"><h3>Save</h3><p>Choose <b>Save/Update IPCONFIG.DAT</b>. With a memory card fitted the file goes
+to the card, where the PS2 browser and other titles expect it; with no card fitted SMS writes it beside the ELF
+instead, and reads it back from there next boot — so a card-less console can still be networked.</p></div>
 </div>
 
 <h2 id="modes">Choosing a network mode</h2>
@@ -107,7 +108,7 @@ and leaves SMS running; declining is safe — the choice is saved either way and
 
 <h2 id="smb">SMB network shares</h2>
 <p>The SMB browser stores a server address, share, user, password, client name and port. Add or edit the server
-from the SMB device using the on-screen keyboard; see <a href="smb.html">SMB Network</a> for the complete field
+under <b>Device settings → Network settings → SMB server…</b> using the on-screen keyboard; see <a href="smb.html">SMB Network</a> for the complete field
 reference. Start it with <b>Start SMB support</b>, or set <b>Autostart SMB</b> to have it come up on every boot.</p>
 <div class="callout amber"><div class="h">⚠ SMB1 is required</div>
 SMS speaks SMB1/CIFS. Modern Windows disables SMB1 by default, so a Samba/NAS configuration that permits SMB1 is

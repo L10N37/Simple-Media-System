@@ -162,14 +162,34 @@ movie, press <kbd>✕</kbd>. See the <a href="mx4sio.html">MX4SIO</a> page for s
 <table data-sortable>
 <thead><tr><th>Button</th><th>Action</th></tr></thead>
 <tbody>
-<tr><td><b>Select</b></td><td>Pause</td></tr>
-<tr><td><b>Start</b></td><td>Resume from pause</td></tr>
+<tr><td><b>Select</b></td><td>Pause. Press it again — or <b>Start</b> — to resume.</td></tr>
+<tr><td><b>Start</b></td><td>Resume from pause; during normal playback it opens the in-player menu.</td></tr>
 <tr><td><kbd>△</kbd> Triangle</td><td>Stop playback and return to the file browser</td></tr>
+<tr><td><b>Left</b> / <b>Right</b></td><td>Seek backward / forward</td></tr>
+<tr><td><b>Up</b> / <b>Down</b></td><td>Volume up / down</td></tr>
+<tr><td><kbd>✕</kbd> Cross</td><td>Show or hide the on-screen time display</td></tr>
+<tr><td><kbd>□</kbd> Square</td><td>Cycle the aspect / pan&amp;scan mode — eight in all. The chosen mode is remembered
+in your settings.</td></tr>
+<tr><td><b>L1</b> / <b>R1</b></td><td>Pan the picture left / right (useful once you have zoomed with Square)</td></tr>
+<tr><td><b>L1 + R1</b></td><td>Reset pan and zoom back to default</td></tr>
+<tr><td><kbd>○</kbd> Circle</td><td>Cycle the sync adjusters: <b>A/V sync</b> → <b>subtitle sync</b> (only when a
+subtitle is loaded) → off.</td></tr>
+<tr><td><b>L2</b> / <b>R2</b></td><td>With an adjuster selected by Circle, shift it by &minus;10 / +10&nbsp;ms — the
+fix for audio or subtitles that drift out of step.</td></tr>
+<tr><td><b>L2 + R2</b></td><td>Reset the selected sync adjuster to zero</td></tr>
 </tbody>
 </table>
+<div class="note"><p>Cross, Circle, L2 and R2 are video-only. During audio-only playback those buttons do nothing,
+and Left/Right seek within the track.</p></div>
 
 <p>If the movie has an external subtitle file alongside it, SMS displays it over the picture — see
 <a href="subtitles.html">Subtitles</a> for how subtitle files are matched and styled.</p>
+
+<div class="callout info"><div class="h">ℹ Videos do not chain</div>
+When a video ends you go back to the file browser. This is deliberate: the file after a video is usually unrelated,
+so auto-advancing would be a surprise. Only <b>audio</b> continues into the next track of the folder — see
+<a href="audio.html">Audio &amp; Playlists</a>. To watch several videos back to back, highlight the folder and choose
+<b>Play all → Video</b>.</div>
 
 <h2 id="decoding">How SMS decodes video</h2>
 <p>SMS earns its "good video on a stock PS2" reputation by splitting the work between the Emotion Engine and a
@@ -196,6 +216,10 @@ fragmented device. Start from a hardware-confirmed profile when making a new enc
 <h2 id="encoding">Encoding tips</h2>
 <p>If you are making files for SMS rather than playing existing ones, a few choices make the difference between
 flawless playback and a slideshow.</p>
+
+<div class="note"><p>You do not have to do any of this by hand. The <a href="converter.html">Media Converter</a> is a
+desktop app that applies these settings for you and only offers formats SMS can play — the presets below are what it
+produces. Use it unless you specifically want to drive FFmpeg yourself.</p></div>
 
 <ul class="checklist">
 <li><b>Start from a tested profile.</b> 640×480 at 30 fps with 1.5 Mbit/s MPEG-4 Part 2 video is confirmed in both

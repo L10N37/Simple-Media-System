@@ -173,9 +173,7 @@ the device menu stays informative even when the same optical drive holds differe
 
 <h2 id="hd-known-issue">Known issue: HD video modes and the background</h2>
 <div class="callout amber"><div class="h">⚠ High-definition output can currently corrupt the desktop background</div>
-On progressive / high-definition video output modes (for example 480p, 720p and 1080i), the full-screen desktop
-background can currently show <b>graphical corruption</b>. This is a known issue with the large HD framebuffer and is
-being worked on. Standard-definition <b>480i</b> output is unaffected — if you see a corrupted background at an HD
+In the two high-definition modes — <b>720p and 1080i</b> — SMS does not draw the full-screen desktop artwork at all. The HD framebuffer occupies almost all of the PS2's video RAM, leaving nowhere safe for a full-screen background texture, so SMS paints a plain gradient backdrop there instead. Every standard-definition mode (480i, 480p, 576p and the VESA modes) is 640 pixels wide, fits comfortably, and shows the full artwork. Standard-definition <b>480i</b> output is unaffected — if you see a corrupted background at an HD
 mode, switch the display mode back to 480i as a workaround while a fix is in progress.</div>
 
 <p>This only affects how the background <i>looks</i> at HD modes — playback, browsing and all device access continue to

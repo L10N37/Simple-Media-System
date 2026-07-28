@@ -105,13 +105,13 @@ it isn't started, it isn't formatted the way SMS expects, or it's blocked by a m
   <div class="step"><h3>Start the device (or turn on its Autostart)</h3>
   <p>On a clean install <b>nothing auto-starts</b> — this is by design (see below). Open the settings menu and either
   flip on that device's <b>Autostart</b> toggle (Autostart USB, Autostart MX4SIO, Autostart HDD APA, Autostart HDD
-  BDM for ATA/exFAT, Autostart i.LINK, Autostart MMCE, Autostart Network, Autostart UDPFS), or use the matching <b>Start …</b>
+  flip on that device's <b>Autostart</b> toggle (Autostart USB, Autostart i.LINK, Autostart MX4SIO, Autostart MMCE, Autostart HDD APA, Autostart HDD BDM for ATA/exFAT, then the three mutually exclusive network rows — <b>Autostart HOST ( ps2dev )</b>, <b>Autostart SMB</b> and <b>Autostart UDPFS</b>, where picking one clears the other two), or use the matching <b>Start …</b>
   item that appears when a device isn't running yet. Starting it on demand does not need a reboot.</p></div>
 
   <div class="step"><h3>Check the filesystem format</h3>
   <p>BDM mass devices (USB, MX4SIO, ATA/exFAT) expect a <b>FAT32</b> or <b>exFAT</b> filesystem. A drive formatted
   NTFS, HFS+ or ext4 will not mount. Re-format the card or drive as FAT32 (or exFAT for large volumes) and copy your
-  media back. The internal-HDD APA/PFS path is different — that uses a PlayStation&nbsp;2 <code>SMS_Media</code>
+  media back. The internal-HDD APA/PFS path is different — that uses a PlayStation&nbsp;2 PFS
   partition rather than a PC filesystem; see <a href="hdd.html">Internal HDD</a>.</p></div>
 
   <div class="step"><h3>Rule out a mutual exclusion</h3>
@@ -215,8 +215,7 @@ fault.</p>
 
 <h2 id="hd-corruption">The screen looks corrupted in HD video modes</h2>
 <div class="callout amber"><div class="h">⚠ Known issue in HD output modes</div>
-In high-definition output modes the desktop background can appear garbled or corrupted. The reliable workaround is
-to run SMS in a standard-definition mode — <b>use 480i</b> — where the display is correct.</div>
+In the two high-definition modes (720p and 1080i) SMS does not draw the desktop wallpaper at all — it paints a plain gradient background instead. This is deliberate: the HD framebuffer leaves no room in VRAM for the full-screen artwork, and forcing it there used to comb the text and leave black bars. Everything else works normally; if you want the artwork, use a standard-definition mode (480i/480p/576p), all of which are unaffected.</div>
 <p>HD modes use a much larger framebuffer than standard definition, which leaves little room for the full-screen
 desktop artwork; the result can be a corrupted or garbled background on the desktop. This is a known, open issue in
 the current theme at HD resolutions. Standard-definition output (480i) is not affected and is the recommended mode

@@ -78,8 +78,8 @@ an IP address and a link to your router or switch — before it can reach a shar
 <a href="network.html">Network Setup</a> page first; this page assumes the PS2 is already on your LAN.</div>
 <div class="callout amber"><div class="h">⚠ SMB/host and UDPFS cannot share one boot</div>
 SMS's ordinary SMB/host stack and the <a href="network.html#udpfs">UDPFS network drive</a> use different drivers
-for the one Ethernet controller. Whichever starts first owns it until reboot. Enable <b>Autostart network</b> for
-SMB or <b>Autostart UDPFS</b>, not both.</div>
+for the one Ethernet controller. Whichever starts first owns it until reboot. Enable <b>Autostart SMB</b> — picking
+it automatically clears <b>Autostart HOST ( ps2dev )</b> and <b>Autostart UDPFS</b>, so the three can never fight.</div>
 
 <h2 id="requirements">Requirements</h2>
 <ul class="checklist">
@@ -160,14 +160,14 @@ entry. SMS keeps the server list in a separate <code>SMS.smb</code> file in the 
 
 <div class="callout info"><div class="h">ℹ Turn the network device on</div>
 As with the other sources, SMS only brings up the network stack when you ask it to. The settings menu has an
-<b>Autostart Network</b> toggle so the share is available automatically on boot, and — when networking isn't
+<b>Autostart SMB</b> toggle so the share is available automatically on boot, and — when networking isn't
 running yet and a server is configured — a <b>Start SMB server support</b> action so you can bring it up on demand without rebooting. On a clean install
 nothing auto-starts; you enable networking when you want it.</div>
 
 <h2 id="connecting">Connecting &amp; browsing</h2>
 <div class="steps">
 <div class="step"><h3>Bring up the network</h3>
-<p>With the network configured (and Autostart Network on, or started on demand), SMS connects to your LAN and
+<p>With the network configured (and Autostart SMB on, or started on demand), SMS connects to your LAN and
 then to the SMB server you saved.</p></div>
 <div class="step"><h3>Select the network device</h3>
 <p>In the top row <b>Device menu</b>, use <b>Left / Right</b> to land on the network / SMB device, then press
@@ -232,7 +232,7 @@ drive</a> or a local source such as <a href="usb.html">USB</a>, <a href="mx4sio.
 <h2 id="see-also">See also</h2>
 <div class="grid">
 <a class="tile" href="network.html"><span class="em">📡</span><b>Network Setup</b><span>Get the PS2 on your LAN first</span></a>
-<a class="tile" href="settings.html"><span class="em">🔧</span><b>Settings Reference</b><span>Autostart Network &amp; where config lives</span></a>
+<a class="tile" href="settings.html"><span class="em">🔧</span><b>Settings Reference</b><span>Autostart SMB &amp; where config lives</span></a>
 <a class="tile" href="devices.html"><span class="em">🗂️</span><b>Devices Overview</b><span>How all the sources compare</span></a>
 <a class="tile" href="troubleshooting.html"><span class="em">🛠️</span><b>Troubleshooting</b><span>When something won't play</span></a>
 </div>

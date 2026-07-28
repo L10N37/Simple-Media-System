@@ -53,7 +53,8 @@
 (DivX / XviD / MPEG-4 Part 2 and MPEG-1/2), <b>audio</b> (MP2/MP3, AAC, AC3, FLAC, OGG and WMA) and <b>pictures</b> (JPEG),
 with soft <b>subtitles</b> and <b>M3U playlists</b> — read from just about every storage device the PS2 can reach:
 CD/DVD, USB, <b>MX4SIO</b> microSD, the internal HDD (APA <i>and</i> exFAT), i.LINK, <b>MMCE</b> (SD2PSX / MemCard PRO2),
-<b>SMB</b> shares and the <b>UDPFS</b> network drive. No HDD, no network adapter, no chip required.</p>
+<b>SMB</b> shares, a <b>host:</b> folder over ps2client and the <b>UDPFS</b> network drive. No HDD, no network adapter,
+no chip required.</p>
 <div class="btn-row">
   <a class="btn" href="getting-started.html">🚀 New here? Play your first file</a>
   <a class="btn ghost" href="https://github.com/NathanNeurotic/Simple-Media-System/releases/tag/v3.0.0-rev1">📦 Download v3.0.0-rev1</a>
@@ -82,7 +83,7 @@ are the deep reference.</div>
 <li><b>MX4SIO microSD playback</b> — video and audio play smoothly from a microSD in an MX4SIO (SIO2) adapter, with
 its own device icon and an <b>Autostart MX4SIO</b> toggle. This is the headline feature — see <a href="mx4sio.html">MX4SIO</a>.</li>
 <li><b>Internal HDD, exFAT <i>and</i> APA</b> — read media from a modern <b>exFAT</b> drive over ATA (BDM) as well as
-the classic APA/PFS <code>SMS_Media</code> partition. See <a href="hdd.html">Internal HDD</a>.</li>
+the classic APA/PFS partitions, which SMS lists so you can pick one. See <a href="hdd.html">Internal HDD</a>.</li>
 <li><b>i.LINK (IEEE&nbsp;1394) storage</b> — mount a FireWire drive as a game/media source. See <a href="ilink.html">i.LINK</a>.</li>
 <li><b>MMCE devices</b> — browse media from an <b>SD2PSX</b> or <b>MemCard PRO2</b> in the memory-card slot
 (<code>mmce0:</code> / <code>mmce1:</code>). See <a href="mmce.html">MMCE</a>.</li>
@@ -90,6 +91,19 @@ the classic APA/PFS <code>SMS_Media</code> partition. See <a href="hdd.html">Int
 boot, playback and clean exit are hardware-confirmed. See <a href="network.html#udpfs">Network Setup</a>.</li>
 <li><b>On-screen network &amp; SMB setup</b> — configure your IP and connect to a Windows / Samba share entirely from
 the pad, with a real on-screen keyboard — no pre-made config files to hand-edit. See <a href="network.html">Network Setup</a>.</li>
+<li><b>Three network modes, one at a time</b> — <b>HOST&nbsp;( ps2dev )</b>, <b>SMB</b> and <b>UDPFS</b> are separate
+autostart rows, and picking one clears the other two. They share a single Ethernet controller, so this makes the
+conflict impossible to set up by accident. See <a href="network.html">Network Setup</a>.</li>
+<li><b>Continuous folder playback</b> — highlight a folder and choose <b>Play all</b> to run every track in it back
+to back, instead of stopping after one song. See <a href="audio.html">Audio &amp; Playlists</a>.</li>
+<li><b>A desktop Media Converter</b> — a companion app that turns modern video and audio into formats the PS2 can
+actually decode, with presets that only produce files SMS plays. Windows&nbsp;10/11, Windows&nbsp;7 and Linux builds.
+See <a href="converter.html">Media Converter</a>.</li>
+<li><b>PSX / DESR support</b> — the DVD-recorder PlayStation models boot and play; consoles without
+<code>rom0:LIBSD</code> fall back to an embedded sound driver rather than hanging silently.</li>
+<li><b>A diagnostic build</b> — <code>Simple-Media-System-DIAG.elf</code> prints a short code for each startup step,
+so a freeze can be reported precisely even when nothing is left running to write a log.
+See <a href="troubleshooting.html#reporting">Reporting a freeze</a>.</li>
 <li><b>DualShock 3 &amp; 4</b> — wired USB and Bluetooth controller support, including in-app Bluetooth pairing.
 These paths stay on USB and do not contend with MX4SIO on SIO2.</li>
 <li><b>Native MP4 playback</b> — MPEG-4 Part&nbsp;2 <code>mp4v</code> video with AAC audio, now included in the

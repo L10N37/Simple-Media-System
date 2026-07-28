@@ -95,9 +95,10 @@ without rebooting.</p>
 <table data-sortable>
 <thead><tr><th>Option</th><th>Device it starts</th><th>Values</th></tr></thead>
 <tbody>
-<tr><td><b>Autostart network</b></td><td>The SMB/host network stack. Mutually exclusive with UDPFS for that boot. See <a href="network.html">Network Setup</a>.</td><td>on / off</td></tr>
+<tr><td><b>Autostart HOST ( ps2dev )</b></td><td>The ps2dev <code>host:</code> stack (ps2client on a PC). One of three mutually exclusive network rows.</td><td>on / off</td></tr>
+<tr><td><b>Autostart SMB</b></td><td>The SMB1/CIFS share client. One of three mutually exclusive network rows. See <a href="network.html">Network Setup</a>.</td><td>on / off</td></tr>
 <tr><td><b>Autostart USB</b></td><td>USB mass storage (<code>massN:</code>). See <a href="usb.html">USB</a>.</td><td>on / off</td></tr>
-<tr><td><b>Autostart HDD APA</b></td><td>The internal HDD via the classic APA/PFS path (<code>hdd0:</code>, the <code>SMS_Media</code> partition). See <a href="hdd.html">Internal HDD</a>.</td><td>on / off</td></tr>
+<tr><td><b>Autostart HDD APA</b></td><td>The internal HDD via the classic APA/PFS path (<code>hdd0:</code>); SMS lists the drive's PFS partitions so you can pick one. See <a href="hdd.html">Internal HDD</a>.</td><td>on / off</td></tr>
 <tr><td><b>Autostart HDD BDM</b></td><td>The internal HDD via ATA as a BDM <code>massN:</code> device — this is the <b>exFAT</b> path added by this fork. See <a href="hdd.html">Internal HDD</a>.</td><td>on / off</td></tr>
 <tr><td><b>Autostart MX4SIO</b></td><td>The MX4SIO microSD adapter over SIO2 (<code>massN:</code>). The headline feature of this fork. See <a href="mx4sio.html">MX4SIO</a>.</td><td>on / off</td></tr>
 <tr><td><b>Autostart i.LINK</b></td><td>An i.LINK (IEEE&nbsp;1394 / FireWire) drive as a BDM <code>massN:</code> device. See <a href="ilink.html">i.LINK</a>.</td><td>on / off</td></tr>
@@ -111,7 +112,7 @@ without rebooting.</p>
 <li><b>MX4SIO and MMCE</b> both use the SIO2 / memory-card-slot bus. Only one can be active at a time — enable the one
 you're using, not both.</li>
 <li><b>HDD APA and HDD BDM</b> both own the internal ATA bus. Pick one; whichever starts first owns the bus. Use
-<b>HDD APA</b> for a classic PFS <code>SMS_Media</code> drive, or <b>HDD BDM</b> for a modern exFAT drive.</li>
+<b>HDD APA</b> for a classic APA/PFS drive, or <b>HDD BDM</b> for a modern exFAT drive.</li>
 <li><b>Network (SMB/host) and UDPFS</b> load different stacks for the one Ethernet controller. Whichever starts
 first owns it until reboot. Enable one, not both.</li>
 </ul>
@@ -147,7 +148,7 @@ links to the on-screen network setup.</p>
 <table>
 <thead><tr><th>Option</th><th>What it does</th><th>Values</th></tr></thead>
 <tbody>
-<tr><td><b>Network settings…</b></td><td>Opens the network protocol selector and <b>Edit IPCONFIG.DAT</b> for the PS2's static IP, mask and gateway. The SMB device has its own server editor. See <a href="network.html">Network Setup</a>.</td><td>opens sub-menu</td></tr>
+<tr><td><b>Network settings…</b></td><td>Opens <b>Edit IPCONFIG.DAT</b> (the PS2's static IP, mask and gateway), the <b>Network protocol</b> selector, <b>SMB server…</b> — where share entries are added, edited and deleted — and the link parameters: <b>Operating mode</b>, plus <b>Duplex mode</b> and <b>Standard</b> when the mode is manual. See <a href="network.html">Network Setup</a>.</td><td>opens sub-menu</td></tr>
 <tr><td><b>Controller port 2</b></td><td>Tells SMS what is plugged into controller port&nbsp;2 so it reads it correctly.</td><td>gamepad / remote control / none</td></tr>
 <tr><td><b>Pair Bluetooth controller</b></td><td>Pairs a DualShock&nbsp;3 or DualShock&nbsp;4 to the connected USB Bluetooth dongle. The row appears only when the Bluetooth driver is available: connect the dongle, plug the controller into USB, run this command, then unplug the cable and power on the controller.</td><td>action</td></tr>
 <tr><td><b>Disable CD/DVD</b></td><td>Turns the optical (CD/DVD) source on or off. Disable it if you never use discs, so SMS doesn't wait on the drive.</td><td>on / off</td></tr>
@@ -296,12 +297,13 @@ Until then you can change anything and simply not save. There is also a button s
 </div>
 
 <div class="callout info"><div class="h">ℹ Where the config is stored (and the fork's twist)</div>
-By default SMS saves its configuration to the memory card at <code>mc0:/SMS/SMS.cfg</code>. On this fork, if SMS was
-booted from another re-mountable device (USB, HDD, MX4SIO, MMCE, i.LINK or writable UDPFS) and there's no memory card to write to, it saves the config
-<b>next to the SMS ELF on that boot device</b> instead — so a memory-card-less setup still keeps its settings. Either
-way, one <b>Save settings</b> is all it takes. Deleting the config file gives you clean defaults again — where nothing
-auto-starts. The separate <code>SMS.smb</code> server list follows the same directory; only
-<code>IPCONFIG.DAT</code> remains memory-card based.</div>
+Stock SMS saves its configuration to the memory card at <code>mc0:/SMS/SMS.cfg</code>. On this fork the config simply
+<b>follows the boot device</b>, card or no card: launched from USB, HDD, MX4SIO, MMCE, i.LINK or writable UDPFS, SMS
+writes <code>SMS.cfg</code> next to the ELF on that same device, so the settings travel with the drive you booted from.
+Either way, one <b>Save settings</b> is all it takes. Deleting the config file gives you clean defaults again — where
+nothing auto-starts. The separate <code>SMS.smb</code> server list follows the same directory.
+<code>IPCONFIG.DAT</code> is the one exception: it goes to <code>mc0:/SYS-CONF/</code> when a card is fitted, because
+that is where the PS2 browser and other titles look for it, and falls back to the ELF's folder when there is no card.</div>
 
 <div class="callout amber"><div class="h">⚠ Clean defaults auto-start nothing</div>
 On a first boot or after clearing the config, <b>no storage device is started automatically</b>. This is deliberate on
@@ -320,7 +322,7 @@ this fork: you turn on exactly what you need. If SMS boots and you don't see you
 
 <details class="deep"><summary>Why is there both "HDD APA" and "HDD BDM" — aren't they the same drive?</summary>
 <p>They are the same physical internal HDD, but reached two different ways. <b>HDD APA</b> uses the PS2's classic
-APA/PFS filesystem and reads media from an <code>SMS_Media</code> partition on <code>hdd0:</code> — the traditional SMS
+APA/PFS filesystem and reads media from the PFS partitions on <code>hdd0:</code> — the traditional SMS
 route. <b>HDD BDM</b> reads the drive as a modern <b>exFAT</b> volume over ATA, appearing as a <code>massN:</code>
 device like USB or MX4SIO — the path this fork adds so you can use a normally-formatted drive. They share the internal
 ATA bus, so only one can be active; whichever starts first owns it. Choose the one that matches how your drive is

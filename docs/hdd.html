@@ -1,7 +1,7 @@
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Internal HDD · SMS Docs</title>
-<meta name="description" content="Use the PS2's internal hard drive with SMS two ways — the classic APA/PFS SMS_Media partition, or a plain exFAT drive read over ATA as a massN: BDM device — and how to choose between them.">
+<meta name="description" content="Use the PS2's internal hard drive with SMS two ways — the classic APA/PFS partitions, or a plain exFAT drive read over ATA as a massN: BDM device — and how to choose between them.">
 <link rel="stylesheet" href="assets/style.css">
 </head><body data-base="">
 <header class="topbar">
@@ -51,7 +51,7 @@
 <h1>Internal HDD</h1>
 <p class="lead">SMS can read media straight off the PlayStation 2's internal hard drive — in <b>two completely
 different ways</b>. There's the classic <b>APA / PFS</b> scheme (the same format HDD-OSD and the OPL-era tools use),
-where SMS browses a dedicated <code>SMS_Media</code> partition; and there's the modern route, a plain <b>exFAT</b>
+where SMS lists the drive's PFS partitions and browses whichever one you pick; and there's the modern route, a plain <b>exFAT</b>
 drive read through the <b>ATA block driver</b>, which shows up as an ordinary <code>massN:</code> device you can fill
 with files from any PC. Both live on the same physical disk, so you pick one per boot.</p>
 
@@ -66,7 +66,7 @@ HDD bay at all. If your console has no drive fitted, skip this page and use <a h
 The catch is that the internal drive can be formatted in one of two schemes, and SMS reaches each one through a
 different driver stack:</p>
 <div class="grid">
-<a class="tile" href="#apa"><span class="em">💽</span><b>APA / PFS</b><span>The classic <code>SMS_Media</code> partition</span></a>
+<a class="tile" href="#apa"><span class="em">💽</span><b>APA / PFS</b><span>The PS2's own partition scheme</span></a>
 <a class="tile" href="#exfat"><span class="em">🗂️</span><b>exFAT via ATA</b><span>A plain drive as <code>massN:</code></span></a>
 </div>
 <p>They are <b>mutually exclusive</b>: both paths want to own the internal ATA bus, so whichever one starts first
@@ -77,23 +77,22 @@ takes it and the other quietly steps aside. You choose which by picking the matc
 <thead><tr><th>How it appears</th><th>APA / PFS</th><th>exFAT via ATA (BDM)</th></tr></thead>
 <tbody>
 <tr><td>Format on the disk</td><td>Sony's APA partition scheme + PFS filesystem</td><td>Plain exFAT partition</td></tr>
-<tr><td>What SMS browses</td><td>The <code>SMS_Media</code> partition on the drive</td><td>The whole exFAT volume, any folders</td></tr>
+<tr><td>What SMS browses</td><td>Any PFS partition on the drive — you pick one from a list</td><td>The whole exFAT volume, any folders</td></tr>
 <tr><td>Device name in SMS</td><td>Internal HDD (APA)</td><td><code>massN:</code> (shared BDM mass namespace)</td></tr>
 <tr><td>Made with</td><td>HDD-OSD / OPL-era APA &amp; PFS tools</td><td>Any PC — format exFAT, copy files</td></tr>
-<tr><td>Enable with</td><td><b>Autostart HDD APA</b></td><td><b>Autostart HDD BDM</b></td></tr>
+<tr><td>Enable with</td><td><b>Autostart HDD</b> (the APA/PFS row)</td><td><b>Autostart HDD BDM</b></td></tr>
 </tbody>
 </table>
 
-<h2 id="apa">APA / PFS — the <code>SMS_Media</code> partition</h2>
+<h2 id="apa">APA / PFS — the PS2's native HDD format</h2>
 <p>The <b>APA</b> partition scheme and <b>PFS</b> filesystem are the PS2's own native HDD formats — the same ones used
-by Sony's HDD-OSD (the "PlayStation BB Navigator" era) and by the classic homebrew HDD tools. On this kind of drive,
-SMS looks for a dedicated media partition named <b><code>SMS_Media</code></b>, mounts it, and lets you browse and play
-whatever media files you've placed inside.</p>
+by Sony's HDD-OSD (the "PlayStation BB Navigator" era) and by the classic homebrew HDD tools. On this kind of drive, SMS lists the PFS partitions it finds on the APA table as a folder-like list. Pick one with <kbd>Cross</kbd> to mount it and browse the media inside; SMS remembers the partition you last used and re-enters it automatically on the next boot. There is no required partition name.</p>
 
-<div class="callout info"><div class="h">ℹ Where the name comes from</div>
-SMS's internal-HDD path mounts a PFS partition set aside for media and presents its contents in the file list. Because
-this is the classic PS2 HDD format, an <code>SMS_Media</code> (PFS) partition you prepared with any standard APA/PFS
-tool is exactly what SMS expects to find — there's no separate SMS-only formatting step.</div>
+<div class="callout info"><div class="h">ℹ No special partition name needed</div>
+Older guides tell you to create a partition called <code>SMS_Media</code>. That has not been necessary for a long time
+and this build does not look for it — SMS shows you every PFS partition on the drive and mounts the one you choose.
+Any partition made with a standard APA/PFS tool works, whatever it is called. If you already have an
+<code>SMS_Media</code> partition it will simply appear in the list like any other.</div>
 
 <h3 id="apa-prepare">Preparing an APA drive</h3>
 <p>SMS doesn't format drives or create partitions itself — you do that ahead of time with the usual PS2 HDD tools
@@ -103,15 +102,16 @@ tool is exactly what SMS expects to find — there's no separate SMS-only format
 <p>Initialise the internal drive with the standard PS2 APA scheme, the same way you would for any HDD-OSD / OPL-era
 setup. This is a one-time step done from a HDD tool, not from SMS.</p></div>
 <div class="step"><h3>Create a PFS media partition</h3>
-<p>Make a PFS partition to hold your media and name it <code>SMS_Media</code>. Copy your video, audio and picture
+<p>Make a PFS partition to hold your media — call it whatever you like. Copy your video, audio and picture
 files into it (folders inside are fine — SMS browses the raw tree).</p></div>
 <div class="step"><h3>Enable the APA path in SMS</h3>
 <p>Turn on <b>Autostart HDD APA</b> in the settings (or use <b>Start HDD APA now</b> — see
-<a href="#enabling">Enabling &amp; tips</a>). SMS starts the HDD driver stack and mounts the <code>SMS_Media</code>
-partition.</p></div>
+<a href="#enabling">Enabling &amp; tips</a>). SMS starts the HDD driver stack and lists the drive's PFS
+partitions.</p></div>
 <div class="step"><h3>Browse and play</h3>
-<p>Pick the internal-HDD icon in the device menu, press <kbd>Down</kbd> into the file list, and open any file with
-<kbd>Cross</kbd>. It behaves exactly like every other SMS source — the raw filesystem, no mandatory folder layout.</p></div>
+<p>Pick the internal-HDD icon in the device menu and press <kbd>Down</kbd> into the list. Choose your partition
+with <kbd>Cross</kbd> to mount it, then open any file with <kbd>Cross</kbd> as usual — SMS remembers the partition and
+re-enters it on the next boot. It behaves exactly like every other SMS source — the raw filesystem, no mandatory folder layout.</p></div>
 </div>
 
 <div class="callout amber"><div class="h">⚠ APA drives are ~2 TB and older-drive friendly</div>
@@ -165,7 +165,7 @@ autostart:</p>
 <table>
 <thead><tr><th>Your drive is…</th><th>Turn on</th><th>Leave off</th></tr></thead>
 <tbody>
-<tr><td>APA-formatted with an <code>SMS_Media</code> partition</td><td><b>Autostart HDD APA</b></td><td>Autostart HDD BDM</td></tr>
+<tr><td>APA-formatted (any PFS partition)</td><td><b>Autostart HDD APA</b></td><td>Autostart HDD BDM</td></tr>
 <tr><td>exFAT-formatted (a plain drive)</td><td><b>Autostart HDD BDM</b></td><td>Autostart HDD APA</td></tr>
 </tbody>
 </table>
@@ -188,7 +188,7 @@ MMCE</b> share the memory-card (SIO2) bus, so only one of those two runs at once
 <p>On a clean install nothing auto-starts — you turn on exactly what you need. The relevant controls live in the
 settings menu:</p>
 <ul class="checklist">
-<li><b>Autostart HDD APA</b> — brings up the classic APA/PFS path at boot and mounts the <code>SMS_Media</code> partition.</li>
+<li><b>Autostart HDD APA</b> — brings up the classic APA/PFS path at boot and lists the drive's PFS partitions.</li>
 <li><b>Autostart HDD BDM</b> — brings up the exFAT drive over ATA at boot as a <code>massN:</code> device.</li>
 <li><b>Start HDD … now</b> — when a device isn't already running, SMS also offers an on-demand start item, so you can
 bring the HDD up without a reboot. Handy for testing which scheme your drive actually mounts.</li>
@@ -202,13 +202,13 @@ SMS from booting next time — just reboot and try the other scheme, or fall bac
 
 <h3 id="tips">Practical tips</h3>
 <ul class="checklist">
-<li><b>Match the toggle to the format.</b> An exFAT drive will not mount under Autostart HDD APA, and an APA
-<code>SMS_Media</code> partition won't appear under Autostart HDD BDM. If a drive doesn't show up, you almost certainly
+<li><b>Match the toggle to the format.</b> An exFAT drive will not mount under Autostart HDD APA, and an APA/PFS
+partition won't appear under Autostart HDD BDM. If a drive doesn't show up, you almost certainly
 enabled the wrong path for how it's formatted.</li>
 <li><b>Big drive? Use exFAT.</b> APA tops out around 2 TB; exFAT lets you use larger drives and skip PS2-side tooling
 entirely — just format on a PC and copy files.</li>
-<li><b>Big library already on APA? Keep it.</b> If your drive is already APA-formatted with your media in an
-<code>SMS_Media</code> partition, the APA path reads it directly with no conversion.</li>
+<li><b>Big library already on APA? Keep it.</b> If your drive is already APA-formatted, the APA path reads your
+existing PFS partitions directly with no conversion — whatever they are named.</li>
 <li><b>The drive is optional hardware.</b> Everything above assumes a Network Adapter and an internal drive are
 fitted. Without them, SMS is perfectly happy on <a href="usb.html">USB</a>, <a href="mx4sio.html">MX4SIO</a>,
 <a href="mmce.html">MMCE</a> or a <a href="smb.html">network share</a>.</li>

@@ -70,7 +70,7 @@ already run homebrew on your PS2, you are ready.</li>
 MX4SIO, the internal HDD, i.LINK, MMCE, SMB or UDPFS instead, each is covered under
 <a href="devices.html">Devices</a>. On a very early / fat PS2 you can also just burn media to CD/DVD.</li>
 <li><b>A controller</b> to drive the menus: DualShock&nbsp;2, or DualShock&nbsp;3/4 over USB or Bluetooth.
-A memory card is optional for ordinary settings but is required to save the network <code>IPCONFIG.DAT</code>.</li>
+A memory card is optional throughout: settings follow the boot device, and with no card fitted SMS writes <code>IPCONFIG.DAT</code> next to the ELF too.</li>
 </ul>
 
 <div class="callout info"><div class="h">ℹ DualShock 3 / 4</div>
@@ -192,9 +192,7 @@ their icon — but they show up in the status line's path.</div>
 </div>
 
 <details class="deep"><summary>Where do my settings get saved?</summary>
-<p>By default SMS writes its configuration to the memory card at <code>mc0:/SMS/SMS.cfg</code>. In this fork, if SMS
-was booted from another device (USB, HDD…) and there is no memory card to save to, it stores the settings next to
-the <code>SMS.elf</code> on that boot device instead — so a memory-card-less setup still keeps its preferences.
+<p>By default SMS writes its configuration to the memory card at <code>mc0:/SMS/SMS.cfg</code>. In this fork the config simply follows the boot device: launched from USB, MX4SIO, MMCE, i.LINK, the internal HDD, UDPFS — or from a memory card — SMS writes <code>SMS.cfg</code> next to the ELF, whether or not a memory card is fitted. Only a boot device SMS cannot re-mount (SMB, <code>host:</code>, cdrom) falls back to an attached writable device or the card.
 Deleting the config file resets SMS to clean defaults, which means (as on first boot) nothing auto-starts until you
 turn it back on. More on the <a href="settings.html">Settings Reference</a>.</p>
 </details>

@@ -112,7 +112,7 @@ ATA/HDD, i.LINK) so you pick the source visually, and SMS browses the volume beh
 menu, and — for anything not currently running — a <b>Start&nbsp;&lt;device&gt;&nbsp;now</b> item that brings it up on
 demand without a reboot.</p>
 <div class="steps">
-<div class="step"><h3>Autostart &lt;device&gt;</h3><p>A per-device on/off toggle. When on, SMS brings that source up automatically every time it boots. There is one toggle for each optional source: <b>Autostart USB</b>, <b>Autostart MX4SIO</b>, <b>Autostart HDD&nbsp;APA</b>, <b>Autostart HDD&nbsp;BDM</b> (the ATA/exFAT path), <b>Autostart i.LINK</b>, <b>Autostart MMCE</b>, <b>Autostart network</b>, and <b>Autostart UDPFS</b>.</p></div>
+<div class="step"><h3>Autostart &lt;device&gt;</h3><p>A per-device on/off toggle. When on, SMS brings that source up automatically every time it boots. There is one toggle for each optional source: <b>Autostart USB</b>, <b>Autostart i.LINK</b>, <b>Autostart MX4SIO</b>, <b>Autostart MMCE</b>, <b>Autostart HDD</b> (the classic APA/PFS path) and <b>Autostart HDD&nbsp;BDM</b> (the ATA/exFAT path). Networking is a single choice presented as three rows — <b>Autostart HOST&nbsp;(ps2dev)</b>, <b>Autostart SMB</b> and <b>Autostart UDPFS</b> — and picking one clears the other two.</p></div>
 <div class="step"><h3>Start &lt;device&gt; now</h3><p>When a device is <i>not</i> already running, a matching "Start&nbsp;&lt;device&gt;&nbsp;now" item appears so you can spin it up for this session without turning on Autostart or rebooting — handy for a one-off (plug in a drive, start it, browse it).</p></div>
 <div class="step"><h3>Clean install = nothing runs</h3><p>Out of the box, <b>no source auto-starts</b>. You decide what to enable. This keeps boot fast and avoids probing hardware you don't have. Clearing the config returns you to this state (see <a href="#config">Where settings live</a>).</p></div>
 </div>
@@ -139,8 +139,7 @@ for a drive formatted exFAT.</div>
 <div class="callout amber"><div class="h">⚠ SMB / host &nbsp;⇄&nbsp; UDPFS — one Ethernet stack per boot</div>
 The ordinary SMS network path (SMB or developer <code>host:</code>) and <a href="network.html#udpfs">UDPFS</a>
 load different drivers for the same EMAC3 Ethernet controller. Whichever network personality starts first owns the
-NIC until the next boot. Enable <b>Autostart network</b> for SMB/host or <b>Autostart UDPFS</b> for the UDPFS drive,
-not both; reboot to change between them.</div>
+NIC until the next boot. Pick one of <b>Autostart HOST&nbsp;(ps2dev)</b>, <b>Autostart SMB</b> or <b>Autostart UDPFS</b> — selecting one automatically clears the other two. If a different network mode is already running when you switch, SMS offers to restart the network in place ("Network is already running. Restart it now to apply?"); accepting resets the IOP and rebuilds the chosen stack without relaunching SMS, declining saves the choice for the next boot. Note that an in-place restart also drops any mounted storage drivers, so they need starting again.</div>
 
 <h2 id="all-sources">All ten sources at a glance</h2>
 <p>Every storage backend SMS can read, side by side. Click a device to open its full page.</p>
@@ -166,7 +165,7 @@ not both; reboot to change between them.</div>
   <td>Internal ATA (APA/PFS)</td>
   <td>PFS on an APA partition</td>
   <td><code>hdd0:</code></td>
-  <td>Classic Sony hard-drive path, from an <code>SMS_Media</code> partition. Excludes the ATA/exFAT path.</td>
+  <td>Classic Sony hard-drive path; SMS lists the drive's PFS partitions and mounts the one you pick. Excludes the ATA/exFAT path.</td>
 </tr>
 <tr>
   <td><a href="hdd.html"><b>Internal HDD — ATA/exFAT</b></a></td>

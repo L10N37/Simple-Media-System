@@ -155,10 +155,14 @@ playback ends and you return to the browser.</p>
 
 <details class="deep"><summary>Can SMS play every song in a folder automatically?</summary>
 <p>Yes. SMS has long had a "play all the music in this folder" behaviour, so once one track finishes it can roll on
-to the next file in the same directory rather than stopping after a single song. Related player options —
-<b>randomize</b> (shuffle) and <b>repeat</b> — are available too; <b>repeat</b> applies to both folder playback and
-M3U playlists. The exact menu wording lives in the <a href="settings.html">Settings reference</a>; the takeaway is
-that continuous, shuffled and looped music playback are all supported.</p></details>
+to the next file in the same directory rather than stopping after a single song. Simply pressing <b>Cross</b> on a
+track is enough — it plays on through the rest of the folder's music, skipping non-audio files, and stops when you
+press <b>Triangle</b>. To play a folder without picking a track first, highlight the <i>folder</i> and choose
+<b>Play all → Audio</b>. Two related options live in
+<b>Settings → Player settings → MP3 settings</b>: <b>Randomize playlist</b> and <b>Repeat mode</b>.</p>
+<p>They behave differently from what the names suggest. <b>Repeat mode</b> repeats <i>the item you are playing</i>,
+not the folder — so with an <code>.m3u</code> playlist it loops the whole playlist, but during folder playback it
+loops the current track and never advances. Turn it off if you want a folder to play through.</p></details>
 
 <h2 id="playlists">Playlists (M3U)</h2>
 <p>An <b>M3U</b> file (<code>.m3u</code>) is a plain-text list of tracks to play, in order. Instead of opening songs
@@ -206,6 +210,8 @@ order written in the file. Turn it off to hear the list exactly as it is laid ou
 <tr><td><kbd>Select</kbd></td><td>Pause</td></tr>
 <tr><td><kbd>Start</kbd></td><td>Resume</td></tr>
 <tr><td><kbd>△</kbd> Triangle</td><td>Stop and return to the file browser</td></tr>
+<tr><td><kbd>Up</kbd> / <kbd>Down</kbd></td><td>Volume up / down</td></tr>
+<tr><td><kbd>Left</kbd> / <kbd>Right</kbd></td><td>Seek backward / forward within the track</td></tr>
 </tbody>
 </table>
 <p>Stopping a playlist with Triangle drops you back to the browser; there is no need to let the whole queue finish.</p>
