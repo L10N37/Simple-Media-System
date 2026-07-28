@@ -117,6 +117,27 @@ static void _free ( void* apPtr ) {
  if ( apPtr ) free ( apPtr );
 }  /* end _free */
 
+/* A sample-table entry count comes straight out of the file. The UINT_MAX / sizeof tests in the
+ * readers below only stop the multiply from wrapping -- a crafted or merely corrupt count of a
+ * few hundred million still asks malloc for hundreds of megabytes on a 32 MB heap, and most of
+ * those readers then write through the returned pointer without ever looking at it. Both halves
+ * are closed here: the count is cross-checked against the space the atom actually declares
+ * ( every one of these tables stores fixed-width entries, so the declared size is a hard ceiling
+ * on how many can be present ), and each allocation is checked. m_Size is already the declared
+ * size minus the 8-byte atom header, and the version/flags word plus the entry count consume 8
+ * more -- but stsz reads a sample size on top of that, so the caller passes what it actually
+ * consumed. aWidth is the ON-DISK width, which is not always the in-memory struct width --
+ * stco stores 4-byte offsets into an 8-byte int64_t, co64 stores 8.
+ * Degrading means zero the count and return WITHOUT skipping: _mov_read_dflt re-syncs to the end
+ * of the atom from wherever its handler left the cursor, so the remaining traks still parse. The
+ * previous hand-rolled degrade paths skipped apAtom->m_Size themselves, which overshot the atom
+ * end by the 8 bytes already consumed and desynced the very dispatcher that was about to fix
+ * things up. */
+static int _tbl_fits ( const MOVAtom* apAtom, unsigned int anEntries, unsigned int aWidth, unsigned int aConsumed ) {
+ int64_t lAvail = apAtom -> m_Size - aConsumed;
+ return lAvail >= 0 && ( int64_t )anEntries * aWidth <= lAvail;
+}  /* end _tbl_fits */
+
 static int _mov_read_dflt ( MOVContext*, FileContext*, MOVAtom* );
 
 static void _DestroyStream ( SMS_Stream* apStm ) {
@@ -349,6 +370,15 @@ static SMS_CodecID _mp4_get_id ( int aTag ) {
 static int _mov_read_esds ( MOVContext* apCtx, FileContext* apFileCtx, MOVAtom* apAtom ) {
  SMS_Stream* lpStm = apCtx -> m_pBase -> m_pStm[ apCtx -> m_pBase -> m_nStm - 1 ];
  int         lTag, lLen;
+/* Every other stream-child reader here tests the slot; this one did not. The slot really can be
+ * NULL by the time an esds arrives: _mov_read_hdlr_m4a frees the stream and NULLs it in place
+ * ( without decrementing m_nStm ) whenever it meets a video trak on the audio-only path, and
+ * esds sits in the dispatch table at trak level as well as nested inside stsd -- so a file that
+ * puts one there walks straight into lpStm -> m_pCodec below. */
+ if ( !lpStm ) {
+  File_Skip (  apFileCtx, ( uint32_t )apAtom -> m_Size  );
+  return 0;
+ }  /* end if */
  File_Skip ( apFileCtx, 4 );
  lLen = _mp4_read_descr ( apFileCtx, &lTag );
  File_Skip ( apFileCtx, lTag == MP4ESDescrTag ? 3 : 2 );
@@ -360,10 +390,18 @@ static int _mov_read_esds ( MOVContext* apCtx, FileContext* apFileCtx, MOVAtom* 
   lpCodecCtx -> m_BitRate = _read_int_be ( apFileCtx );
   lpCodecCtx -> m_ID      = _mp4_get_id ( lObjTypeID );
   lLen = _mp4_read_descr ( apFileCtx, &lTag );
-  if ( lTag == MP4DecSpecificDescrTag ) {
-   lpCodecCtx -> m_pUserData   = ( uint8_t* )malloc (  ( lLen + 15 ) & ~15  );
-   apFileCtx -> Read ( apFileCtx, lpCodecCtx -> m_pUserData, lLen );
-   lpCodecCtx -> m_UserDataLen = lLen;
+/* lLen is up to 4 septets straight from the file ( ~256 MB ) and is not bounded by the atom, so
+ * both the length and the allocation need testing before the read -- otherwise a bogus
+ * DecoderSpecificInfo either reads far past the atom or, once the oversized malloc fails on a
+ * 32 MB heap, reads directly into a NULL pointer. Leaving m_pUserData NULL is the documented
+ * no-extradata state that both consumers already handle ( SMS_AAC.c _aac_init and the MPEG-4
+ * seeding in SMS_MPEG4.c both gate on m_pUserData && m_UserDataLen > 0 ). */
+  if ( lTag == MP4DecSpecificDescrTag && lLen > 0 && _tbl_fits ( apAtom, lLen, 1, 0 )  ) {
+   lpCodecCtx -> m_pUserData = ( uint8_t* )malloc (  ( lLen + 15 ) & ~15  );
+   if ( lpCodecCtx -> m_pUserData ) {
+    apFileCtx -> Read ( apFileCtx, lpCodecCtx -> m_pUserData, lLen );
+    lpCodecCtx -> m_UserDataLen = lLen;
+   }  /* end if */
   }  /* end if */
  }  /* end if */
  return 0;
@@ -382,14 +420,12 @@ static int _mov_read_stts ( MOVContext* apCtx, FileContext* apFileCtx, MOVAtom* 
   File_Skip ( apFileCtx, 4 );
   lnEntries = _read_int_be ( apFileCtx );
   if ( lnEntries >= UINT_MAX / sizeof ( MOVStts )  ) return -1;
-  lpMyStm -> m_nStts    = lnEntries;
-  lpMyStm -> m_pStts    = ( MOVStts* )malloc ( lnEntries * sizeof ( MOVStts )  );
   lpMyStm -> m_TimeRate = 0;
-  if ( !lpMyStm -> m_pStts ) {   /* 32MB heap: a large ( or bogus ) entry count can fail */
-   lpMyStm -> m_nStts = 0;
-   File_Skip (  apFileCtx, ( uint32_t )apAtom -> m_Size  );
-   return 0;
-  }  /* end if */
+  lpMyStm -> m_nStts    = 0;
+  if (  !_tbl_fits ( apAtom, lnEntries, 8, 8 )  ) return 0;
+  lpMyStm -> m_pStts    = ( MOVStts* )malloc ( lnEntries * sizeof ( MOVStts )  );
+  if ( !lpMyStm -> m_pStts ) return 0;   /* 32MB heap: a large ( or bogus ) entry count can fail */
+  lpMyStm -> m_nStts    = lnEntries;
   for ( i = 0; i < lnEntries; ++i ) {
    int lSampleCount    = _read_int_be ( apFileCtx );
    int lSampleDuration = _read_int_be ( apFileCtx );
@@ -436,8 +472,11 @@ static int _mov_read_stsc ( MOVContext* apCtx, FileContext* apFileCtx, MOVAtom* 
   File_Skip ( apFileCtx, 4 );
   lnEntries = _read_int_be ( apFileCtx );
   if (  lnEntries >= UINT_MAX / sizeof ( MOVStsc )  ) return -1;
-  lpMyStm -> m_nSample2Chunk = lnEntries;
+  lpMyStm -> m_nSample2Chunk = 0;
+  if (  !_tbl_fits ( apAtom, lnEntries, 12, 8 )  ) return 0;
   lpMyStm -> m_pSample2Chunk = ( MOVStsc* )malloc (  lnEntries * sizeof ( MOVStsc )  );
+  if ( !lpMyStm -> m_pSample2Chunk ) return 0;
+  lpMyStm -> m_nSample2Chunk = lnEntries;
   for ( i = 0; i < lnEntries; ++i ) {
    lpMyStm -> m_pSample2Chunk[ i ].m_First = _read_int_be ( apFileCtx );
    lpMyStm -> m_pSample2Chunk[ i ].m_Count = _read_int_be ( apFileCtx );
@@ -459,7 +498,17 @@ static int _mov_read_stsz ( MOVContext* apCtx, FileContext* apFileCtx, MOVAtom* 
   if (  lnEntries >= UINT_MAX / sizeof ( int )  ) return -1;
   lpMyStm -> m_nSamples = lnEntries;
   if ( lSampleSize ) return 0;
+/* Fixed-size samples carry no per-sample table, so the count is only bounded by the atom on
+ * the variable-size path -- 12 consumed here ( version/flags, sample size, entry count ). */
+  if (  !_tbl_fits ( apAtom, lnEntries, 4, 12 )  ) {
+   lpMyStm -> m_nSamples = 0;
+   return 0;
+  }  /* end if */
   lpMyStm -> m_pSampleSize = ( int* )malloc (  lnEntries * sizeof ( int )  );
+  if ( !lpMyStm -> m_pSampleSize ) {
+   lpMyStm -> m_nSamples = 0;
+   return 0;
+  }  /* end if */
   for ( i = 0; i < lnEntries; ++i ) lpMyStm -> m_pSampleSize[ i ] = _read_int_be ( apFileCtx );
  } else File_Skip (  apFileCtx, ( uint32_t )apAtom -> m_Size  );
  return 0;
@@ -473,13 +522,26 @@ static int _mov_read_stco ( MOVContext* apCtx, FileContext* apFileCtx, MOVAtom* 
   File_Skip ( apFileCtx, 4 );
   lnEntries = _read_int_be ( apFileCtx );
   if (  lnEntries >= UINT_MAX / sizeof ( int64_t )  ) return -1;
-  lpMyStm -> m_nChunks       = lnEntries;
+  lpMyStm -> m_nChunks       = 0;
+/* stco stores 32-bit offsets, co64 stores 64-bit ones -- same in-memory table, different
+ * on-disk width, so the ceiling differs by a factor of two. */
+  if (  !_tbl_fits (
+         apAtom, lnEntries,
+         apAtom -> m_Type == SMS_MKTAG( 'c', 'o', '6', '4' ) ? 8 : 4, 8
+        )
+  ) return 0;
   lpMyStm -> m_pChunkOffsets = ( int64_t* )malloc (  lnEntries * sizeof ( int64_t )  );
+  if ( !lpMyStm -> m_pChunkOffsets ) return 0;
   if (  apAtom -> m_Type == SMS_MKTAG( 's', 't', 'c', 'o' )  )
    for ( i = 0; i < lnEntries; ++i ) lpMyStm -> m_pChunkOffsets[ i ] = _read_int_be ( apFileCtx );
   else if (  apAtom -> m_Type == SMS_MKTAG( 'c', 'o', '6', '4' )  )
    for ( i = 0; i < lnEntries; ++i ) lpMyStm -> m_pChunkOffsets[ i ] = _read_long_be( apFileCtx );
+/* Count is published only once the table is actually FILLED. The dispatcher turns a -1 into a
+ * stop, not an abort -- _mov_read_header still indexes whatever traks it has -- so publishing
+ * the count before this branch would have handed _mov_build_index a malloc'd-but-unwritten
+ * offset table to walk. */
   else return -1;
+  lpMyStm -> m_nChunks       = lnEntries;
  } else File_Skip (  apFileCtx, ( uint32_t )apAtom -> m_Size  );
  return 0;
 }  /* end _mov_read_stco */
@@ -501,8 +563,11 @@ static int _mov_read_ctts ( MOVContext* apCtx, FileContext* apFileCtx, MOVAtom* 
   File_Skip ( apFileCtx, 4 );
   lnEntries = _read_int_be ( apFileCtx );
   if (  lnEntries >= UINT_MAX / sizeof ( MOVStts )  ) return -1;
-  lpMyStm -> m_nCtts = lnEntries;
+  lpMyStm -> m_nCtts = 0;
+  if (  !_tbl_fits ( apAtom, lnEntries, 8, 8 )  ) return 0;
   lpMyStm -> m_pCtts = ( MOVStts* )malloc (  lnEntries * sizeof ( MOVStts )  );
+  if ( !lpMyStm -> m_pCtts ) return 0;
+  lpMyStm -> m_nCtts = lnEntries;
   for ( i = 0; i < lnEntries; ++i ) {
    int lCount    = _read_int_be ( apFileCtx );
    int lDuration = _read_int_be ( apFileCtx );
@@ -527,16 +592,14 @@ static int _mov_read_stss ( MOVContext* apCtx, FileContext* apFileCtx, MOVAtom* 
   File_Skip ( apFileCtx, 4 );
   lnEntries = _read_int_be ( apFileCtx );
   if (  lnEntries >= UINT_MAX / sizeof ( int )  ) return -1;
-  lpMyStm -> m_nKeyFrames = lnEntries;
-  lpMyStm -> m_pKeyFrames = ( int* )malloc (  lnEntries * sizeof ( int )  );
 /* Same paranoia as _mov_read_stts: a bogus entry count can make a 32MB heap fail the
  * malloc. Falling back to m_nKeyFrames == 0 is safe -- ISO-BMFF says that without stss
  * EVERY sample is a sync sample, which is exactly how _mov_build_index treats it. */
-  if ( !lpMyStm -> m_pKeyFrames ) {
-   lpMyStm -> m_nKeyFrames = 0;
-   File_Skip (  apFileCtx, 4 * lnEntries  );
-   return 0;
-  }  /* end if */
+  lpMyStm -> m_nKeyFrames = 0;
+  if (  !_tbl_fits ( apAtom, lnEntries, 4, 8 )  ) return 0;
+  lpMyStm -> m_pKeyFrames = ( int* )malloc (  lnEntries * sizeof ( int )  );
+  if ( !lpMyStm -> m_pKeyFrames ) return 0;
+  lpMyStm -> m_nKeyFrames = lnEntries;
   for ( i = 0; i < lnEntries; ++i ) lpMyStm -> m_pKeyFrames[ i ] = _read_int_be ( apFileCtx );
  } else File_Skip (  apFileCtx, ( uint32_t )apAtom -> m_Size  );
  return 0;
@@ -759,6 +822,15 @@ static void _mov_build_index ( SMS_Container* apCont, MOVStream* apMyStm, SMS_St
  MOVContext*  lpCtx    = ( MOVContext* )apCont -> m_pCtx;
  unsigned int i, j, k;
 
+/* Both walks below index m_pSample2Chunk and m_pStts with cursors that are NOT bounded by their
+ * table sizes -- lSTSCIdx only advances when the NEXT entry matches, lSTTSIdx only when the
+ * current entry is used up -- so entry 0 of each is read unconditionally. What keeps that safe
+ * is the gate in _mov_read_header, which refuses to call this at all unless m_nStts, m_nChunks
+ * and m_nSample2Chunk are non-zero ( and repairs a zero m_TimeRate, the divisor here, to 1 ).
+ * That gate tests COUNTS while this code derefs POINTERS, so it is only sound as long as the
+ * two move together -- which is exactly the invariant the readers above now maintain: a count is
+ * published only once its table has been allocated and filled. Do not set a count before its
+ * malloc is checked, or this walks a NULL table. */
  if ( apMyStm -> m_pSampleSize || apStm -> m_pCodec -> m_Type == SMS_CodecTypeVideo ) {
   unsigned int lCurSample = 0;
   unsigned int lSTTSample = 0;
