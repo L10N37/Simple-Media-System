@@ -133,7 +133,13 @@ void SMS_ConfigSetCWD ( const char* apELFPath ) {
  * card, flag those for the FS fallback: SMS_IOPInit resolves an attached,
  * writable USB / MMCE device and keeps SMS.cfg on THAT ( mc0: only when nothing
  * else is attached ). Keeps config off the card, matching the CWD intent.
- * ( The SMB server list SMS.smb + IPCONFIG.DAT are still mc0:-pinned separately.
+ * ( SMS.smb is NOT pinned -- it follows SMS.cfg into whichever directory this
+ *   resolves to; see _derive_smb_path above. IPCONFIG.DAT is the one file that
+ *   does not follow: it stays at mc0:/SYS-CONF/ whenever a card is fitted, because
+ *   the PS2 browser and other titles expect it there, and falls back to the ELF's
+ *   folder only on a card-less console ( SMS_GUIMenuSMS.c, "NO MEMORY CARD ->
+ *   save beside the ELF"; the boot reader in SMS_IOP.c looks in the CWD first,
+ *   which is what makes that round-trip ).
  *   udpfs differs from SMB on every count that excluded SMB: SMS ships the
  *   driver, the server needs no credentials, and writability is PROBED at config
  *   time with a card fallback if the server turns out read-only. ) */
@@ -142,7 +148,8 @@ void SMS_ConfigSetCWD ( const char* apELFPath ) {
        strncmp ( apELFPath, "udpfs", 5 ) != 0 && strncmp ( apELFPath, "mc",   2 ) != 0  ) { s_CfgFallback = 1; return; }
 /* "mc" is re-mountable ( mcman/mcserv reload on every boot ), so an mc-launched ELF keeps
  * its config next to the ELF via fio -- exactly like USB/HDD/UDPFS -- instead of the fragile
- * fixed mc?:/SMS/ libmc+icon.sys save. IPCONFIG.DAT + the SMB list stay mc-pinned separately. */
+ * fixed mc?:/SMS/ libmc+icon.sys save. The SMB list follows it; only IPCONFIG.DAT stays on
+ * the card, and even that falls back to the ELF's folder when no card is fitted. */
 
  for ( i = 0; apELFPath[ i ] && i < ( int )sizeof ( s_pMC0SMC ) - 9; ++i )
   if ( apELFPath[ i ] == '/' || apELFPath[ i ] == ':' || apELFPath[ i ] == '\\' ) lLast = i;
