@@ -3,7 +3,7 @@ Main Application Window for SMS Media Converter.
 """
 from pathlib import Path
 from typing import Dict, Optional, List
-from qt_compat import Qt, Signal, dialog_exec
+from qt_compat import Qt, QTimer, Signal, dialog_exec
 from qt_compat import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QProgressBar, QPushButton, QMessageBox
@@ -35,6 +35,9 @@ class MainWindow(QMainWindow):
         # State management
         self.queue_order: List[str] = []
         self.current_worker: Optional[ConversionWorker] = None
+        # Workers handed off but not yet destroyed. See _advance_queue_soon: dropping the last
+        # reference to a QThread that has not finished aborts the process.
+        self._retired_workers: List[ConversionWorker] = []
         self.inspect_workers: Dict[str, InspectWorker] = {}
         self.is_converting = False
 
@@ -339,6 +342,13 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "No Files Ready", "There are no files in the queue ready for conversion.")
             return
 
+        # Pressing Convert is what re-arms a previous failure. _process_next_in_queue only ever
+        # advances through "Ready" items, so this is the single place a retry can be asked for,
+        # and it takes a deliberate press rather than happening on its own.
+        for i_id in ready_ids:
+            if self.queue_table.items_dict[i_id].status in ("Failed", "Cancelled"):
+                self.queue_table.update_item_status(i_id, "Ready")
+
         self.is_converting = True
         self.btn_convert.setEnabled(False)
         self.btn_cancel.setEnabled(True)
@@ -348,10 +358,25 @@ class MainWindow(QMainWindow):
         self._process_next_in_queue()
 
     def _process_next_in_queue(self):
+        # "Ready" ONLY, and that is load-bearing.
+        #
+        # This used to also pick up "Failed" and "Cancelled". Since a failure sets the item to
+        # "Failed" and then calls straight back into here, the very same item was selected
+        # again, converted again, failed again -- forever. Every lap started another QThread
+        # and another ffmpeg, so the app spun up threads as fast as ffmpeg could fail until
+        # the process died. No Python exception is raised on that path, which is exactly why
+        # a tester reporting "the app just closes" got an empty crash log.
+        #
+        # A success never showed it: the item becomes "Passed", which this scan ignores, so it
+        # returned here and stopped. That asymmetry is why the failure looked codec-specific --
+        # whichever preset failed on the user's machine was the one that appeared to crash.
+        #
+        # Retrying is still available, but only when the USER asks: _start_conversion promotes
+        # failed and cancelled items back to "Ready". An automatic retry of something that just
+        # failed for a deterministic reason can only fail again.
         next_id = None
         for i_id in self.queue_order:
-            status = self.queue_table.items_dict[i_id].status
-            if status in ("Ready", "Failed", "Cancelled"):
+            if self.queue_table.items_dict[i_id].status == "Ready":
                 next_id = i_id
                 break
 
@@ -436,7 +461,7 @@ class MainWindow(QMainWindow):
             else:
                 self.queue_table.update_item_status(item_id, "Failed")
 
-        self._process_next_in_queue()
+        self._advance_queue_soon()
 
     def _on_worker_failed(self, item_id: str, err_msg: str):
         if item_id in self.queue_table.items_dict:
@@ -445,6 +470,36 @@ class MainWindow(QMainWindow):
             self.queue_table.update_item_status(item_id, "Failed")
 
         # Continue queue even if individual file failed
+        self._advance_queue_soon()
+
+    def _advance_queue_soon(self):
+        """Move to the next item from the event loop, never from inside a worker's signal.
+
+        Both callers are slots invoked by the worker that is finishing, and advancing the queue
+        assigns a NEW ConversionWorker over self.current_worker -- which drops the last
+        reference to the QThread whose signal is still on the stack. Destroying a QThread that
+        has not finished is a hard abort in Qt, with no Python exception to catch: the process
+        simply disappears, which is the symptom being chased here.
+
+        Deferring with a zero timer lets the signal return and the thread finish first, and
+        holding the outgoing worker in _retired_workers keeps it alive until Qt is genuinely
+        done with it. This matters on the ORDINARY path too, not just after a failure -- a
+        two-file batch hands over exactly the same way.
+        """
+        if self.current_worker is not None:
+            self._retired_workers.append(self.current_worker)
+            self.current_worker = None
+        QTimer.singleShot(0, self._drain_retired_and_advance)
+
+    def _drain_retired_and_advance(self):
+        """Release finished workers, then start the next item."""
+        still_running = []
+        for w in self._retired_workers:
+            if w.isRunning():
+                still_running.append(w)
+            else:
+                w.deleteLater()
+        self._retired_workers = still_running
         self._process_next_in_queue()
 
     def _on_worker_cancelled(self, item_id: str):

@@ -190,6 +190,16 @@ class ConversionWorker(QThread):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            # ffmpeg writes its output -- including any metadata it echoes from the source --
+            # as UTF-8, but text=True decodes using the LOCALE codepage. On a Central European
+            # Windows that is cp1250/cp1252, whose undefined byte slots (0x81, 0x8D, 0x8F,
+            # 0x90, 0x9D) are perfectly ordinary UTF-8 continuation bytes: a file tagged with
+            # "Ł" (U+0141 -> C5 81) would raise UnicodeDecodeError mid-read. Decoding as UTF-8
+            # and replacing anything malformed means a stray byte can never take down a
+            # conversion -- the log is for humans, and an unreadable character in it is not
+            # worth failing over.
+            encoding="utf-8",
+            errors="replace",
             bufsize=1,
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         )
