@@ -69,7 +69,10 @@ jobs:
       run: |
         mkdir -p dist-artifact/SMS-Media-Converter-Linux
         cp -r tools/sms_converter/* dist-artifact/SMS-Media-Converter-Linux/
-        cd dist-artifact && zip -r SMS-Media-Converter-Linux-${{ github.sha }}.zip SMS-Media-Converter-Linux/
+        # Stable filename, NOT commit-stamped: the rolling release is updated in place rather
+        # than recreated, so a per-commit name would add a new zip on every push and never
+        # remove the old ones. The commit is already recorded in the release notes.
+        cd dist-artifact && zip -r SMS-Media-Converter-Linux.zip SMS-Media-Converter-Linux/
 
     - name: Upload GitHub Actions Single EXE & Artifacts
       uses: actions/upload-artifact@v4
