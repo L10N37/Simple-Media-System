@@ -37,3 +37,6 @@ docs/xmllint.sh
 *.spec
 build/
 dist/
+
+# Generated at runtime by the converter (crash_log.py)
+sms-converter-crash.log
