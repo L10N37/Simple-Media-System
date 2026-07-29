@@ -61,6 +61,14 @@ jobs:
         # the release every single push and never clean any of them off. The commit is
         # recorded in the release notes, which is where it belongs.
         ( cd dist && zip -9 "Simple-Media-System.zip" Simple-Media-System.elf Simple-Media-System-packed.elf Simple-Media-System-DIAG.elf )
+
+        # Language packs, shipped with the build they belong to. The .lng format is
+        # EXACT-COUNT: a pack whose line count does not match this build's string table is
+        # rejected outright, and until recently it was rejected SILENTLY -- a Spanish tester
+        # spent a evening on a Language row that simply did nothing, having found a pack from
+        # an older release. Publishing them here means the packs a user downloads are always
+        # the ones that match the ELF sitting next to them.
+        ( cd docs/translation && zip -9 "$OLDPWD/dist/Simple-Media-System-languages.zip" SMS.lng SMS.lng_* TRANSLATING.txt )
         ls -la dist
 
     # Diagnostic build, made AFTER the release one is already copied into dist/ so the
@@ -113,6 +121,14 @@ jobs:
         - SMS-Media-Converter-Win7.exe -- Windows 7. The standard exe cannot start there (Qt 6 and
           Python 3.9+ both dropped Windows 7), so this is a Qt5 / Python 3.8 build of the same app.
         - SMS-Media-Converter-Linux.zip -- Linux.
+
+        LANGUAGES
+
+        - Simple-Media-System-languages.zip -- translations for this exact build. Pick your
+          language's SMS.lng_XX, rename it to SMS.lng, and put it next to the ELF (or on the
+          memory card at mc0:/SMS/). You can also highlight a .lng file in the browser and
+          install it from the file menu. Packs from a different release will be refused --
+          the format is exact-count -- so use the ones from the build you are running.
         NOTES
         # UPDATE the release in place; do NOT delete and recreate it.
         #
