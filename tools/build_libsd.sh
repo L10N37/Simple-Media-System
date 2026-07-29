@@ -42,11 +42,27 @@ SRC=$(cd "$SMS/../refs/ps2sdk" && pwd)
 
 DSRC=$(cd "$SRC" && pwd -W 2>/dev/null || echo "$SRC")
 DOUT=$(cd "$SMS/irx" && pwd -W 2>/dev/null || echo "$SMS/irx")
+DPAT=$(cd "$HERE/libsd" && pwd -W 2>/dev/null || echo "$HERE/libsd")
 
-MSYS_NO_PATHCONV=1 docker run --rm -v "$DSRC":/src -v "$DOUT":/out ps2dev/ps2dev:v2.0.0 sh -c '
+# DRIFT GATE. Our hardened freesd sources ( tools/libsd, see README-SMS.md there ) were
+# derived from these exact upstream files. If ps2sdk changes them, FAIL rather than quietly
+# building stale pinned copies and losing whatever upstream fixed.
+( cd "$SRC/iop/sound/libsd/src" && sha256sum -c "$HERE/libsd/upstream.sha256" ) || {
+  echo "ERROR: ps2sdk's libsd sources changed since tools/libsd was derived from them." >&2
+  echo "       Re-derive the three bounded spins against the new upstream, refresh" >&2
+  echo "       tools/libsd/upstream.sha256, and re-verify. Do NOT just update the hashes." >&2
+  exit 1
+}
+
+MSYS_NO_PATHCONV=1 docker run --rm -v "$DSRC":/src -v "$DPAT":/patched -v "$DOUT":/out ps2dev/ps2dev:v2.0.0 sh -c '
   set -e
   apk add --no-cache build-base >/dev/null 2>&1     # image ships no make/host cc
   cp -r /src /tmp/ps2sdk && cd /tmp/ps2sdk
+
+  # Overlay the hardened sources onto the pristine copy INSIDE the container, so refs/ps2sdk
+  # is never modified on the host. Three unbounded spins get an escape count -- a misrouted
+  # SPU2 transfer completion must not be able to hang the IOP inside an interrupt handler.
+  cp /patched/freesd.c /patched/voice.c /tmp/ps2sdk/iop/sound/libsd/src/
   export PATH="/usr/local/ps2dev/iop/bin:/usr/local/ps2dev/ee/bin:$PATH"
   export PS2SDKSRC=/tmp/ps2sdk
 
@@ -62,4 +78,8 @@ echo "built libsd.irx ($(stat -c%s "$SMS/irx/libsd.irx") bytes)"
 python "$HERE/irx_imports.py" --exports "$SMS/irx/libsd.irx" 2>/dev/null || \
   python "$HERE/irx_imports.py" "$SMS/irx/libsd.irx"
 
-python "$HERE/compress_irx.py" "$SMS/irx/libsd.irx"
+# compress_irx.py takes its directory from IRX_DIR and IGNORES argv -- passing a path here
+# silently compressed nothing, leaving a stale .xz to be embedded while the freshly built
+# .irx sat unused next to it. It rebuilds every module's .xz in the directory, which is fine:
+# the compression is deterministic, so unchanged modules re-emit byte-identical output.
+IRX_DIR="$SMS/irx" python "$HERE/compress_irx.py"
