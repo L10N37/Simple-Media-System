@@ -36,8 +36,30 @@ Misrouting is fatal in **both** directions, and freesd has no escape from either
    it is an RPC server thread, so the EE caller blocks forever too.
 
 Those two outcomes look different on a TV: (1) freezes the clock, (2) leaves it ticking.
-Both leave whatever was last drawn on screen. That is why this is worth fixing without
-first establishing which one a tester saw — it is the same root cause either way.
+Both leave whatever was last drawn on screen.
+
+### …but this race is NOT what froze the DESR, and the spin bounds are not the fix
+
+Recorded because the bounds were committed while it still was the leading theory, and a
+wrong rationale left standing costs more later than the correction does now.
+
+The boot path disproves it on the only console that runs this code. `SMS_IOPInit` calls
+`SPU_LoadData` (`src/SMS_IOP.c:1715`) unconditionally, which reaches AUDSRV's RPC func 3 →
+`sceSdVoiceTrans` → the **blocking** `sceSdVoiceTransStatus(0, 1)`. That call can only
+return once `TransInterrupt`'s voice branch has reached `VoiceTransComplete[core] = 1`,
+i.e. after passing **both** spins. A DESR finishes booting and plays UI sounds, so both
+spins demonstrably terminate on that exact SPU2.
+
+The misrouting itself is also harder to trigger than it looks: AUDSRV drives the boot voice
+transfer on core 0 and installs its block-transfer handler on core 1, and `TransIntrData`
+is per core — so the two do not share a slot in the configuration SMS actually uses.
+
+The real cause was the SPU2 interrupt handler swallowing a semaphore release; see the
+`Spu2Interrupt` note in `freesd.c` and commit `c76cf00`.
+
+**The bounds stay** as defence in depth — an unbounded spin inside an interrupt handler is
+indefensible in a driver we ship as a fallback, whether or not it fires today — but they
+are insurance, not the repair.
 
 ## What was changed
 
