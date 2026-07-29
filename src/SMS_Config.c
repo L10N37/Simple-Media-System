@@ -69,7 +69,11 @@ static char s_pMC0SMC[ 128 ] __attribute__(   (  section( ".data" ), aligned( 1 
 char g_SaveDiag[ 64 ] __attribute__(   (  section( ".bss" )  )   );
 static int  s_CfgOnFS __attribute__(   (  section( ".data" )  )   );   /* 1 = config is a plain filesystem file ( non-mc boot -> CWD ), not a memory-card save */
 static int  s_CfgFallback __attribute__(   (  section( ".data" )  )   );   /* 1 = non-re-mountable boot ( smb / host / cdrom ): resolve an attached FS device in SMS_IOPInit; mc0: only if none is found */
-char g_pBootDir[ 128 ] __attribute__(   (  section( ".bss" )  )   );   /* "<dev>/path/" of the ELF when launched from a non-mc device ( for CWD skins ); empty on mc boots */
+char g_pBootDir[ 128 ] __attribute__(   (  section( ".bss" )  )   );   /* "<dev>/path/" of the ELF
+                                                                       * for EVERY re-mountable boot device,
+                                                                       * mc INCLUDED. Empty only for cdrom /
+                                                                       * host / SMB, or after
+                                                                       * SMS_ConfigClearFS. */
 static char s_pPS2D  [] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "PS2D";
 static char s_pSMSICN[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) = "SMS.icn";
 
@@ -170,8 +174,16 @@ void SMS_ConfigSetCWD ( const char* apELFPath ) {
 
 /* CWD-first asset probe. On a re-mountable FS boot ( g_pBootDir set ) where
  * "<bootdir><apName>" exists, copy that fio path into apBuf and return 1. Return 0
- * ( mc / SMB boot, or the CWD copy is absent ) -> the caller falls back to its
- * existing memory-card read, so no on-card asset is ever lost. The probe is a bare
+ * ( the CWD copy is absent, or a boot with no usable CWD: cdrom / host / SMB ) ->
+ * the caller falls back to its existing memory-card read, so no on-card asset is
+ * ever lost.
+ *
+ * NOT "mc / SMB boot", which is what this said and what the g_pBootDir declaration
+ * still claimed: SMS_ConfigSetCWD accepts "mc" alongside mass/mmce/pfs/hdd/udpfs, so
+ * an mc-launched ELF DOES get a boot dir and DOES get the CWD probe -- assets sit
+ * next to the ELF on a card exactly as they do on USB. Two stale comments saying the
+ * opposite is how an afternoon gets spent looking for a bug that is not there. The
+ * probe is a bare
  * fioOpen ( only errors, never hangs, on an unmounted device ) -> boot-safe once
  * past GUI_Initialize. Assets sit FLAT next to the ELF, same as SMS.cfg / SMS.smb. */
 int SMS_ConfigAssetPath ( char* apBuf, int aSize, const char* apName ) {
@@ -179,7 +191,7 @@ int SMS_ConfigAssetPath ( char* apBuf, int aSize, const char* apName ) {
  int lLen = strlen ( g_pBootDir );
  int lFD;
 
- if ( !g_pBootDir[ 0 ] ) return 0;                             /* mc / SMB boot -> mc read */
+ if ( !g_pBootDir[ 0 ] ) return 0;                             /* no CWD ( cdrom/host/SMB ) -> mc read */
  if (  lLen + ( int )strlen ( apName ) >= aSize  ) return 0;
 
  strcpy ( apBuf, g_pBootDir );                                 /* "<dev>/path/" ( trailing sep ) */
