@@ -129,6 +129,59 @@ class TestSMSConverter(unittest.TestCase):
             if preset.ext != ".avi":
                 self.assertNotIn("-vtag", c, f"preset '{name}' emits a vtag into {preset.ext}")
 
+class TestPresetRoundTrip(unittest.TestCase):
+    """Every preset must survive a trip through the settings widget unchanged.
+
+    TWO shipped bugs came from reading the model back out of a display widget, and both were
+    invisible until someone tried a conversion:
+
+    1. Two VIDEO_CODECS_MAP keys map to "mpeg4", so the video combo always landed on the Xvid
+       one and vtag was recovered from its TEXT -- every .mp4 preset came back as vtag="XVID"
+       and ffmpeg refused the container ("Tag XVID incompatible with output codec id '12'").
+    2. Audio-only presets park that same hidden combo at index 0, which IS the Xvid entry, so
+       they came back claiming vcodec="mpeg4". MP3 and Ogg then failed outright, and the AAC
+       .m4a preset silently wrote a VIDEO STREAM into an audio file -- exit 0, no error shown.
+
+    Asserting the round-trip catches the whole class, including the next display name someone
+    adds that happens to collide with an existing one.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from qt_compat import QtWidgets
+        cls._app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    def test_presets_round_trip_through_the_widget(self):
+        from ui.advanced_settings import AdvancedSettingsWidget
+
+        w = AdvancedSettingsWidget()
+        for name, preset in PRESETS.items():
+            with self.subTest(preset=name):
+                w.load_preset(preset)
+                got = w.get_settings_dict()
+                self.assertEqual(got.get("vcodec"), preset.vcodec, f"vcodec changed for '{name}'")
+                self.assertEqual(got.get("vtag"), preset.vtag, f"vtag changed for '{name}'")
+
+    def test_audio_presets_never_encode_video(self):
+        from ui.advanced_settings import AdvancedSettingsWidget
+
+        ff, _ = find_ffmpeg_binaries()
+        w = AdvancedSettingsWidget()
+        for name, preset in PRESETS.items():
+            if preset.vcodec is not None:
+                continue
+            with self.subTest(preset=name):
+                w.load_preset(preset)
+                # has_video_stream=True is the case that broke: an audio preset applied to a
+                # source that HAS video. It must drop the video, not try to encode it.
+                cmd = build_ffmpeg_cmd(
+                    ff, "input.avi", f"output{preset.ext}.partial",
+                    w.get_settings_dict(), has_video_stream=True,
+                )
+                self.assertIn("-vn", cmd, f"audio preset '{name}' does not drop video: {cmd}")
+                self.assertNotIn("-c:v", cmd, f"audio preset '{name}' encodes video: {cmd}")
+
 class TestQtCompatShim(unittest.TestCase):
     """Guard the Qt binding shim.
 

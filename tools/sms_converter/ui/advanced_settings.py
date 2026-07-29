@@ -327,6 +327,12 @@ class AdvancedSettingsWidget(QWidget):
     def load_preset(self, preset: Preset):
         """Populates control values from preset data."""
         self._block_signals(True)
+        # Audio-only is a property of the PRESET, so it is remembered as one. The combo box
+        # below gets parked at index 0 purely to neutralise a hidden control, and index 0 is
+        # the Xvid entry -- so reading the answer back off that widget said "mpeg4 + XVID" for
+        # every audio preset. See get_settings_dict.
+        self._audio_only = preset.vcodec is None
+
         if preset.vcodec is None:
             # Audio-only preset: hide the entire Video Settings group, not just neutralise the
             # codec combo. Eleven video controls that cannot affect the output were still
@@ -404,9 +410,23 @@ class AdvancedSettingsWidget(QWidget):
         self._check_resolution_warning()
 
     def get_settings_dict(self) -> Dict[str, Any]:
-        vcodec_display = self.combo_vcodec.currentText()
-        ff_vcodec = VIDEO_CODECS_MAP.get(vcodec_display, "mpeg4")
-        vtag = "XVID" if "Xvid-compatible" in vcodec_display else None
+        # An audio-only preset has NO video codec, and the video combo is a hidden control
+        # parked at index 0 -- which happens to be the Xvid entry. Reading it back as though
+        # it meant something returned vcodec="mpeg4", vtag="XVID", so converting a VIDEO file
+        # with the MP3 / FLAC / Ogg / AAC presets built `-c:v libxvid ... -f mp3` and ffmpeg
+        # died: "Error submitting a packet to the muxer: Invalid argument", exit 127. All four
+        # audio presets failed on any source that had a video track.
+        #
+        # build_ffmpeg_cmd already does the right thing with vcodec=None -- it emits -vn and
+        # drops the video stream -- so reporting the preset's actual state is the whole fix.
+        # Same root cause as the vtag bug: a display widget is not where the model lives.
+        if getattr(self, "_audio_only", False):
+            ff_vcodec = None
+            vtag = None
+        else:
+            vcodec_display = self.combo_vcodec.currentText()
+            ff_vcodec = VIDEO_CODECS_MAP.get(vcodec_display, "mpeg4")
+            vtag = "XVID" if "Xvid-compatible" in vcodec_display else None
 
         acodec_display = self.combo_acodec.currentText()
         ff_acodec = AUDIO_CODECS_MAP.get(acodec_display, "aac")
