@@ -217,9 +217,19 @@ int Spu2Interrupt(void *data)
 	(void)data;
 
 	val = ((U16_REGISTER_READ(SD_C_IRQINFO))&0xc)>>2;
-	if (!val)
-		return 1;
 
+	/* SMS: was `if (!val) return 1;` -- an early-out that skipped the registered handler
+	 * entirely. That is not a harmless "spurious interrupt, ignore it": the handler is how
+	 * the client learns the interrupt happened, and SMS's AUDSRV uses this one to release a
+	 * one-shot semaphore that its UI-sound RPC has already taken. Swallow a single release
+	 * and the NEXT UI sound blocks forever in AUDSRV's own WaitSema, wedging its single RPC
+	 * server thread -- and with it every EE caller waiting on a reply.
+	 *
+	 * So the acknowledge stays conditional on the IRQINFO bits, because acking a core that
+	 * did not raise anything would be wrong, but the handler is now ALWAYS invoked. Calling
+	 * it for an interrupt this read could not attribute is safe: the semaphore it signals is
+	 * created with max_count 1, so a surplus signal is clamped rather than accumulated. An
+	 * extra wake-up costs nothing; a missed one costs the console. */
 	if (val&1)
 		U16_REGISTER_WRITE(SD_CORE_ATTR(0), U16_REGISTER_READ(SD_CORE_ATTR(0)) & 0xffbf);
 
@@ -747,7 +757,13 @@ void SetSpdifMode(u16 val)
 	{
 		case 0:
 			mode &= 0xFFFD;
-			out = (val & 0xFEF7) | 0x20;
+			/* SMS: was `out = (val & 0xFEF7) | 0x20;` -- masking the ARGUMENT instead of
+			 * the register read at the top of this function, which every other case here
+			 * masks. With the val=0 that AUDSRV passes at playback start it stamped
+			 * SD_C_SPDIF_OUT to a flat 0x0020, clearing bit 15 and the core volume
+			 * InitCoreVolume had just written. Separate defect from the hang, same
+			 * blast radius: PSX only, and it lands exactly when a file starts playing. */
+			out = (out & 0xFEF7) | 0x20;
 			break;
 		case 1:
 			mode |= 2;

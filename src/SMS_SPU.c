@@ -13,6 +13,7 @@
 #include "SMS_SIF.h"
 #include "SMS_DMA.h"
 #include "SMS_Config.h"
+#include "SMS_Timer.h"
 
 #include <kernel.h>
 #include <iopheap.h>
@@ -65,6 +66,50 @@ __asm__(
  ".set reorder\n\t"
 );
 #endif  /* USE_SIF2 */
+/* THE WEDGED-SERVER HANG. A bound server is not the same as a LIVE one.
+ *
+ * Every wrapper here posts an RPC whose completion callback signals a sema, then waits on
+ * that sema. If AUDSRV's single RPC server thread is itself stuck, the reply never comes and
+ * the wait never ends -- the EE thread is gone, permanently, with whatever was last drawn
+ * left on screen.
+ *
+ * AUDSRV can genuinely get stuck. Its UI-sound entry ( RPC func 4 ) takes a one-shot
+ * semaphore and does NOT give it back; the only thing that returns that token is the SPU2
+ * interrupt handler AUDSRV installs through libsd. Confirmed by disassembling the embedded
+ * blob: func 4 calls thsemap ordinal 8 ( WaitSema, no timeout ) on the semaphore created
+ * with init_count 1, and the sole matching iSignalSema ( ordinal 7 ) lives in the interrupt
+ * handler. Drop ONE of those interrupts and the NEXT UI sound blocks forever, taking the
+ * server thread and every later caller with it.
+ *
+ * Dropping one is possible on a PSX, whose libsd is the freesd we embed rather than Sony's:
+ * its SPU2 handler returns early on a zero IRQINFO read without invoking the registered
+ * handler, so the token is never released. That is fixed on the IOP side too ( see
+ * tools/libsd/README-SMS.md ), but the EE must not depend on a driver being correct.
+ *
+ * So these waits are BOUNDED, and a timeout retires the audio server: every later call then
+ * takes the server-NULL guards below and no-ops. SMS ends up silent instead of dead.
+ *
+ * NOT applied to SPU_PlayPCM. That runs once per audio buffer for the whole of playback, and
+ * a polling wait there would burn the EE and starve the decoders on every console. It keeps
+ * its blocking wait; it is also unreachable once a timeout has retired the server.
+ */
+#define SPU_RPC_TIMEOUT 180   /* vblank ticks, ~3 s NTSC -- far beyond any healthy reply */
+
+static int _spu_wait ( int aSema, SifRpcClientData_t* apClient ) {
+
+ u64 lEnd = g_Timer + SPU_RPC_TIMEOUT;
+
+ while (  PollSema ( aSema ) < 0  ) if ( g_Timer > lEnd ) {
+
+  apClient -> server = NULL;   /* retire it: every wrapper below now no-ops */
+  return 0;
+
+ }  /* end if */
+
+ return 1;
+
+}  /* end _spu_wait */
+
 /* THE UNBOUND-SERVER HANG, in every wrapper below.
  *
  * Each one fires an RPC with a completion callback that signals a sema, then WaitSema's on
@@ -95,7 +140,7 @@ static void SPU_SetVolume ( int aVol ) {
  SifCallRpc (
   &s_ClientDataV, 0, SIF_RPC_M_NOWAIT, s_Buffer, 4, NULL, 0, (  void ( * )( void* )  )iSignalSema, ( void* )s_SemaVol
  );
- WaitSema ( s_SemaVol );
+ _spu_wait ( s_SemaVol, &s_ClientDataV );
 
 }  /* end SPU_SetVolume */
 
@@ -106,7 +151,7 @@ static void SPU_Silence ( void ) {
  SifCallRpc (
   &s_ClientDataV, 1, SIF_RPC_M_NOWAIT, NULL, 0, NULL, 0, (  void ( * ) ( void* )  )iSignalSema, ( void* )s_SemaVol
  );
- WaitSema ( s_SemaVol );
+ _spu_wait ( s_SemaVol, &s_ClientDataV );
 
 }  /* end Silence */
 
@@ -117,7 +162,7 @@ void SPU_Shutdown ( void ) {
  SifCallRpc (
   &s_ClientDataV, 2, SIF_RPC_M_NOWAIT, NULL, 0, NULL, 0, (  void ( * ) ( void* )  )iSignalSema, ( void* )s_SemaVol
  );
- WaitSema ( s_SemaVol );
+ _spu_wait ( s_SemaVol, &s_ClientDataV );
 
 }  /* end SPU_Shutdown */
 #ifdef USE_SIF2
@@ -175,7 +220,7 @@ static void SPU_Destroy ( void ) {
  SifCallRpc (
   &s_ClientDataA, 1, SIF_RPC_M_NOWBDC | SIF_RPC_M_NOWAIT, NULL, 0, NULL, 0, (  void ( * ) ( void* )  )iSignalSema, ( void* )s_SemaPCM
  );
- WaitSema ( s_SemaPCM );
+ _spu_wait ( s_SemaPCM, &s_ClientDataA );
 
 }  /* end SPU_Destroy */
 
@@ -207,7 +252,7 @@ void SPU_LoadData ( void* apData, int aSize ) {
  SifCallRpc (
   &s_ClientDataA, 3, SIF_RPC_M_NOWAIT, s_Buffer, 8, NULL, 0, (  void ( * ) ( void* )  )iSignalSema, ( void* )s_SemaPCM
  );
- WaitSema ( s_SemaPCM );
+ _spu_wait ( s_SemaPCM, &s_ClientDataA );
 
  SifFreeIopHeap ( lpIOPData );
 
@@ -244,7 +289,7 @@ void SPU_PlaySound ( SMSound* apSound, int aVol ) {
   SifCallRpc (
    &s_ClientDataA, 4, SIF_RPC_M_NOWAIT, s_Buffer, 12, NULL, 0, (  void ( * ) ( void* )  )iSignalSema, ( void* )s_SemaPCM
   );
-  WaitSema ( s_SemaPCM );
+  _spu_wait ( s_SemaPCM, &s_ClientDataA );
 
  }  /* end if */
 
