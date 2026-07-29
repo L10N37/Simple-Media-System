@@ -254,6 +254,13 @@ def build_ffmpeg_cmd(
     """
     cmd = [ffmpeg_path, "-y", "-i", input_file]
 
+    # The TARGET CONTAINER, worked out up front because the video section below needs it and
+    # it used to be derived only further down, at the muxer selection. Taken from the output
+    # filename with the encoder's ".partial" suffix stripped, which would otherwise defeat
+    # any extension-based decision.
+    _out_clean = output_file[:-8] if output_file.endswith(".partial") else output_file
+    out_ext = Path(_out_clean).suffix.lower()
+
     vcodec = settings.get("vcodec")
     acodec = settings.get("acodec")
 
@@ -269,9 +276,19 @@ def build_ffmpeg_cmd(
         if pass_num and passlog:
             cmd.extend(["-pass", str(pass_num), "-passlogfile", passlog])
 
-        # VTAG for XVID
+        # VTAG for XVID -- AVI ONLY.
+        #
+        # "XVID" is an AVI FourCC. The MP4 muxer has no mapping for it and ffmpeg aborts while
+        # writing the header ("Could not find tag for codec mpeg4 in stream #0, codec not
+        # currently supported in container"), so a stray vtag does not degrade the output, it
+        # destroys the job. A UI bug fed exactly that combination to every .mp4 preset for as
+        # long as the MP4 presets have existed.
+        #
+        # The container is the authority on which tags are legal, so the check lives here
+        # rather than only at the place that got it wrong: no amount of preset or
+        # advanced-settings confusion can put an AVI FourCC into an MP4 again.
         vtag = settings.get("vtag")
-        if vtag:
+        if vtag and out_ext == ".avi":
             cmd.extend(["-vtag", vtag])
 
         # Video bitrate
@@ -359,9 +376,7 @@ def build_ffmpeg_cmd(
     else:
         cmd.append("-an")
 
-    # Determine format from output filename (handling .partial extension)
-    out_path_clean = output_file[:-8] if output_file.endswith(".partial") else output_file
-    ext = Path(out_path_clean).suffix.lower()
+    ext = out_ext   # computed at the top; the video section needs it too
 
     format_map = {
         ".avi": "avi",

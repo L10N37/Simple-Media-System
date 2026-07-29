@@ -339,13 +339,32 @@ class AdvancedSettingsWidget(QWidget):
             self.combo_vcodec.setCurrentIndex(0)
         else:
             self.grp_video.setVisible(True)
+            # TWO entries in VIDEO_CODECS_MAP map to "mpeg4" -- "Xvid-compatible MPEG-4
+            # [RECOMMENDED]" and "MPEG-4 Part 2" -- so matching on vcodec ALONE always picked
+            # the Xvid one, whichever preset was selected. That mattered because vtag is
+            # recovered from this combo's TEXT in get_settings_dict, so every .mp4 preset
+            # silently came back carrying vtag="XVID": the command became
+            # `-c:v libxvid -vtag XVID ... -f mp4`, and the MP4 muxer has no tag for it
+            # ("Could not find tag for codec mpeg4 in stream #0"). ffmpeg exited non-zero the
+            # moment it wrote the header, so EVERY MP4 conversion failed, on every platform.
+            # It also defeated resolve_video_encoder, whose whole point is that the .mp4
+            # presets keep ffmpeg's own mpeg4 encoder rather than libxvid.
+            #
+            # So select on the pair (vcodec, vtag), which is what actually identifies a codec
+            # choice here, and fall back to the first vcodec match only if no exact pair
+            # exists.
+            want_xvid = preset.vtag == "XVID"
+            fallback = None
             for display_name, ff_name in VIDEO_CODECS_MAP.items():
-                if ff_name == preset.vcodec:
-                    if preset.vtag == "XVID":
-                        self.combo_vcodec.setCurrentText("Xvid-compatible MPEG-4 (Recommended)")
-                    else:
-                        self.combo_vcodec.setCurrentText(display_name)
+                if ff_name != preset.vcodec:
+                    continue
+                if fallback is None:
+                    fallback = display_name
+                if ("Xvid-compatible" in display_name) == want_xvid:
+                    fallback = display_name
                     break
+            if fallback is not None:
+                self.combo_vcodec.setCurrentText(fallback)
 
         if preset.width:
             self.spin_width.setValue(preset.width)

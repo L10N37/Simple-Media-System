@@ -89,6 +89,46 @@ class TestSMSConverter(unittest.TestCase):
         self.assertIn("-sn", cmd)
         self.assertIn("-progress", cmd)
 
+    def test_vtag_is_avi_only(self):
+        """An AVI FourCC must never reach a non-AVI container.
+
+        This is a REGRESSION TEST for a bug that broke every .mp4 conversion for as long as
+        the MP4 presets existed, on every platform, and reported only "Failed". Two entries
+        in VIDEO_CODECS_MAP map to "mpeg4", so the advanced-settings panel matched the Xvid
+        one for any mpeg4 preset; vtag is recovered from that combo's TEXT, so the .mp4
+        presets came back carrying vtag="XVID". ffmpeg then got
+        `-c:v libxvid -vtag XVID ... -f mp4` and aborted while writing the header:
+        "Could not find tag for codec mpeg4 in stream #0, codec not currently supported in
+        container".
+
+        Asserted at the command builder because that is the layer that knows the container,
+        and it is the layer that has to stay right however the settings were assembled.
+        """
+        ff, _ = find_ffmpeg_binaries()
+        polluted = {
+            "vcodec": "mpeg4", "vtag": "XVID", "width": 640, "height": 480, "fps": "30",
+            "vbitrate_kbps": 1500, "acodec": "aac", "abitrate_kbps": 128,
+            "sample_rate": 48000, "channels": 2, "limit_streams": True,
+        }
+
+        mp4 = build_ffmpeg_cmd(ff, "input.avi", "output.mp4.partial", polluted)
+        self.assertNotIn("-vtag", mp4, f"AVI FourCC leaked into an MP4: {mp4}")
+        self.assertIn("mp4", mp4)
+
+        # ...while the AVI path, which is the proven one, keeps it.
+        avi = build_ffmpeg_cmd(ff, "input.avi", "output.avi.partial", polluted)
+        self.assertIn("-vtag", avi)
+        self.assertIn("XVID", avi)
+
+        # And no shipped preset may produce the bad pairing on its own.
+        for name, preset in PRESETS.items():
+            if not preset.vcodec:
+                continue
+            s = dict(polluted, vcodec=preset.vcodec, vtag=preset.vtag, acodec=preset.acodec)
+            c = build_ffmpeg_cmd(ff, "input.avi", f"output{preset.ext}.partial", s)
+            if preset.ext != ".avi":
+                self.assertNotIn("-vtag", c, f"preset '{name}' emits a vtag into {preset.ext}")
+
 class TestQtCompatShim(unittest.TestCase):
     """Guard the Qt binding shim.
 

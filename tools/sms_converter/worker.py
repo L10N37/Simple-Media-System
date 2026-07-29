@@ -301,7 +301,27 @@ class ConversionWorker(QThread):
 
         if return_code != 0:
             # console_log is a bounded deque, which cannot be sliced.
-            err_text = "".join(list(self.console_log)[-20:])
+            #
+            # Drop the machine-readable progress lines before taking the tail. "-progress
+            # pipe:1" emits a ~12-line key=value block every second, so a raw last-20 was
+            # usually two progress blocks and none of the actual error -- ffmpeg prints its
+            # complaint and exits, and the surrounding spam pushed it out of the window.
+            _err_lines = [
+                l for l in self.console_log
+                if "=" not in l or l.strip().partition("=")[0].strip() not in _PROGRESS_KEYS
+            ]
+            err_text = "".join(_err_lines[-25:])
+
+            # AND put it in the breadcrumb trail, not only in the GUI. The trail is the file
+            # testers actually send back, and it recorded the launch and then simply stopped
+            # -- a failed conversion left no reason anywhere in it. A log that says a job
+            # failed but not why costs a whole round-trip with someone else's hardware.
+            crash_log.breadcrumb(f"ffmpeg exited {return_code} during {label}")
+            for _l in _err_lines[-25:]:
+                _l = _l.rstrip()
+                if _l:
+                    crash_log.breadcrumb(f"  ffmpeg: {_l}")
+
             self._cleanup_partial(passlog)
             self.failed_signal.emit(
                 self.item_id,
