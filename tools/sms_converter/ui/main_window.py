@@ -331,6 +331,13 @@ class MainWindow(QMainWindow):
             settings.get("abitrate_kbps", 128)
         )
 
+        # Keep the probed dimensions: build_ffmpeg_cmd's upscale clamp reads src_width /
+        # src_height, and nothing in the app produced them.
+        _item = self.queue_table.items_dict.get(item_id)
+        if _item is not None:
+            _item.src_width = int(v_width or 0)
+            _item.src_height = int(v_height or 0)
+
         self.queue_table.update_item_metadata(item_id, duration, size, est_bytes)
         self.queue_table.update_item_status(item_id, "Ready")
 
@@ -475,6 +482,13 @@ class MainWindow(QMainWindow):
         # Add preset name metadata to settings
         preset_name = self.preset_selector.current_preset_name()
         settings["preset_name"] = preset_name
+
+        # The source size, so the "Allow upscaling" setting can actually apply. Without
+        # these the clamp in build_scale_filter never runs and a 320x240 clip is blown up
+        # to 640x480 -- bigger file, no added detail, and four times the macroblocks for
+        # the PS2 to decode in software.
+        settings["src_width"] = item.src_width
+        settings["src_height"] = item.src_height
 
         # Determine extension
         ext = PRESETS[preset_name].ext if preset_name in PRESETS else ".avi"

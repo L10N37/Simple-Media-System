@@ -16,6 +16,11 @@ class QueueItem:
     file_name: str
     duration_sec: float = 0.0
     size_bytes: int = 0
+    # Source pixel dimensions from the ffprobe pass. They were being computed in
+    # _on_inspect_finished and thrown away, which left build_ffmpeg_cmd's upscale clamp
+    # with nothing to read and made the "Allow upscaling" checkbox inert.
+    src_width: int = 0
+    src_height: int = 0
     status: str = "Ready"
     estimated_size_bytes: int = 0
     console_log: str = ""

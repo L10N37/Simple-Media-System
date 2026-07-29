@@ -182,6 +182,38 @@ class TestPresetRoundTrip(unittest.TestCase):
                 self.assertIn("-vn", cmd, f"audio preset '{name}' does not drop video: {cmd}")
                 self.assertNotIn("-c:v", cmd, f"audio preset '{name}' encodes video: {cmd}")
 
+class TestUpscaleClamp(unittest.TestCase):
+    """"Allow upscaling (default off)" has to actually be off by default.
+
+    build_scale_filter clamps against settings["src_width"]/["src_height"], and NOTHING in the
+    app ever produced them -- _on_inspect_finished computed the values from the ffprobe summary
+    and dropped them on the floor. So the clamp never ran, the checkbox changed nothing, and
+    every sub-640x480 source was silently blown up: measured on a 320x240 clip, 227,782 bytes
+    at 640x480 versus 132,030 at its native size, for no added detail and four times the
+    macroblocks for the PS2's SOFTWARE decoder.
+    """
+
+    def test_clamp_engages_only_when_upscaling_is_disallowed(self):
+        from ffmpeg_utils import build_scale_filter
+
+        small = dict(src_w=320, src_h=240, target_w=640, target_h=480,
+                     scaling_mode="Letterbox to exact dimensions")
+
+        off = " ".join(build_scale_filter(allow_upscale=False, **small))
+        on = " ".join(build_scale_filter(allow_upscale=True, **small))
+
+        self.assertIn("320", off, f"source was upscaled with upscaling disallowed: {off}")
+        self.assertIn("640", on, f"upscaling was requested and refused: {on}")
+        self.assertNotEqual(off, on, "the allow_upscale setting changes nothing")
+
+    def test_settings_reaching_the_worker_carry_source_dimensions(self):
+        """The producer side: a QueueItem must be able to carry what the clamp consumes."""
+        from ui.queue_table import QueueItem
+
+        item = QueueItem(item_id="x", file_path="/tmp/x.avi", file_name="x.avi")
+        self.assertTrue(hasattr(item, "src_width"))
+        self.assertTrue(hasattr(item, "src_height"))
+
 class TestCoverArtIsNotVideo(unittest.TestCase):
     """Album art must not be mistaken for a video track.
 
