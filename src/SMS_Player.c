@@ -54,6 +54,26 @@
 #define SMS_VP_BUFFER_SIZE ( 1024 * 1024 * 2 )
 #define SMS_AP_BUFFER_SIZE ( 1024 *  512     )
 
+/* PLAYBACK STAGE CRUMBS -- see the note above SMS_ExitCrumb in SMS_IOP.c for the mechanism.
+ *
+ * Same trick that localised the PSX boot hang, aimed at the next one: a DESR reaches the file
+ * browser now but wedges when a file is started, and everything between pressing X and the
+ * player taking the screen is invisible from here. Each crumb names the call ABOUT to run, so
+ * the last code left on screen IS the blocking call.
+ *
+ * E70-E72 run while the browser is still displayed, E73-E78 inside Play, and E79 means the
+ * main loop was entered -- past that point the screen belongs to the player and a stall is a
+ * decode/render problem, not a start-up one.
+ *
+ * A macro, not a bare call: SMS_ExitCrumb's body compiles away in release but its string
+ * literals would not, and this tree's small-data section has already been pushed past the
+ * GP-relative window once by exactly that ( see the -G4096 note in the Makefile ). */
+#ifdef SMS_DIAG
+#define PLAY_CRUMB( n, s ) SMS_ExitCrumb ( ( n ), ( s ) )
+#else
+#define PLAY_CRUMB( n, s ) do { } while ( 0 )
+#endif
+
 #define THREAD_ID_VR s_ThreadIDs[ 0 ]
 #define THREAD_ID_VD s_ThreadIDs[ 1 ]
 #define THREAD_ID_AR s_ThreadIDs[ 2 ]
@@ -937,6 +957,8 @@ static int _sms_play ( void* apPlayer ) {
    float lFPS = ( float )lpStms[ s_Player.m_VideoIdx ] -> m_pCodec -> m_FrameRate / 
                 ( float )lpStms[ s_Player.m_VideoIdx ] -> m_pCodec -> m_FrameRateBase;
 
+   PLAY_CRUMB ( 73, "subtitles" );
+
    SMS_GUIClockSuspend ();
    SMS_PgIndStart ();
    GUI_Progress ( STR_LOADING_SUBTITLES.m_pStr, 100, 0 );
@@ -989,6 +1011,13 @@ static int _sms_play ( void* apPlayer ) {
 
  if ( s_Player.m_AudioIdx >= 0 ) {
 
+/* PRIME SUSPECT for the DESR stall, and the reason this crumb is here rather than a guess:
+ * SPU_InitContext opens with SPU_Destroy, the first audio RPC of the whole session, and it
+ * runs BEFORE the player takes the screen. A wedge here leaves the file browser standing --
+ * exactly what a DESR shows. E74 latching says the audio server is the problem; E74 passing
+ * clears the whole SPU path in one photo. */
+  PLAY_CRUMB ( 74, "spu initctx" );
+
   s_Player.m_pSPUCtx = SPU_InitContext (
    s_Player.m_AudioChannels, s_Player.m_AudioSampleRate,
    SPU_Index2Volume ( g_Config.m_PlayerVolume ),
@@ -998,7 +1027,7 @@ static int _sms_play ( void* apPlayer ) {
   ++lnDec;
 
  }  /* end if */
- 
+
  if ( s_Player.m_pFileCtx ) {
 
   sprintf ( lBuff, STR_BUFFERING_FILE.m_pStr, s_Player.m_pCont -> m_pName  );
@@ -1029,13 +1058,23 @@ static int _sms_play ( void* apPlayer ) {
   }  /* end if */
 
   GUI_Status ( lBuff );
+
+  PLAY_CRUMB ( 75, "file stream" );
+
   s_Player.m_pFileCtx -> Stream (
    s_Player.m_pFileCtx, s_Player.m_StartPos = s_Player.m_pFileCtx -> m_CurPos, s_Player.m_pFileCtx -> m_StreamSize >> 3
   );
 
  }  /* end if */
 
+/* Last crumb drawn onto the browser's screen. Everything after this belongs to the player:
+ * _prepare_ipu_context re-inits the GS, so if the display still shows the file browser with
+ * E76 on it, the console never got as far as owning the screen. */
+ PLAY_CRUMB ( 76, "ipu context" );
+
  _prepare_ipu_context ();
+
+ PLAY_CRUMB ( 77, "playerctl init" );
 
  PlayerControl_Init ();
  FlushCache ( 0 );
@@ -1056,9 +1095,14 @@ static int _sms_play ( void* apPlayer ) {
  } else {
 
   s_Player.m_OSDPackets[ 5 ] = NULL;
+
+  PLAY_CRUMB ( 78, "fill queues" );
+
   lSize = _fill_packet_queues ();
 
  }  /* end else */
+
+ PLAY_CRUMB ( 79, "play loop" );
 repeat:
  s_Player.m_pIPUCtx -> StopSync ( 1 );
 
@@ -1589,6 +1633,8 @@ SMS_Player* SMS_InitPlayer ( FileContext* apFileCtx, FileContext* apSubFileCtx, 
 
  SMS_PgIndStart ();
 
+ PLAY_CRUMB ( 70, "getcontainer" );
+
  s_Player.m_pCont   = SMS_GetContainer ( apFileCtx, 0x80000000 );
  s_Player.m_pSubCtx = NULL;
  s_Player.m_Flags  &= ~( SMS_FLAGS_SPDIF | SMS_FLAGS_DXSB | SMS_PF_PDW22 );
@@ -1610,6 +1656,8 @@ SMS_Player* SMS_InitPlayer ( FileContext* apFileCtx, FileContext* apSubFileCtx, 
 
    s_Player.m_VideoIdx = 0x80000000;
    s_Player.m_AudioIdx = 0x80000000;
+
+   PLAY_CRUMB ( 71, "codec open" );
 
    for ( i = 0; i < s_Player.m_pCont -> m_nStm; ++i ) {
 
@@ -1760,6 +1808,8 @@ destroy:
    lThread.gp_reg           = &_gp;
    lThread.func             = lpAD;
    THREAD_ID_AD = CreateThread ( &lThread );
+
+   PLAY_CRUMB ( 72, "start threads" );
 
    _init_queues ( 1 );
    _start_threads ();

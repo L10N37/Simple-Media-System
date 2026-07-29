@@ -65,7 +65,30 @@ __asm__(
  ".set reorder\n\t"
 );
 #endif  /* USE_SIF2 */
+/* THE UNBOUND-SERVER HANG, in every wrapper below.
+ *
+ * Each one fires an RPC with a completion callback that signals a sema, then WaitSema's on
+ * it. If the server was never bound ( s_ClientData*.server == NULL ) SifCallRpc fails and
+ * returns immediately, the callback never runs, and the WaitSema blocks forever on a sema
+ * nothing will ever signal. Not a crash, not an error -- a permanent stop on whichever
+ * thread called it, with the last drawn screen left standing.
+ *
+ * SPU_PlaySound already guards for exactly this ( see the note there ); the rest did not.
+ * It is reachable for real now: SIF_BindRPC is BOUNDED since the PSX boot fix, so an AUDSRV
+ * that registers too slowly no longer spins at boot -- it leaves a NULL server behind and
+ * boot continues. Nothing then fails until playback, because the first thing playback does
+ * for any file with audio is SPU_InitContext -> SPU_Destroy, which runs BEFORE the player
+ * takes the screen. The console wedges with the file browser still displayed.
+ *
+ * Note the two servers bind independently ( _Init binds A then V ), so a machine can hold
+ * a working audio server and a NULL volume server: UI sounds play, and the hang waits until
+ * the first volume or silence call inside the player.
+ *
+ * When the server IS bound -- every console where audio works at all -- these guards change
+ * nothing whatsoever. */
 static void SPU_SetVolume ( int aVol ) {
+
+ if ( !s_ClientDataV.server ) return;
 
  s_Buffer[ 0 ] = aVol;
 
@@ -78,6 +101,8 @@ static void SPU_SetVolume ( int aVol ) {
 
 static void SPU_Silence ( void ) {
 
+ if ( !s_ClientDataV.server ) return;
+
  SifCallRpc (
   &s_ClientDataV, 1, SIF_RPC_M_NOWAIT, NULL, 0, NULL, 0, (  void ( * ) ( void* )  )iSignalSema, ( void* )s_SemaVol
  );
@@ -86,6 +111,8 @@ static void SPU_Silence ( void ) {
 }  /* end Silence */
 
 void SPU_Shutdown ( void ) {
+
+ if ( !s_ClientDataV.server ) return;
 
  SifCallRpc (
   &s_ClientDataV, 2, SIF_RPC_M_NOWAIT, NULL, 0, NULL, 0, (  void ( * ) ( void* )  )iSignalSema, ( void* )s_SemaVol
@@ -104,6 +131,18 @@ static void SPU_PlayPCM ( void* apData ) {
 
  apData = ( unsigned int )apData << 4;
  apData = ( unsigned int )apData >> 4;
+
+/* Same hang, one layer lower: this path does not use RPC at all, it hands the buffer to the
+ * IOP over SIF2 and waits for AUDSRV to raise the SBUS interrupt that signals s_SemaPCM. No
+ * AUDSRV, no interrupt, and the audio renderer thread stops here for good. The server handle
+ * is the same precondition either way, so it is the test used.
+ *
+ * Returning early is a stop-gap, not silent playback done properly: the renderer will then
+ * drain packets as fast as they decode and m_AudioTime advances off the packet PTS rather
+ * than off real playback, so video paced against it runs fast. That is a bad picture instead
+ * of a dead console -- worth having, still worth fixing properly by not selecting an audio
+ * stream at all when there is no audio server. */
+ if ( !s_ClientDataA.server ) return;
 
  DMA_SendA ( DMAC_SIF2, apData, 2 );
  Interrupt2Iop ( 1 );
@@ -131,6 +170,8 @@ static void SPU_PlayPCM ( void* apBuf ) {
 #endif  /* USE_SIF2 */
 static void SPU_Destroy ( void ) {
 
+ if ( !s_ClientDataA.server ) return;
+
  SifCallRpc (
   &s_ClientDataA, 1, SIF_RPC_M_NOWBDC | SIF_RPC_M_NOWAIT, NULL, 0, NULL, 0, (  void ( * ) ( void* )  )iSignalSema, ( void* )s_SemaPCM
  );
@@ -140,9 +181,16 @@ static void SPU_Destroy ( void ) {
 
 void SPU_LoadData ( void* apData, int aSize ) {
 
- void*            lpIOPData = SifAllocIopHeap ( aSize );
+ void*            lpIOPData;
  SifDmaTransfer_t lXfrData;
  int              lID;
+
+/* Guarded BEFORE the IOP heap allocation, not after: with no audio server this would
+ * otherwise reserve IOP memory, DMA the UI sound bank into it, and then wedge on the
+ * WaitSema still holding the allocation. */
+ if ( !s_ClientDataA.server ) return;
+
+ lpIOPData = SifAllocIopHeap ( aSize );
 
  lXfrData.src  = apData;
  lXfrData.dest = lpIOPData;
@@ -219,7 +267,13 @@ SPUContext* SPU_InitContext ( int anChannels, int aFreq, int aVolume, int aBase,
  s_Buffer[ 4 ] = aBase;
  s_Buffer[ 5 ] = aRatio;
 
- SifCallRpc ( &s_ClientDataA, 0, 0, s_Buffer, 32, s_Buffer, 4, NULL, NULL );
+/* Still returns a context when the server is missing -- every caller dereferences the result
+ * without checking ( s_Player.m_pSPUCtx -> Silence (), -> SetVolume (), -> PlayPCM () ), so
+ * handing back NULL would trade a hang for a null dereference. The methods it is filled with
+ * are the guarded ones above, which no-op. s_Buffer[ 0 ] is zeroed rather than left holding
+ * whatever the previous call put there, so m_BufTime is 0 instead of a stale figure. */
+ if ( s_ClientDataA.server ) SifCallRpc ( &s_ClientDataA, 0, 0, s_Buffer, 32, s_Buffer, 4, NULL, NULL );
+ else                        s_Buffer[ 0 ] = 0;
 
  s_SPUCtx.m_BufTime = (  ( float )s_Buffer[ 0 ] * 1000.0F  ) / (  ( aFreq << 1 ) * anChannels  );
  s_SPUCtx.PlayPCM   = SPU_PlayPCM;
