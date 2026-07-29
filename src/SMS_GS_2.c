@@ -276,11 +276,25 @@ void GSFont_Init ( void ) {
 int GSFont_Width ( char* apStr, int aLen ) {
 
  int lW   = 0;
- int lChr = apStr[ 0 ] - ' ';
+ int lChr = ( unsigned char )apStr[ 0 ] - ' ';
 
+/* ( unsigned char ), and it matters.
+ *
+ * g_GSCharWidth has 224 entries covering 0x20..0xFF -- the table is BUILT for high bytes. But
+ * `char` is SIGNED on this toolchain ( verified: ee-gcc folds `char c = 0xC3` to -61 ), so
+ * `*apStr - ' '` goes NEGATIVE for every byte >= 0x80 and reads before the array. The first
+ * byte of a UTF-8 n-tilde is 0xC3, giving index -93.
+ *
+ * Reported from Spain: filenames with accented letters displayed truncated, and renaming the
+ * file to plain ASCII made the whole name appear. That is this. The out-of-bounds byte comes
+ * back as the character's WIDTH, so the fit-to-width loops -- GUI_Status's
+ * `while ( GSFont_WidthEx (...) > lWidth ) --lLen;` in SMS_GUIDesktop.c is the clearest --
+ * measure the string as far wider than it is and chop characters off until it "fits".
+ * A garbage width also misplaces every glyph after the accent.
+ */
  while ( aLen-- ) {
 
-  lChr  = *apStr++ - ' ';
+  lChr  = ( unsigned char )*apStr++ - ' ';
   lW   += g_GSCharWidth[ lChr ];
 
  }  /* end for */
@@ -297,7 +311,7 @@ int GSFont_WidthEx ( char* apStr, int aLen, int aDW ) {
 
  while ( aLen-- ) {
 
-  lChr    = *apStr++ - ' ';
+  lChr    = ( unsigned char )*apStr++ - ' ';   /* unsigned: see the note in GSFont_Width */
   retVal += ( int )(  ( float )g_GSCharWidth[ lChr ] * lAR + 0.5F  );
 
  }  /* end while */
@@ -357,7 +371,7 @@ void GSFont_Render ( char* apStr, int aLen, int aX, int anY, u64*           apDM
 
  while ( aLen-- ) {
 
-  int lChr = *apStr++ - ' ';
+  int lChr = ( unsigned char )*apStr++ - ' ';   /* unsigned: see the note in GSFont_Width */
   int lX, lU, lV;
 
   lX     = lCurX << 4;
@@ -449,7 +463,7 @@ void GSFont_RenderEx ( char* apStr, int aLen, int aX, int anY, u64*           ap
 
  while ( aLen-- ) {
 
-  int lChr = *apStr++ - ' ';
+  int lChr = ( unsigned char )*apStr++ - ' ';   /* unsigned: see the note in GSFont_Width */
 
   lX     = lCurX << 4;
   lCurX += ( int )(  ( float )g_GSCharWidth[ lChr ] * lAR + 0.5F  );
