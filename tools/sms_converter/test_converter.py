@@ -182,6 +182,62 @@ class TestPresetRoundTrip(unittest.TestCase):
                 self.assertIn("-vn", cmd, f"audio preset '{name}' does not drop video: {cmd}")
                 self.assertNotIn("-c:v", cmd, f"audio preset '{name}' encodes video: {cmd}")
 
+class TestOnlyPlayableCombinationsAreOffered(unittest.TestCase):
+    """Advanced Settings must not offer a codec the preset's container cannot carry.
+
+    The container is fixed by the preset (Preset.ext); both codec combos were filled from the
+    entire map for every preset and nothing reconciled them. 20 of 54 preset x audio-codec
+    pairs killed the job -- and on the MP3 preset the audio group is the ONLY visible panel,
+    with 5 of its 6 choices fatal.
+
+    The reference table is read out of the SMS demuxer sources; see SMS_CONTAINER_CODECS.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from qt_compat import QtWidgets
+        cls._app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    def test_every_offered_codec_is_decodable_in_that_container(self):
+        from config import VIDEO_CODECS_MAP, AUDIO_CODECS_MAP, sms_supports
+        from ui.advanced_settings import AdvancedSettingsWidget
+
+        w = AdvancedSettingsWidget()
+        for name, preset in PRESETS.items():
+            w.load_preset(preset)
+            for combo, kind, source in (
+                (w.combo_vcodec, "video", VIDEO_CODECS_MAP),
+                (w.combo_acodec, "audio", AUDIO_CODECS_MAP),
+            ):
+                if kind == "video" and preset.vcodec is None:
+                    continue  # hidden for audio-only presets
+                for i in range(combo.count()):
+                    display = combo.itemText(i)
+                    ff = source[display]
+                    with self.subTest(preset=name, kind=kind, codec=display):
+                        self.assertTrue(
+                            sms_supports(preset.ext, kind, ff),
+                            f"'{name}' offers {kind} codec {ff!r}, which SMS cannot decode "
+                            f"inside {preset.ext}",
+                        )
+
+    def test_table_matches_the_sms_sources_it_was_read_from(self):
+        """Guards the specific facts the table encodes, so a careless edit is caught."""
+        from config import sms_supports
+
+        # SMS_Codec.c AVI FourCC table has no MPEG-1/MPEG-2 entry, and no AAC in its audio one.
+        self.assertFalse(sms_supports(".avi", "video", "mpeg2video"))
+        self.assertFalse(sms_supports(".avi", "video", "mpeg1video"))
+        self.assertFalse(sms_supports(".avi", "audio", "aac"))
+        self.assertTrue(sms_supports(".avi", "video", "mpeg4"))
+        self.assertTrue(sms_supports(".avi", "audio", "libmp3lame"))   # encoder name normalised
+        # MPEG-PS carries MPEG-1/2 video; MP4 has no msmpeg4v3 object type.
+        self.assertTrue(sms_supports(".mpg", "video", "mpeg2video"))
+        self.assertFalse(sms_supports(".mp4", "video", "msmpeg4v3"))
+        # An unlisted container means "no information", never "unsupported".
+        self.assertTrue(sms_supports(".mkv", "video", "anything"))
+
 class TestUpscaleClamp(unittest.TestCase):
     """"Allow upscaling (default off)" has to actually be off by default.
 

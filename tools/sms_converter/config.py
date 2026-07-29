@@ -183,8 +183,13 @@ PRESETS: Dict[str, Preset] = {
         vbitrate_kbps=None,
         acodec="flac",
         abitrate_kbps=0,
-        sample_rate=48000,
-        channels=2,
+        # None = keep the source. This preset promises "keeps every bit of the original" and
+        # was force-resampling to 48 kHz and upmixing to stereo, so a 44.1 kHz mono source
+        # came out 48 kHz stereo -- not bit-identical, and LARGER than leaving it alone.
+        # Neither is required by the target: SMS reads the rate from FLAC STREAMINFO and
+        # accepts mono (SMS-v1/src/SMS_ContainerFLAC.c).
+        sample_rate=None,
+        channels=None,
         ext=".flac",
         description="Keeps every bit of the original - no quality is thrown away. Files are roughly 4x an MP3, so use it when you have the space and care about the difference."
     ),
@@ -238,3 +243,72 @@ AUDIO_CODECS_MAP = {
     "FLAC [lossless]": "flac",
     "Ogg Vorbis": "libvorbis",
 }
+
+# WHAT SMS CAN ACTUALLY DEMUX, PER CONTAINER.
+#
+# A codec is not enough on its own -- SMS looks the codec up in a table that belongs to the
+# CONTAINER's reader, so a stream can be perfectly valid, play everywhere else, and still be
+# undecodable on the PS2 because that container's table has no entry for it. Read straight
+# out of the SMS sources, not assumed:
+#
+#   AVI      SMS-v1/src/SMS_Codec.c:33-54 (video FourCCs) and :58-65 (audio wFormatTag).
+#            Video is MPEG-4 Part 2 and MS-MPEG4v3 ONLY -- there is no MPEG-1 or MPEG-2
+#            FourCC in that table at all, and no AAC in the audio one.
+#   MP4/M4A  SMS-v1/src/SMS_ContainerMOV.c:346-356, by MPEG-4 object type id.
+#   MPEG-PS  SMS-v1/src/SMS_ContainerMPEG_PS.c:673-718, by stream id.
+#
+# Used two ways: Advanced Settings will not OFFER a combination that lands outside this, and
+# the validator warns if one reaches an output anyway.
+#
+# Names are ffmpeg DECODER names as ffprobe reports them (codec_name), which is not always the
+# encoder name -- libmp3lame encodes to "mp3", libvorbis to "vorbis".
+SMS_CONTAINER_CODECS = {
+    ".avi": {
+        "video": {"mpeg4", "msmpeg4v3"},
+        "audio": {"mp3", "mp2", "ac3", "dts", "vorbis", "wmav1", "wmav2", "pcm_s16le"},
+    },
+    ".mpg": {
+        "video": {"mpeg1video", "mpeg2video"},
+        "audio": {"mp2", "mp3", "ac3", "dts", "pcm_s16be"},
+    },
+    ".mpeg": {
+        "video": {"mpeg1video", "mpeg2video"},
+        "audio": {"mp2", "mp3", "ac3", "dts", "pcm_s16be"},
+    },
+    ".mp4": {
+        "video": {"mpeg4", "mpeg1video", "mpeg2video"},
+        "audio": {"aac", "mp3", "ac3", "vorbis"},
+    },
+    ".m4a": {
+        "video": set(),
+        "audio": {"aac", "mp3", "ac3", "vorbis"},
+    },
+    # Audio-only containers, each with its own reader in SMS.
+    ".mp3":  {"video": set(), "audio": {"mp3"}},
+    ".flac": {"video": set(), "audio": {"flac"}},
+    ".ogg":  {"video": set(), "audio": {"vorbis"}},
+    ".ac3":  {"video": set(), "audio": {"ac3"}},
+}
+
+# ffmpeg ENCODER name -> the decoder name ffprobe reports for its output.
+ENCODER_TO_CODEC_NAME = {
+    "libmp3lame": "mp3",
+    "libvorbis": "vorbis",
+    "libxvid": "mpeg4",
+}
+
+def codec_name_for(encoder: str) -> str:
+    """Normalise an encoder name to the codec name ffprobe will report."""
+    return ENCODER_TO_CODEC_NAME.get(encoder, encoder)
+
+def sms_supports(ext: str, kind: str, encoder_or_codec: str) -> bool:
+    """Can SMS decode `encoder_or_codec` as `kind` ("video"/"audio") inside `ext`?
+
+    Unknown containers return True: this table is a statement about what SMS is KNOWN to
+    read, and an unlisted extension means "no information", which must not be reported as a
+    problem.
+    """
+    table = SMS_CONTAINER_CODECS.get(str(ext).lower())
+    if table is None:
+        return True
+    return codec_name_for(encoder_or_codec) in table.get(kind, set())

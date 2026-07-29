@@ -325,11 +325,7 @@ class MainWindow(QMainWindow):
 
         # Calculate estimated size based on current settings
         settings = self.advanced_settings.get_settings_dict()
-        est_bytes = calculate_estimated_output_size(
-            duration,
-            settings.get("vbitrate_kbps", 1500),
-            settings.get("abitrate_kbps", 128)
-        )
+        est_bytes = self._estimate_bytes(duration, settings)
 
         # Keep the probed dimensions: build_ffmpeg_cmd's upscale clamp reads src_width /
         # src_height, and nothing in the app produced them.
@@ -355,15 +351,7 @@ class MainWindow(QMainWindow):
         preset_name = self.preset_selector.current_preset_name()
         preset = PRESETS.get(preset_name)
         if preset:
-            is_match = (
-                settings.get("width") == (preset.width or settings.get("width")) and
-                settings.get("height") == (preset.height or settings.get("height")) and
-                settings.get("vbitrate_kbps") == (preset.vbitrate_kbps or settings.get("vbitrate_kbps")) and
-                settings.get("bframes") == 0 and
-                not settings.get("qpel") and
-                not settings.get("gmc")
-            )
-            self.preset_selector.set_badge_state(is_match)
+            self.preset_selector.set_badge_state(self._matches_preset(settings, preset))
 
         self._recalculate_estimates()
 
@@ -371,13 +359,63 @@ class MainWindow(QMainWindow):
         settings = self.advanced_settings.get_settings_dict()
         for item_id, item in self.queue_table.items_dict.items():
             if item.duration_sec > 0:
-                est = calculate_estimated_output_size(
-                    item.duration_sec,
-                    settings.get("vbitrate_kbps", 1500),
-                    settings.get("abitrate_kbps", 128)
-                )
-                item.estimated_size_bytes = est
+                item.estimated_size_bytes = self._estimate_bytes(item.duration_sec, settings)
         self._update_total_estimated_size()
+
+    @staticmethod
+    def _matches_preset(settings, preset) -> bool:
+        """Is the current configuration still this preset's, in every respect that reaches ffmpeg?
+
+        The old test looked at six controls out of nineteen, so thirteen of them could be
+        changed with the badge still reading "Using the recommended settings" -- including the
+        codecs. It also wrote `preset.width or settings.get("width")`, which compares a value
+        to ITSELF whenever the preset declares None, so on an audio-only preset the badge could
+        never go amber at all.
+
+        Video fields are skipped for an audio-only preset: those controls are hidden and
+        cannot affect the output, so counting them would report a difference the user has no
+        way to see or undo.
+        """
+        fields = [("acodec", preset.acodec), ("abitrate_kbps", preset.abitrate_kbps),
+                  ("sample_rate", preset.sample_rate), ("channels", preset.channels)]
+        if preset.vcodec is not None:
+            fields += [("vcodec", preset.vcodec), ("vtag", preset.vtag),
+                       ("width", preset.width), ("height", preset.height),
+                       ("vbitrate_kbps", preset.vbitrate_kbps)]
+            if preset.fps is not None:
+                fields.append(("fps", str(preset.fps)))
+
+        for key, expected in fields:
+            actual = settings.get(key)
+            if key == "fps":
+                actual = str(actual)
+            if actual != expected:
+                return False
+
+        # Extras that are off in every preset; turning one on IS a custom setting.
+        return (
+            settings.get("bframes") == 0
+            and not settings.get("qpel")
+            and not settings.get("gmc")
+            and not settings.get("deinterlace")
+            and not settings.get("normalize_audio")
+            and not settings.get("two_pass")
+            and not settings.get("allow_upscale")
+        )
+
+    def _estimate_bytes(self, duration_sec, settings):
+        """Estimated output size for one file under `settings`.
+
+        The video bitrate is only counted when a video codec is actually being ENCODED. Both
+        call sites used to pass settings.get("vbitrate_kbps", 1500) unconditionally, so every
+        audio-only preset was estimated as if it were also writing 1500 kbps of video --
+        roughly 9x too large for a 128 kbps MP3, which then dragged the 4 GiB banner along
+        with it.
+        """
+        vbitrate = settings.get("vbitrate_kbps", 1500) if settings.get("vcodec") else 0
+        return calculate_estimated_output_size(
+            duration_sec, vbitrate, settings.get("abitrate_kbps", 128)
+        )
 
     def _update_total_estimated_size(self):
         total_bytes = sum(item.estimated_size_bytes for item in self.queue_table.items_dict.values())
@@ -386,20 +424,32 @@ class MainWindow(QMainWindow):
             self.lbl_size_warning.hide()
             return
 
+        # GiB/MiB: these are powers of 1024, and the 4 GiB ceiling they are compared against
+        # is too. Labelling them GB/MB understated the number by ~7% against the limit the
+        # user is being warned about.
         mib = total_bytes / (1024 * 1024)
         if mib >= 1024:
-            size_str = f"{mib / 1024:.2f} GB"
+            size_str = f"{mib / 1024:.2f} GiB"
         else:
-            size_str = f"{mib:.1f} MB"
+            size_str = f"{mib:.1f} MiB"
 
         self.lbl_estimated_size.setText(f"Estimated output: {size_str}")
 
-        # Check 4 GiB thresholds
-        if total_bytes >= SIZE_4_0_GIB:
-            self.lbl_size_warning.setText("[BLOCKED: Projected file size >= 4.0 GiB limit]")
+        # The 4 GiB ceiling is a PER-FILE limit -- it is what SMS itself can open, and what
+        # the worker's own size safeguard aborts a single encode on. Testing it against the
+        # SUM of the queue meant five perfectly fine 1 GB files raised a red "BLOCKED"
+        # banner, while one genuinely oversized file among small ones could be missed. And
+        # "BLOCKED" was a lie in both directions: nothing consults this label, Convert stays
+        # enabled, and the worker aborts on real size mid-encode regardless.
+        largest = max(
+            (item.estimated_size_bytes for item in self.queue_table.items_dict.values()),
+            default=0,
+        )
+        if largest >= SIZE_4_0_GIB:
+            self.lbl_size_warning.setText("[A file is projected over the 4.0 GiB limit and will be stopped]")
             self.lbl_size_warning.setStyleSheet("color: #E53E3E; font-weight: bold;")
             self.lbl_size_warning.show()
-        elif total_bytes >= SIZE_3_8_GIB:
+        elif largest >= SIZE_3_8_GIB:
             self.lbl_size_warning.setText("[WARNING: Projected file size approaching 4.0 GiB ceiling]")
             self.lbl_size_warning.setStyleSheet("color: #ED8936; font-weight: bold;")
             self.lbl_size_warning.show()
@@ -469,8 +519,35 @@ class MainWindow(QMainWindow):
             self.btn_cancel.setEnabled(False)
             self.btn_remove.setEnabled(True)
             self.btn_clear.setEnabled(True)
-            self.lbl_status_msg.setText("Batch conversion completed.")
-            self.progress_bar.setValue(100)
+            # Say what actually happened. This reported "Batch conversion completed." and
+            # slammed the bar to 100% without ever looking at how anything ended -- so a batch
+            # in which every single file failed announced success, which is the worst possible
+            # thing for a tool whose failures are already hard to notice.
+            # "Passed" and "Warning" are both outcomes where the file was produced and kept;
+            # see _on_validation_finished. Anything else did not deliver a file.
+            done = failed = cancelled = 0
+            for i_id in self.queue_order:
+                it = self.queue_table.items_dict.get(i_id)
+                if it is None:
+                    continue
+                if it.status in ("Passed", "Warning"):
+                    done += 1
+                elif it.status == "Failed":
+                    failed += 1
+                elif it.status == "Cancelled":
+                    cancelled += 1
+
+            bits = []
+            if done:
+                bits.append(f"{done} converted")
+            if failed:
+                bits.append(f"{failed} failed")
+            if cancelled:
+                bits.append(f"{cancelled} cancelled")
+            summary = "Batch finished: " + ", ".join(bits) + "." if bits else "Batch finished."
+            self.lbl_status_msg.setText(summary)
+            # Only claim a full bar when something actually got there.
+            self.progress_bar.setValue(100 if done else 0)
             return
 
         item = self.queue_table.items_dict[next_id]

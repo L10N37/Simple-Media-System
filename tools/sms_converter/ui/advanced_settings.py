@@ -10,7 +10,7 @@ from qt_compat import (
 
 from config import (
     VIDEO_CODECS_MAP, AUDIO_CODECS_MAP, MPEG_ALLOWED_FPS_MAP,
-    MAX_WIDTH, MAX_HEIGHT, WARNING_RESOLUTION_MSG, Preset
+    MAX_WIDTH, MAX_HEIGHT, WARNING_RESOLUTION_MSG, Preset, sms_supports
 )
 
 class AdvancedSettingsWidget(QWidget):
@@ -269,6 +269,12 @@ class AdvancedSettingsWidget(QWidget):
         for b in [64, 96, 128, 160, 192, 256, 320]:
             label = f"{b} kbps (Recommended)" if b == 128 else f"{b} kbps"
             self.combo_abitrate.addItem(label, b)
+        # A target bitrate is meaningless for a lossless codec, which is why the FLAC preset
+        # declares abitrate_kbps=0. Without an entry carrying that value it matched nothing,
+        # so the combo kept whatever the previously viewed preset had left there and reported
+        # it as FLAC's -- and build_ffmpeg_cmd skips -b:a for a falsy value anyway, so the
+        # number shown had no effect on the output either.
+        self.combo_abitrate.addItem("Lossless / encoder default", 0)
         self.combo_abitrate.setCurrentIndex(2) # 128 kbps
         self.combo_abitrate.currentIndexChanged.connect(self._on_control_changed)
 
@@ -277,6 +283,12 @@ class AdvancedSettingsWidget(QWidget):
         for sr in [48000, 44100, 32000, 22050]:
             label = f"{sr} Hz (Recommended)" if sr == 48000 else f"{sr} Hz"
             self.combo_sample.addItem(label, sr)
+        # "Keep source" entries, carrying None. Without them a preset had no way to say
+        # "do not touch this", and the FLAC preset -- described as "Keeps every bit of the
+        # original" -- was forcing 48 kHz stereo, which is neither lossless nor required:
+        # SMS reads the rate from FLAC STREAMINFO and accepts mono
+        # (SMS-v1/src/SMS_ContainerFLAC.c). Resampling also made the file BIGGER.
+        self.combo_sample.addItem("Keep source rate", None)
         self.combo_sample.setCurrentIndex(0) # 48000 Hz
         self.combo_sample.currentIndexChanged.connect(self._on_control_changed)
 
@@ -284,6 +296,7 @@ class AdvancedSettingsWidget(QWidget):
         self.combo_channels.setToolTip("Audio channel layout. Stereo (2 ch) recommended for PlayStation 2.")
         self.combo_channels.addItem("Stereo (2 ch) — Recommended", 2)
         self.combo_channels.addItem("Mono (1 ch)", 1)
+        self.combo_channels.addItem("Keep source layout", None)
         self.combo_channels.currentIndexChanged.connect(self._on_control_changed)
 
         self.chk_normalize = QCheckBox("Normalize audio (Loudnorm)")
@@ -324,6 +337,44 @@ class AdvancedSettingsWidget(QWidget):
         main_layout.addWidget(self.scroll)
         main_layout.addWidget(self.label_res_warning)
 
+    @staticmethod
+    def _select_by_data(combo, value) -> bool:
+        """Select the entry whose userData equals `value`. True if one existed.
+
+        Compares with `is` for None so that a genuine "keep source" entry is matched rather
+        than colliding with 0, which is a real bitrate value elsewhere.
+        """
+        for i in range(combo.count()):
+            data = combo.itemData(i)
+            if (data is None and value is None) or (data is not None and data == value):
+                combo.setCurrentIndex(i)
+                return True
+        return False
+
+    def _restrict_codec_choices(self, ext: str):
+        """Repopulate the codec combos with the entries valid for `ext`.
+
+        Rebuilding rather than disabling: a disabled-but-visible entry still invites the
+        question "why can't I pick that?", and the honest answer is that this container
+        cannot carry it. An empty result would leave the user no choice at all, so the map
+        is left untouched in that case and the validator remains the backstop.
+        """
+        for combo, kind, source in (
+            (self.combo_vcodec, "video", VIDEO_CODECS_MAP),
+            (self.combo_acodec, "audio", AUDIO_CODECS_MAP),
+        ):
+            allowed = [d for d, ff in source.items() if sms_supports(ext, kind, ff)]
+            if not allowed:
+                allowed = list(source.keys())
+            current = combo.currentText()
+            blocked = combo.blockSignals(True)
+            combo.clear()
+            for d in allowed:
+                combo.addItem(d)
+            if current in allowed:
+                combo.setCurrentText(current)
+            combo.blockSignals(blocked)
+
     def load_preset(self, preset: Preset):
         """Populates control values from preset data."""
         self._block_signals(True)
@@ -332,6 +383,14 @@ class AdvancedSettingsWidget(QWidget):
         # the Xvid entry -- so reading the answer back off that widget said "mpeg4 + XVID" for
         # every audio preset. See get_settings_dict.
         self._audio_only = preset.vcodec is None
+
+        # Offer only what SMS can DECODE in this preset's container. The container is
+        # fixed by the preset (Preset.ext) while both codec combos used to be filled
+        # from the entire map for every preset, and nothing reconciled the two -- so 20
+        # of 54 preset x audio-codec pairs killed the job outright. On the MP3 preset
+        # the audio group is the ONLY panel visible and 5 of its 6 choices failed.
+        # A combination the target cannot play should not be selectable.
+        self._restrict_codec_choices(preset.ext)
 
         if preset.vcodec is None:
             # Audio-only preset: hide the entire Video Settings group, not just neutralise the
@@ -386,19 +445,20 @@ class AdvancedSettingsWidget(QWidget):
                 self.combo_acodec.setCurrentText(display_name)
                 break
 
-        # Match abitrate
-        for i in range(self.combo_abitrate.count()):
-            if self.combo_abitrate.itemData(i) == preset.abitrate_kbps:
-                self.combo_abitrate.setCurrentIndex(i)
-                break
+        # Match abitrate. These "match or silently keep whatever was there" loops are the
+        # display-string defect class in miniature: a preset value with no matching entry
+        # leaves the PREVIOUS preset's choice in the widget, and get_settings_dict then
+        # reports it as this preset's. FLAC declares abitrate_kbps=0, which matches nothing,
+        # so its reported audio bitrate was whichever preset the user happened to view first.
+        # Fall back to the first entry so the answer is at least deterministic.
+        if not self._select_by_data(self.combo_abitrate, preset.abitrate_kbps):
+            self.combo_abitrate.setCurrentIndex(0)
 
-        # Match sample rate
-        for i in range(self.combo_sample.count()):
-            if self.combo_sample.itemData(i) == preset.sample_rate:
-                self.combo_sample.setCurrentIndex(i)
-                break
-
-        self.combo_channels.setCurrentIndex(0 if preset.channels == 2 else 1)
+        # Sample rate and channels: None means "keep the source", which has its own entry.
+        if not self._select_by_data(self.combo_sample, preset.sample_rate):
+            self.combo_sample.setCurrentIndex(0)
+        if not self._select_by_data(self.combo_channels, preset.channels):
+            self.combo_channels.setCurrentIndex(0)
 
         self.spin_bframes.setValue(0)
         self.chk_qpel.setChecked(False)

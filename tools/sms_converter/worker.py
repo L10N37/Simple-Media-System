@@ -81,9 +81,26 @@ class ConversionWorker(QThread):
 
         self._is_cancelled = False
         self._has_video_cached: Optional[bool] = None
+        self._has_audio_cached: Optional[bool] = None
         self._process: Optional[subprocess.Popen] = None
         self.console_log = deque(maxlen=_CONSOLE_LOG_MAX)
         self.cmd_str = ""
+
+    def _has_audio(self) -> bool:
+        """Does the source carry an audio stream? Probed once, cached alongside _has_video."""
+        if self._has_audio_cached is None:
+            try:
+                info = get_media_info(self.ffprobe_path, self.input_file)
+                streams = info.get("streams") if isinstance(info, dict) else None
+                if not isinstance(streams, list):
+                    self._has_audio_cached = True   # unreadable: let ffmpeg decide, as before
+                else:
+                    self._has_audio_cached = any(
+                        st.get("codec_type") == "audio" for st in streams
+                    )
+            except Exception:
+                self._has_audio_cached = True
+        return self._has_audio_cached
 
     def _has_video(self) -> bool:
         """Does the SOURCE carry a real video track?
@@ -137,6 +154,19 @@ class ConversionWorker(QThread):
         """
         two_pass = bool(self.settings.get("two_pass")) and bool(self.settings.get("vcodec"))
 
+        # An audio-only preset on a source with no audio produces a command with NO output
+        # streams at all -- `-vn` plus an optional `-map 0:a:0?` that matches nothing -- and
+        # ffmpeg exits -22 with "at least one of its streams received no packets", which tells
+        # the user nothing about what they actually did wrong. It is knowable before launching
+        # anything, so say it plainly instead.
+        if not self.settings.get("vcodec") and not self._has_audio():
+            self.failed_signal.emit(
+                self.item_id,
+                "This file has no audio track, so an audio-only preset has nothing to "
+                "convert. Choose a video preset instead."
+            )
+            return
+
         crash_log.breadcrumb(
             "worker.run: preset=%r vcodec=%r acodec=%r ext=%r two_pass=%s"
             % (self.settings.get("preset_name"), self.settings.get("vcodec"),
@@ -160,6 +190,16 @@ class ConversionWorker(QThread):
 
             self._remove_passlog(passlog)
 
+            # Cancel is honoured HERE too, not just inside the encode loop. _is_cancelled was
+            # only ever tested between ffmpeg reads, so a press once the last pass had finished
+            # did nothing at all: the file was validated, promoted to its final name, and the
+            # rest of the batch carried on. Validation of a long file is not instant, so this
+            # is a real window, and "Cancel" appearing to do nothing is worse than slow.
+            if self._is_cancelled:
+                self._cleanup_partial(passlog)
+                self.cancelled_signal.emit(self.item_id)
+                return
+
             # Validation stage
             crash_log.breadcrumb("encode finished; validating")
             self.progress_signal.emit(self.item_id, 100.0, f"Validating {Path(self.input_file).name}...")
@@ -169,6 +209,16 @@ class ConversionWorker(QThread):
                 self.settings.get("preset_name")
             )
 
+            crash_log.breadcrumb(f"validation: {val_result.status}")
+
+            # And again after validation, which is the other half of the same window: the
+            # move is the point of no return, so a cancel that arrived during the probe must
+            # still stop the file being promoted.
+            if self._is_cancelled:
+                self._cleanup_partial(passlog)
+                self.cancelled_signal.emit(self.item_id)
+                return
+
             if val_result.status in ("PASS", "WARN"):
                 target_path = self.final_file
                 if os.path.exists(target_path):
@@ -177,15 +227,29 @@ class ConversionWorker(QThread):
                         Path(self.final_file).suffix,
                         str(Path(self.final_file).parent)
                     )
+                crash_log.breadcrumb(f"moving partial -> {target_path}")
                 shutil.move(self.partial_file, target_path)
+                crash_log.breadcrumb("job complete")
                 self.validation_signal.emit(self.item_id, val_result, target_path)
             else:
                 self._cleanup_partial()
                 self.validation_signal.emit(self.item_id, val_result, self.partial_file)
 
         except Exception as e:
+            # WRITE THE TRACEBACK. The @crash_log.guard on run() cannot see anything this
+            # blanket except catches -- which is everything realistic -- so a failure after
+            # the encode (validation blowing up, a denied move, a full disk) produced a status
+            # of "Failed", a one-line message, and NOTHING in the crash log. The trail simply
+            # stopped at "encode finished; validating", making a death during validation, a
+            # death during the move, and a clean success indistinguishable in the file testers
+            # send back.
+            crash_log.write_report(*sys.exc_info(), context="ConversionWorker.run")
             self._cleanup_partial(passlog)
-            self.failed_signal.emit(self.item_id, str(e))
+            # Name the stage: str(e) alone does not say WHERE it died. PermissionError on a
+            # move and a validator crash both arrive here reading like nothing in particular.
+            self.failed_signal.emit(
+                self.item_id, f"Failed after encoding ({type(e).__name__}): {e}"
+            )
 
     def _run_pass(self, pass_num, passlog, pass_idx, total_passes):
         """Run one ffmpeg invocation. Returns "ok", "cancelled" or "failed".

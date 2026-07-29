@@ -162,10 +162,11 @@ class QueueTableWidget(QTableWidget):
     def _format_size(self, size_bytes: int) -> str:
         if size_bytes <= 0:
             return "0 B"
+        # Powers of 1024 -- label them as such. See the note in main_window.
         mib = size_bytes / (1024 * 1024)
         if mib >= 1024:
-            return f"{mib / 1024:.2f} GB"
-        return f"{mib:.1f} MB"
+            return f"{mib / 1024:.2f} GiB"
+        return f"{mib:.1f} MiB"
 
     def _style_status_item(self, item: QTableWidgetItem, status: str):
         if status in ("Passed", "Ready"):

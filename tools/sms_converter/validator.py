@@ -9,7 +9,8 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Tuple, Optional
 from config import (
     MAX_WIDTH, MAX_HEIGHT, SIZE_4_0_GIB, MAX_SMS_STREAMS,
-    MAX_VIDEO_PACKET_SIZE, MAX_AUDIO_PACKET_SIZE, MPEG_ALLOWED_FPS_MAP
+    MAX_VIDEO_PACKET_SIZE, MAX_AUDIO_PACKET_SIZE, MPEG_ALLOWED_FPS_MAP,
+    sms_supports
 )
 from ffmpeg_utils import get_media_info
 
@@ -144,6 +145,12 @@ def validate_converted_file(
     streams = probe_info.get("streams", [])
 
     result.container = fmt.get("format_long_name", fmt.get("format_name", "Unknown")).split(",")[0].upper()
+
+    # The TARGET container extension, for the per-container codec checks below. The file under
+    # validation is still the encoder's ".partial", so that suffix has to come off first or
+    # every extension lookup misses.
+    _clean = file_path[:-8] if file_path.endswith(".partial") else file_path
+    container_ext = os.path.splitext(_clean)[1].lower()
     result.streams_count = len(streams)
 
     if len(streams) > MAX_SMS_STREAMS:
@@ -181,6 +188,23 @@ def validate_converted_file(
         if v_name in ("h264", "hevc", "av1", "vp9", "vp8"):
             result.status = "FAIL"
             result.reasons.append(f"Unsupported video codec: {v_name.upper()}. SMS requires MPEG-1, MPEG-2, or MPEG-4 Part 2.")
+        elif not sms_supports(container_ext, "video", v_name):
+            # CONTAINER-AWARE. The check above is a denylist, so anything not named in it
+            # passed -- including combinations SMS genuinely cannot open, because the codec
+            # table it consults belongs to the CONTAINER's reader. MPEG-2 video inside an AVI
+            # is the clearest case: SMS_Codec.c's AVI FourCC table has no MPEG-1/MPEG-2 entry
+            # at all, so the file is valid everywhere else and undecodable on the PS2.
+            #
+            # WARN, not FAIL, deliberately: a FAIL DELETES the output (see the worker's
+            # cleanup), and this table is a statement about what SMS is known to read rather
+            # than a proof of what it will refuse. Being wrong must not destroy the user's
+            # conversion. Promote to FAIL only once it has been checked on hardware.
+            if result.status != "FAIL":
+                result.status = "WARN"
+            result.warnings.append(
+                f"{v_name.upper()} video inside {container_ext} is not in SMS's codec table "
+                f"for that container and probably will not open on the PS2."
+            )
 
         # Resolution limits
         if w > MAX_WIDTH or h > MAX_HEIGHT:
@@ -228,6 +252,15 @@ def validate_converted_file(
         if not any(k in a_name.lower() for k in valid_audio):
             result.status = "FAIL"
             result.reasons.append(f"Unsupported audio codec: {a_name.upper()}.")
+        elif not sms_supports(container_ext, "audio", a_name):
+            # Same container-aware backstop, same WARN-not-FAIL reasoning. AAC in an AVI is
+            # the common case: SMS's AVI wFormatTag table has no AAC entry.
+            if result.status != "FAIL":
+                result.status = "WARN"
+            result.warnings.append(
+                f"{a_name.upper()} audio inside {container_ext} is not in SMS's codec table "
+                f"for that container and probably will not play on the PS2."
+            )
 
     # Packet Scan
     max_v_pkt, max_a_pkt = scan_packet_sizes(ffprobe_path, file_path)
