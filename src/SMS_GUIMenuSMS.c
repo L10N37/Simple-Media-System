@@ -19,6 +19,8 @@
 #include "SMS_Config.h"
 
 extern char g_pBootDir[];   /* SMS_Config.c: "<dev>/path/" on a non-mc boot, empty on mc */
+extern int  g_LngLines;     /* SMS_Locale.c -- 0 = no SMS.lng found, >0 = lines parsed */
+extern const int g_LngExpect;   /* SMS_Locale.c -- lines a valid pack must have */
 #include "SMS_IOP.h"
 #include "SMS_MC.h"
 #include "SMS_FileDir.h"
@@ -1162,7 +1164,37 @@ static void _charset_handler ( GUIMenu* apMenu, int aDir ) {
 
 }  /* end _charset_handler */
 
+/* Deliberately NOT localised, and deliberately not added to the string table.
+ *
+ * Not localised because it only ever appears when there is no translation to show it in.
+ * Not in the table because that table is exact-count: it holds 311 entries and a pack with
+ * any other number is rejected outright, so adding a 312th string here would invalidate all
+ * 20 shipped packs and every pack a user already has. */
+static char s_pNoLng[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) =
+ "No language file loaded.\n\nCopy SMS.lng to mc%d:/SMS/ - that exact name, capitals "
+ "included - or highlight a .lng file in the browser and use the file menu to install it.";
+static char s_pBadLng[] __attribute__(   (  section( ".data" ), aligned( 1 )  )   ) =
+ "The language file was found but has %d lines; this version needs %d.\n\nIt is from a "
+ "different SMS release. Use the SMS.lng that came with this build.";
+
 static void _lang_handler ( GUIMenu* apMenu, int aDir ) {
+
+/* Say WHY nothing is happening. Without this the row is simply inert: a tester copied a pack
+ * to the wrong folder, pressed X repeatedly, and got no change and no explanation -- there
+ * was no way to tell "wrong place" from "wrong file" from "feature broken". */
+ if (  !( g_Config.m_BrowserFlags & SMS_BF_UDFL )  ) {
+
+  char lBuff[ 256 ];
+
+  if ( g_LngLines > 0 )
+   sprintf ( lBuff, s_pBadLng, g_LngLines, g_LngExpect );
+  else sprintf ( lBuff, s_pNoLng, g_MCSlot );
+
+  GUI_Error ( lBuff );
+
+  return;
+
+ }  /* end if */
 
  if ( g_Config.m_BrowserFlags & SMS_BF_UDFL ) {
 

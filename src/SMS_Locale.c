@@ -790,6 +790,22 @@ unsigned char* g_XLT[ 4 ] __attribute__(   (  section( ".data" )  )   ) = {
  s_XLTLatin2, s_XLTCyrillic, s_XLTLatin1, s_XLTGreek
 };
 
+/* WHY the language pack did not load, for the settings screen to explain.
+ *
+ *   0  = no SMS.lng found in either location
+ *  >0  = a file WAS found, and this many lines were parsed out of it
+ *
+ * A Spanish tester copied a pack to mc0:/app, pressed X on the Language row, and nothing
+ * happened -- no change, no message, forever. _lang_handler does nothing at all unless
+ * SMS_BF_UDFL is set, and this function clears that flag silently for every possible
+ * failure: wrong folder, wrong filename case, or a pack from a different SMS version whose
+ * line count no longer matches. Three quite different mistakes, all indistinguishable from
+ * the outside. The count is kept so the message can name the actual problem. */
+int g_LngLines;
+/* How many lines a pack MUST have. Exported because the settings screen needs to say the
+ * number, and g_SMString is an incomplete type outside this file. */
+const int g_LngExpect = sizeof ( s_SMStringDef ) / sizeof ( s_SMStringDef[ 0 ] );
+
 static unsigned char* s_pUDFBuf;
 static SMString       s_SMStringUDF[ sizeof ( s_SMStringDef ) / sizeof ( s_SMStringDef[ 0 ] ) ] __attribute__(   (  section( ".bss" )  )   );
        SMString       g_SMString   [ sizeof ( s_SMStringDef ) / sizeof ( s_SMStringDef[ 0 ] ) ] __attribute__(   (  section( ".bss" )  )   );
@@ -807,7 +823,17 @@ void SMS_LocaleInit ( void ) {
 
  if (  SMS_ConfigAssetPath ( lP, sizeof ( lP ), "SMS.lng" )  ) {   /* CWD copy next to the ELF */
 
+/* Try the lowercase spelling too. The memory card filesystem matches names EXACTLY, so a pack
+ * saved as "sms.lng" is invisible to a lookup for "SMS.lng" -- and the user then sees a
+ * Language row that simply does nothing, with no hint that the file is right there. Downloads
+ * and file managers lowercase names routinely, and this costs one failed open. */
   int lF = fioOpen ( lP, O_RDONLY );
+
+  if ( lF < 0 ) {
+   int lN = strlen ( lP );
+   if ( lN >= 7 ) memcpy ( &lP[ lN - 7 ], "sms.lng", 7 );
+   lF = fioOpen ( lP, O_RDONLY );
+  }  /* end if */
 
   if ( lF >= 0 ) {
    lSize = fioLseek ( lF, 0, SEEK_END );
@@ -836,6 +862,12 @@ void SMS_LocaleInit ( void ) {
   strcpy ( &lMC[ 5 ], g_SMSLng );   /* "mc0:/" + "SMS/SMS.lng" */
 
   lF2 = fioOpen ( lMC, O_RDONLY );
+
+  if ( lF2 < 0 ) {   /* same lowercase tolerance as the CWD lookup above */
+   int lN = strlen ( lMC );
+   if ( lN >= 7 ) memcpy ( &lMC[ lN - 7 ], "sms.lng", 7 );
+   lF2 = fioOpen ( lMC, O_RDONLY );
+  }  /* end if */
   if ( lF2 >= 0 ) {
    lSize = fioLseek ( lF2, 0, SEEK_END );
    if ( lSize > 0 ) {
@@ -890,6 +922,8 @@ void SMS_LocaleInit ( void ) {
    lpBuff = lpPtr;
 
   }  /* end while */
+
+  g_LngLines = ( int )lIdx;   /* a file existed and parsed this far -- see the note above */
 
   if (  lIdx != sizeof ( s_SMStringUDF ) / sizeof ( s_SMStringUDF[ 0 ] )  ) {
 
