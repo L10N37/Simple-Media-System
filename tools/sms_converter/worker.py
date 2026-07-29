@@ -26,7 +26,8 @@ _PROGRESS_KEYS = frozenset({
 # bounded window costs nothing and removes a slow leak from every long conversion.
 _CONSOLE_LOG_MAX = 400
 from ffmpeg_utils import (
-    get_media_info, parse_media_summary, build_ffmpeg_cmd, generate_unique_output_path
+    get_media_info, parse_media_summary, build_ffmpeg_cmd, generate_unique_output_path,
+    has_real_video_stream
 )
 from validator import validate_converted_file, ValidationResult
 
@@ -79,9 +80,31 @@ class ConversionWorker(QThread):
         self.duration_sec = duration_sec
 
         self._is_cancelled = False
+        self._has_video_cached: Optional[bool] = None
         self._process: Optional[subprocess.Popen] = None
         self.console_log = deque(maxlen=_CONSOLE_LOG_MAX)
         self.cmd_str = ""
+
+    def _has_video(self) -> bool:
+        """Does the SOURCE carry a real video track?
+
+        build_ffmpeg_cmd has always taken has_video_stream, and nothing ever passed it -- so
+        it sat at its default of True for every job, and the encoder was pointed at whatever
+        `-map 0:v:0?` happened to select. For a music file with album art that is a single
+        still flagged attached_pic, and encoding it as mpeg4 into an .mp4 fails outright.
+
+        Probed once and cached: this runs per pass, and a two-pass job would otherwise pay
+        for two identical ffprobe calls.
+        """
+        if self._has_video_cached is None:
+            try:
+                self._has_video_cached = has_real_video_stream(
+                    get_media_info(self.ffprobe_path, self.input_file)
+                )
+            except Exception:
+                self._has_video_cached = True   # unreadable: behave as before, let ffmpeg decide
+            crash_log.breadcrumb(f"source has real video: {self._has_video_cached}")
+        return self._has_video_cached
 
     def cancel(self):
         """Requests worker cancellation and terminates running process."""
@@ -176,6 +199,7 @@ class ConversionWorker(QThread):
             self.input_file,
             self.partial_file,
             self.settings,
+            has_video_stream=self._has_video(),
             pass_num=pass_num,
             passlog=passlog
         )

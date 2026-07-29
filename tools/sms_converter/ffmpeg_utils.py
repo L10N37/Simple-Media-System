@@ -128,6 +128,36 @@ def get_media_info(ffprobe_path: str, file_path: str) -> Dict[str, Any]:
     except Exception as e:
         return {"error": str(e)}
 
+def has_real_video_stream(probe_info: Dict[str, Any]) -> bool:
+    """True only if the source has a video stream that is actual VIDEO.
+
+    Cover art in an audio file is carried as a video stream flagged
+    disposition.attached_pic -- a single still. Treating it as video is what broke both MP4
+    presets on any music file with album art: `-map 0:v:0?` selected the still, the encoder
+    turned it into mpeg4, and the mp4 muxer refused the result --
+
+        [mp4] Could not find tag for codec mpeg4 in stream #0
+        [out#0/mp4] Could not write header (incorrect codec parameters ?)
+
+    -- exit -22 and a zero-byte output, for a file the user thinks of as audio. Album art is
+    the normal case for a music library, not an edge case.
+
+    An unreadable probe returns True, which preserves the previous behaviour: the encoder
+    then decides, rather than this silently stripping video from a real film.
+    """
+    if not probe_info or "error" in probe_info:
+        return True
+    streams = probe_info.get("streams")
+    if not isinstance(streams, list):
+        return True
+    for st in streams:
+        if st.get("codec_type") != "video":
+            continue
+        if not st.get("disposition", {}).get("attached_pic"):
+            return True   # a genuine video track
+    # No video streams at all, or nothing but cover art.
+    return False
+
 def parse_media_summary(probe_info: Dict[str, Any]) -> Dict[str, Any]:
     """Extracts duration, video specs, audio specs from ffprobe dictionary."""
     if "error" in probe_info:

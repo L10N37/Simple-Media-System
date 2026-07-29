@@ -3,7 +3,7 @@ Batch queue table view displaying items, duration, file sizes, and conversion st
 """
 from dataclasses import dataclass, field
 from typing import Dict, Optional, List
-from qt_compat import Qt, Signal
+from qt_compat import Qt, Signal, menu_exec
 from qt_compat import (
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QMenu
 )
@@ -25,6 +25,12 @@ class QueueItem:
 class QueueTableWidget(QTableWidget):
     item_selected = Signal(str)           # item_id
     show_details_requested = Signal(str)  # item_id
+    # Removal is REQUESTED, never performed here. Queue membership lives in two structures --
+    # this widget's items_dict and MainWindow.queue_order -- and only MainWindow maintains
+    # both. The context menu used to call self.remove_item directly, which popped items_dict
+    # and left a dangling id in queue_order; the next Convert press then did
+    # items_dict[stale_id] and raised KeyError, permanently, for the life of the queue.
+    remove_requested = Signal(list)       # [item_id, ...]
 
     def __init__(self, parent=None):
         super().__init__(0, 4, parent)
@@ -180,9 +186,8 @@ class QueueTableWidget(QTableWidget):
         action_details = menu.addAction("View Details & Log")
         action_remove = menu.addAction("Remove Selected")
         
-        chosen = menu.exec(self.mapToGlobal(pos))
+        chosen = menu_exec(menu, self.mapToGlobal(pos))
         if chosen == action_details and len(item_ids) == 1:
             self.show_details_requested.emit(item_ids[0])
         elif chosen == action_remove:
-            for item_id in item_ids:
-                self.remove_item(item_id)
+            self.remove_requested.emit(list(item_ids))

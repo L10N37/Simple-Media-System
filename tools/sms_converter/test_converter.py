@@ -182,6 +182,142 @@ class TestPresetRoundTrip(unittest.TestCase):
                 self.assertIn("-vn", cmd, f"audio preset '{name}' does not drop video: {cmd}")
                 self.assertNotIn("-c:v", cmd, f"audio preset '{name}' encodes video: {cmd}")
 
+class TestCoverArtIsNotVideo(unittest.TestCase):
+    """Album art must not be mistaken for a video track.
+
+    build_ffmpeg_cmd has always accepted has_video_stream and NOTHING ever passed it, so it
+    sat at its default of True for every job. On a music file with embedded art, `-map 0:v:0?`
+    selected the still, the encoder turned it into mpeg4, and the mp4 muxer refused it --
+    exit -22, zero-byte output, both MP4 presets, for the most ordinary music file there is.
+    """
+
+    def test_attached_pic_is_not_a_video_stream(self):
+        from ffmpeg_utils import has_real_video_stream
+
+        cover_art = {"streams": [
+            {"codec_type": "audio"},
+            {"codec_type": "video", "disposition": {"attached_pic": 1}},
+        ]}
+        real_video = {"streams": [
+            {"codec_type": "video", "disposition": {"attached_pic": 0}},
+            {"codec_type": "audio"},
+        ]}
+        audio_only = {"streams": [{"codec_type": "audio"}]}
+
+        self.assertFalse(has_real_video_stream(cover_art), "cover art counted as video")
+        self.assertTrue(has_real_video_stream(real_video), "real video track missed")
+        self.assertFalse(has_real_video_stream(audio_only))
+        # An unreadable probe must NOT silently strip video from a real film.
+        self.assertTrue(has_real_video_stream({"error": "boom"}))
+        self.assertTrue(has_real_video_stream({}))
+
+    def test_cover_art_source_drops_video(self):
+        from ffmpeg_utils import has_real_video_stream
+
+        ff, _ = find_ffmpeg_binaries()
+        settings = {
+            "vcodec": "mpeg4", "vtag": None, "acodec": "aac", "width": 640, "height": 480,
+            "fps": "30", "vbitrate_kbps": 1500, "abitrate_kbps": 128,
+            "sample_rate": 48000, "channels": 2, "limit_streams": True,
+        }
+        cover_art = {"streams": [
+            {"codec_type": "audio"},
+            {"codec_type": "video", "disposition": {"attached_pic": 1}},
+        ]}
+        cmd = build_ffmpeg_cmd(
+            ff, "music.mp3", "out.mp4.partial", settings,
+            has_video_stream=has_real_video_stream(cover_art),
+        )
+        self.assertIn("-vn", cmd)
+        self.assertNotIn("-c:v", cmd)
+
+class TestQueueOwnership(unittest.TestCase):
+    """Removing via the context menu must not desync the two queue structures.
+
+    Membership lives in QueueTableWidget.items_dict AND MainWindow.queue_order, and only
+    MainWindow maintained both. The context menu called remove_item directly, so queue_order
+    kept a dangling id and the next Convert press did items_dict[stale_id] -> KeyError, on
+    every press thereafter. The shipped build catches it in an excepthook and shows a modal,
+    so the app stayed open and permanently broken.
+
+    These tests CALL THE SLOT. The existing UI test only imports the modules, which is exactly
+    why `QMenu.exec` (PySide2-incompatible) and this shipped together in the same handler.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from qt_compat import QtWidgets
+        cls._app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    def test_context_menu_removal_keeps_queue_order_in_sync(self):
+        from ui.queue_table import QueueTableWidget, QueueItem
+
+        table = QueueTableWidget()
+        order = []
+
+        def on_remove(ids):
+            for i in ids:
+                table.remove_item(i)
+                if i in order:
+                    order.remove(i)
+
+        table.remove_requested.connect(on_remove)
+
+        for n in ("a.avi", "b.avi", "c.avi"):
+            table.add_queue_item(QueueItem(item_id=n, file_path=f"/tmp/{n}", file_name=n))
+            order.append(n)
+
+        table.remove_requested.emit(["b.avi"])
+
+        self.assertNotIn("b.avi", table.items_dict)
+        self.assertNotIn("b.avi", order, "queue_order kept a dangling id")
+        self.assertEqual(set(order), set(table.items_dict.keys()))
+        # The KeyError this caused, reproduced directly.
+        for i_id in order:
+            table.items_dict[i_id]
+
+    def test_context_menu_handler_requests_rather_than_removes(self):
+        """Drive the REAL _show_context_menu, not just the signal it is supposed to emit.
+
+        Stubs the menu runner to choose "Remove Selected", then asserts the handler emitted
+        remove_requested and did NOT call remove_item itself. Emitting the signal by hand
+        would pass even if the handler went back to mutating the dict directly.
+        """
+        import ui.queue_table as qt_mod
+        from ui.queue_table import QueueTableWidget, QueueItem
+
+        table = QueueTableWidget()
+        table.add_queue_item(QueueItem(item_id="a.avi", file_path="/tmp/a.avi", file_name="a.avi"))
+        table.selectRow(0)
+
+        got = []
+        table.remove_requested.connect(lambda ids: got.extend(ids))
+        table.remove_item = lambda *a, **k: self.fail(
+            "context menu removed the item itself; queue_order would now be stale"
+        )
+
+        real_exec = qt_mod.menu_exec
+        # Choose the LAST action ("Remove Selected") without showing anything.
+        qt_mod.menu_exec = lambda menu, pos: menu.actions()[-1]
+        try:
+            table._show_context_menu(table.rect().center())
+        finally:
+            qt_mod.menu_exec = real_exec
+
+        self.assertEqual(got, ["a.avi"], "remove_requested was not emitted")
+
+    def test_menu_exec_works_on_this_binding(self):
+        """PySide2 has only QMenu.exec_; PySide6 added .exec. The shim must cover both."""
+        from qt_compat import menu_exec, QMenu
+
+        menu = QMenu()
+        self.assertTrue(
+            getattr(menu, "exec", None) or getattr(menu, "exec_", None),
+            "neither exec nor exec_ on QMenu",
+        )
+        self.assertTrue(callable(menu_exec))
+
 class TestQtCompatShim(unittest.TestCase):
     """Guard the Qt binding shim.
 

@@ -96,6 +96,17 @@ def dialog_exec(dlg):
     return runner()
 
 
+def menu_exec(menu, pos):
+    """Pop up a context menu at `pos` on either binding, returning the chosen action.
+
+    PySide2 has only QMenu.exec_; PySide6 added QMenu.exec. Calling .exec directly raises
+    AttributeError on the Windows 7 build -- which turned every right-click in the queue into
+    a crash dialog there, on a binding the owner cannot test locally.
+    """
+    runner = getattr(menu, "exec", None) or getattr(menu, "exec_")
+    return runner(pos)
+
+
 def app_exec(app):
     """Enter the application event loop on either binding."""
     runner = getattr(app, "exec", None) or getattr(app, "exec_")

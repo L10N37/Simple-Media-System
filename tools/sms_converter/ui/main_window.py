@@ -39,6 +39,13 @@ class MainWindow(QMainWindow):
         # reference to a QThread that has not finished aborts the process.
         self._retired_workers: List[ConversionWorker] = []
         self.inspect_workers: Dict[str, InspectWorker] = {}
+        # Inspect workers awaiting destruction. Same hazard as _retired_workers above:
+        # _on_inspect_finished used to pop the worker straight out of inspect_workers,
+        # dropping the last reference to a QThread that had emitted its signal but not
+        # yet FINISHED. Qt aborts the process for that (0xC0000409) with no Python
+        # exception and no crash-log entry -- the 'app just vanished, empty log' report.
+        # It needs a batch to show up: ~2 runs in 10 at 8 files, never at 1-3.
+        self._retired_inspects: List[InspectWorker] = []
         self.is_converting = False
 
         # Main Widget & Layout
@@ -89,6 +96,9 @@ class MainWindow(QMainWindow):
         # 4. Queue Table
         self.queue_table = QueueTableWidget()
         self.queue_table.show_details_requested.connect(self._show_details)
+        # The context menu asks; _remove_selected is the ONLY place that removes, because
+        # it is the only code that maintains BOTH items_dict and queue_order.
+        self.queue_table.remove_requested.connect(self._remove_requested)
 
         # 5. Bottom Status Bar & Controls
         self.lbl_estimated_size = QLabel("Estimated output: --")
@@ -200,6 +210,60 @@ class MainWindow(QMainWindow):
         )
 
     # --- Queue Management ---
+    def closeEvent(self, event):
+        """Shut the encoder down before the window goes.
+
+        There was no closeEvent at all. Closing mid-encode returned cleanly from the event
+        loop and then aborted in teardown with empty stderr, while the ffmpeg child SURVIVED
+        its dead parent -- still writing a .partial that nothing was left to clean up. On a
+        feature-length encode that is gigabytes of orphaned temp file and a CPU-bound process
+        the user has no obvious way to find, let alone stop.
+
+        Killing the child directly rather than via worker.cancel(): cancel() only sets a flag
+        the run loop notices at its next readline, and a thread blocked on a pipe from a
+        process nobody is reading may never get there.
+        """
+        if self.is_converting and self.current_worker is not None:
+            answer = QMessageBox.question(
+                self, "Conversion in progress",
+                "A conversion is still running. Quit and discard it?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                event.ignore()
+                return
+
+        crash_log.breadcrumb("window closing; shutting down workers")
+
+        w = self.current_worker
+        if w is not None:
+            try:
+                w.cancel()          # sets the flag AND terminates the child
+            except Exception:
+                pass
+            w.wait(5000)
+            # Only now is the file unlocked: on Windows the unlink inside the worker fails
+            # while ffmpeg still holds the handle, and that failure is swallowed.
+            try:
+                w._cleanup_partial()
+            except Exception:
+                pass
+
+        for lst in (self._retired_workers, self._retired_inspects):
+            for other in lst:
+                try:
+                    other.wait(2000)
+                except Exception:
+                    pass
+        for insp in list(self.inspect_workers.values()):
+            try:
+                insp.wait(2000)
+            except Exception:
+                pass
+
+        event.accept()
+
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
@@ -248,7 +312,11 @@ class MainWindow(QMainWindow):
 
     def _on_inspect_finished(self, file_path: str, summary: dict):
         item_id = str(Path(file_path).resolve())
-        self.inspect_workers.pop(item_id, None)
+        _w = self.inspect_workers.pop(item_id, None)
+        if _w is not None:
+            # Hold it until Qt is done with it; released by the drain below.
+            self._retired_inspects.append(_w)
+            QTimer.singleShot(0, self._drain_retired_inspects)
 
         duration = summary.get("duration", 0.0)
         size = summary.get("size", 0)
@@ -337,7 +405,13 @@ class MainWindow(QMainWindow):
             return
 
         # Check if queue has ready items
-        ready_ids = [i_id for i_id in self.queue_order if self.queue_table.items_dict[i_id].status in ("Ready", "Failed", "Cancelled")]
+        # .get() rather than [] throughout: queue_order and items_dict are separate
+        # structures, and a desync used to turn every later Convert press into a KeyError.
+        # Single ownership is fixed above; this makes a future desync degrade instead.
+        _items = self.queue_table.items_dict
+        ready_ids = [i_id for i_id in self.queue_order
+                     if _items.get(i_id) is not None
+                     and _items[i_id].status in ("Ready", "Failed", "Cancelled")]
         if not ready_ids:
             QMessageBox.information(self, "No Files Ready", "There are no files in the queue ready for conversion.")
             return
@@ -376,7 +450,8 @@ class MainWindow(QMainWindow):
         # failed for a deterministic reason can only fail again.
         next_id = None
         for i_id in self.queue_order:
-            if self.queue_table.items_dict[i_id].status == "Ready":
+            _it = self.queue_table.items_dict.get(i_id)
+            if _it is not None and _it.status == "Ready":
                 next_id = i_id
                 break
 
@@ -491,6 +566,18 @@ class MainWindow(QMainWindow):
             self.current_worker = None
         QTimer.singleShot(0, self._drain_retired_and_advance)
 
+    def _drain_retired_inspects(self):
+        """Release inspect threads that have genuinely finished; keep holding the rest."""
+        still_running = []
+        for w in self._retired_inspects:
+            if w.isRunning():
+                still_running.append(w)
+            else:
+                w.deleteLater()
+        self._retired_inspects = still_running
+        if still_running:
+            QTimer.singleShot(16, self._drain_retired_inspects)
+
     def _drain_retired_and_advance(self):
         """Release finished workers, then start the next item."""
         still_running = []
@@ -517,9 +604,22 @@ class MainWindow(QMainWindow):
             self.current_worker.cancel()
 
     # --- UI Actions ---
+    def _remove_requested(self, item_ids):
+        """Removal asked for by the queue's context menu.
+
+        Routed here rather than done in the widget so that queue_order and items_dict are
+        only ever changed together. Removing while a batch is running would strand the
+        running item, so it is refused for the same reason btn_remove is disabled then.
+        """
+        if self.is_converting:
+            return
+        self._remove_ids(item_ids)
+
     def _remove_selected(self):
-        selected_ids = self.queue_table.get_selected_item_ids()
-        for i_id in selected_ids:
+        self._remove_ids(self.queue_table.get_selected_item_ids())
+
+    def _remove_ids(self, item_ids):
+        for i_id in list(item_ids):
             self.queue_table.remove_item(i_id)
             if i_id in self.queue_order:
                 self.queue_order.remove(i_id)
