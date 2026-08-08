@@ -1,3 +1,18 @@
+Just looking to fix a few things so I have a working app for my SAMBA PS2 set up for watching movies converted with ffmpeg to a suitable format for Simple Media System for PS2
+
+Issues I've encountered: 
+
+You have one shot to do all your config correctly, you can save once to mc0 and all subsequent config saves fail - fixed
+
+Server Name does not update in SMB server list when changed in 'edit server', deleting it then making a new one is the only way to change the list name. It does update in the 'edit server' sub menu.
+
+Default SMB port is 445 not 1445
+
+SMB share field is ignored, you can input a shared folder name but the source code ignores it
+
+SMB is basically broken
+
+---------------------
 # Simple Media System — MX4SIO / Network Edition
 
 > A modernized fork of Eugene Plotnikov's **Simple Media System (SMS)** for the PlayStation 2 — adding first-class **MX4SIO (SD-over-SIO2)** playback, a real **UDPFS network drive**, DualShock 3/4 support, and a broad sweep of device, stability and quality-of-life work — while keeping the original player's speed and elegance intact.
