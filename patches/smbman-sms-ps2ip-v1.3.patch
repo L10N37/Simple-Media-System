@@ -19,6 +19,19 @@ index 4d201bd..0000000 100644
          lwip_close(main_socket);
          main_socket = -1;
      }
+diff --git a/iop/network/smbman/src/imports.lst b/iop/network/smbman/src/imports.lst
+index 8531d34..0000000 100644
+--- a/iop/network/smbman/src/imports.lst
++++ b/iop/network/smbman/src/imports.lst
+@@ -6,7 +6,6 @@ ioman_IMPORTS_end
+ ps2ip_IMPORTS_start
+ I_lwip_recv
+ I_lwip_send
+ I_lwip_close
+-I_lwip_shutdown
+ I_lwip_socket
+ I_lwip_connect
+ I_lwip_select
 diff --git a/iop/tcpip/tcpip/include/ps2ip.h b/iop/tcpip/tcpip/include/ps2ip.h
 index 46f0ceb..0000000 100644
 --- a/iop/tcpip/tcpip/include/ps2ip.h
