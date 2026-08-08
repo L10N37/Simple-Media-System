@@ -8,6 +8,14 @@ Server Name does not update in SMB server list when changed in 'edit server', de
 
 Default SMB port is 445 not 1445
 
+```
+sed -i 's/1445/445/g' \
+    include/SMS_SMB.h \
+    src/SMS_Config.c \
+    src/SMS_GUISMBrowser.c \
+    src/SMS_GUIDevMenu.c
+```
+
 SMB share field is ignored, you can input a shared folder name but the source code ignores it
 
 SMB is basically broken
