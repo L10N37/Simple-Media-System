@@ -18,6 +18,8 @@ sed -i 's/1445/445/g' \
 
 SMB share field is ignored, you can input a shared folder name but the source code ignores it
 
+SMB config can not be saved without a server name, saving will give a generic error with no reason as to why
+
 SMB is basically broken
 
 ---------------------
