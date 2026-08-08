@@ -20,6 +20,7 @@ jobs:
         run: |
           git clone https://github.com/ps2dev/ps2sdk.git ps2sdk
           git -C ps2sdk checkout f08e889fef8ab361f863c44ebe78212ced2839ca
+          git -C ps2sdk apply "$GITHUB_WORKSPACE/patches/smbman-sms-ps2ip-v1.3.patch"
           git -C ps2sdk apply "$GITHUB_WORKSPACE/patches/smbman-preserve-ntstatus.patch"
 
       - name: Build smbman IRX
@@ -56,7 +57,8 @@ jobs:
               filters=filters,
           ))
           PY
-          python3 tools/irx_imports.py --assert ps2ip=1.3 out/smbman.irx
+          python3 tools/irx_imports.py --assert ps2ip=1.3 out/smbman.irx | tee out/IMPORTS.txt
+          grep -Eq 'imports ps2ip +v1\.3 +ordinals=\{6,7,9,11,13,14,19,24\}' out/IMPORTS.txt
           ( cd out && sha256sum smbman.irx smbman.irx.xz > SHA256SUMS )
 
       - name: Upload patched smbman
@@ -67,5 +69,6 @@ jobs:
             out/smbman.irx
             out/smbman.irx.xz
             out/SHA256SUMS
+            out/IMPORTS.txt
           if-no-files-found: error
           retention-days: 7
