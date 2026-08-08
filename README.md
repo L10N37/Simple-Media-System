@@ -8,8 +8,6 @@ Server Name does not update in SMB server list when changed in 'edit server', de
 
 Default SMB port is 445 not 1445
 
-Client name is not currently used, if blank it reverts back to 'ps2' but it's currently not used for any part of the network login
-
 ```
 sed -i 's/1445/445/g' \
     include/SMS_SMB.h \
@@ -17,6 +15,8 @@ sed -i 's/1445/445/g' \
     src/SMS_GUISMBrowser.c \
     src/SMS_GUIDevMenu.c
 ```
+
+Client name is not currently used, if blank it reverts back to 'ps2' but it's currently not used for any part of the network login
 
 SMB share field is ignored, you can input a shared folder name but the source code ignores it
 
