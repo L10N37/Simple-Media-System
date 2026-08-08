@@ -1,0 +1,71 @@
+name: Build patched smbman IRX
+
+on:
+  push:
+    branches:
+      - agent/build-smbman-ntstatus
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-smbman:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch pinned ps2sdk source
+        run: |
+          git clone https://github.com/ps2dev/ps2sdk.git ps2sdk
+          git -C ps2sdk checkout f08e889fef8ab361f863c44ebe78212ced2839ca
+          git -C ps2sdk apply "$GITHUB_WORKSPACE/patches/smbman-preserve-ntstatus.patch"
+
+      - name: Build smbman IRX
+        run: |
+          mkdir -p out
+          docker run --rm \
+            -v "$PWD/ps2sdk:/src:ro" \
+            -v "$PWD/out:/out" \
+            ps2dev/ps2dev:v2.0.0 sh -c '
+              set -e
+              apk add --no-cache build-base >/dev/null
+              cp -a /src /tmp/ps2sdk
+              export PATH="/usr/local/ps2dev/iop/bin:/usr/local/ps2dev/ee/bin:$PATH"
+              export PS2SDKSRC=/tmp/ps2sdk
+              make -C /tmp/ps2sdk/iop/network/smbman clean >/dev/null 2>&1 || true
+              make -C /tmp/ps2sdk/iop/network/smbman all
+              find /tmp/ps2sdk/iop/network/smbman -name "smbman.irx" -exec cp {} /out/smbman.irx \;
+              test -s /out/smbman.irx
+            '
+
+      - name: Compress and verify
+        run: |
+          python3 - <<'PY'
+          import lzma
+          from pathlib import Path
+
+          src = Path("out/smbman.irx")
+          dst = Path("out/smbman.irx.xz")
+          filters = [{"id": lzma.FILTER_LZMA2, "preset": 9, "dict_size": 1 << 20}]
+          dst.write_bytes(lzma.compress(
+              src.read_bytes(),
+              format=lzma.FORMAT_XZ,
+              check=lzma.CHECK_CRC32,
+              filters=filters,
+          ))
+          PY
+          python3 tools/irx_imports.py --assert ps2ip=1.3 out/smbman.irx
+          ( cd out && sha256sum smbman.irx smbman.irx.xz > SHA256SUMS )
+
+      - name: Upload patched smbman
+        uses: actions/upload-artifact@v4
+        with:
+          name: smbman-ntstatus
+          path: |
+            out/smbman.irx
+            out/smbman.irx.xz
+            out/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
