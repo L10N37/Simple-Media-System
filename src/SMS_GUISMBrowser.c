@@ -556,8 +556,10 @@ static void _addsave_handler ( GUIMenu* apMenu, int aDir ) {
  strupr ( s_AddInfo.m_ServerName );
 
  s_AddInfo.m_fAsync = 1;
-
- if ( s_AddDescr[ 0 ] == '\x00' ) strcpy ( s_AddDescr, s_AddInfo.m_ServerName );
+    
+/* The server list has no separate editable description field, so its label
+ * should always follow the current Server Name. */
+strcpy ( s_AddDescr, s_AddInfo.m_ServerName );
 
  if ( !g_Config.m_pSMBList ) g_Config.m_pSMBList = SMS_ListInit ();
 
