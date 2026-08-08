@@ -22,6 +22,8 @@ SMB share field is ignored, you can input a shared folder name but the source co
 
 SMB config can not be saved without a server name, saving will give a generic error with no reason as to why
 
+SMB error logging was added but will likely return -5 no matter what problem is encountered, probably useless
+
 SMB is basically broken
 
 ---------------------
