@@ -19,7 +19,7 @@ sed -i 's/1445/445/g' \
 Client name is not currently used, if blank it reverts back to 'ps2' but it's currently not used for any part of the network login - removed
 
 SMB share field is ignored, you can input a shared folder name but the source code ignores it - looking further into this it seems to successfully connect as long as i have at least 6 characters input into this field 
-and saved. Otherwise, error -4097. The field says (optional) yet is somehow causing a successful connect. Once connected the issue is nothing shows up in the list even though suitable media is on the share drive.
+and saved. Otherwise, error -4097. The field says (optional) yet is somehow causing a successful connect. Once connected the issue is nothing shows up in the list even though suitable media is on the share drive. - fixed
 
 SMB config can not be saved without a server name, saving will give a generic error with no reason as to why
 
