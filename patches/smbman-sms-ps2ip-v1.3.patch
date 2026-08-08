@@ -23,7 +23,7 @@ diff --git a/iop/tcpip/tcpip/include/ps2ip.h b/iop/tcpip/tcpip/include/ps2ip.h
 index 46f0ceb..0000000 100644
 --- a/iop/tcpip/tcpip/include/ps2ip.h
 +++ b/iop/tcpip/tcpip/include/ps2ip.h
-@@ -151,7 +151,10 @@
+@@ -156,7 +156,9 @@ extern const ip_addr_t* dns_getserver(u8 numdns);
  
  #define ipaddr4_aton(...) ip4addr_aton(__VA_ARGS__)
  
