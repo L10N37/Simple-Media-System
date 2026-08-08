@@ -1,0 +1,41 @@
+diff --git a/iop/network/smbman/src/smb.c b/iop/network/smbman/src/smb.c
+index 4d201bd..0000000 100644
+--- a/iop/network/smbman/src/smb.c
++++ b/iop/network/smbman/src/smb.c
+@@ -558,6 +558,7 @@ int smb_TreeConnectAndX(int UID, char *ShareName, char *Password, int PasswordTy
+     TreeConnectAndXRequest_t *TCR    = &SMB_buf.smb.treeConnectAndXRequest;
+     TreeConnectAndXResponse_t *TCRsp = &SMB_buf.smb.treeConnectAndXResponse;
+     int r, offset;
++    u32 status;
+     int passwordlen = 0;
+     int AuthType    = NTLM_AUTH;
+ 
+@@ -612,8 +613,13 @@ lbl_tree_connect:
+     if (TCRsp->smbH.Magic != SMB_MAGIC)
+         return -EIO;
+ 
++    /* Reconstruct the complete 32-bit NTSTATUS from the packed SMB header.
++       Eclass and Ecode are signed shorts, so cast through u16 before shifting. */
++    status = (u32)(u16)TCRsp->smbH.Eclass |
++             ((u32)(u16)TCRsp->smbH.Ecode << 16);
++
+     // check there's no error (NT STATUS error type!)
+-    switch (TCRsp->smbH.Eclass | (TCRsp->smbH.Ecode << 16)) {
++    switch (status) {
+         case STATUS_SUCCESS:
+             break;
+         case STATUS_LOGON_FAILURE: // check there's no auth failure
+@@ -623,9 +629,11 @@ lbl_tree_connect:
+                 goto lbl_tree_connect;
+             }
+ 
+-            return -EACCES;
++            /* NTSTATUS errors have bit 31 set, so the IOP return remains
++               negative and passes unchanged through fileXioDevctl(). */
++            return (int)status;
+         default:
+-            return -EIO;
++            return (int)status;
+     }
+ 
+     // return TID
