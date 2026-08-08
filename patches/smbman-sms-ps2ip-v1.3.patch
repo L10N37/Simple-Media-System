@@ -1,0 +1,36 @@
+diff --git a/iop/network/smbman/src/smb.c b/iop/network/smbman/src/smb.c
+index 4d201bd..0000000 100644
+--- a/iop/network/smbman/src/smb.c
++++ b/iop/network/smbman/src/smb.c
+@@ -1572,15 +1572,8 @@ int smb_Connect(char *SMBServerIP, int SMBServerPort)
+ //-------------------------------------------------------------------------
+ int smb_Disconnect(void)
+ {
+-    char dummy;
+-
+     if (main_socket != -1) {
+-        // Ensure that all data has been received by the other side before closing.
+-        shutdown(main_socket, SHUT_WR);
+-        // Wait for the remote end to close the socket, which shall happen after all sent data has been received.
+-        while (recv(main_socket, &dummy, sizeof(dummy), 0) > 0)
+-            ;
+-
++        /* SMS's ps2ip v1.3 provider has no shutdown export. */
+         lwip_close(main_socket);
+         main_socket = -1;
+     }
+diff --git a/iop/tcpip/tcpip/include/ps2ip.h b/iop/tcpip/tcpip/include/ps2ip.h
+index 46f0ceb..0000000 100644
+--- a/iop/tcpip/tcpip/include/ps2ip.h
++++ b/iop/tcpip/tcpip/include/ps2ip.h
+@@ -151,7 +151,10 @@
+ 
+ #define ipaddr4_aton(...) ip4addr_aton(__VA_ARGS__)
+ 
+-#define ps2ip_IMPORTS_start DECLARE_IMPORT_TABLE(ps2ip, 2, 6)
++/* Simple Media System embeds its original ps2ip provider, which exports
++   the socket API at the same ordinals under library version 1.3. */
++#define ps2ip_IMPORTS_start DECLARE_IMPORT_TABLE(ps2ip, 1, 3)
+ #define ps2ip_IMPORTS_end END_IMPORT_TABLE
+ 
+ #define I_lwip_accept DECLARE_IMPORT(4, lwip_accept)
