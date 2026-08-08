@@ -4,7 +4,7 @@ Issues I've encountered:
 
 You have one shot to do all your config correctly, you can save once to mc0 and all subsequent config saves fail - fixed
 
-Server Name does not update in SMB server list when changed in 'edit server', deleting it then making a new one is the only way to change the list name. It does update in the 'edit server' sub menu.
+Server Name does not update in SMB server list when changed in 'edit server', deleting it then making a new one is the only way to change the list name. It does update in the 'edit server' sub menu. - fixed
 
 Default SMB port is 445 not 1445
 
