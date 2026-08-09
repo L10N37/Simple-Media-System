@@ -27,9 +27,17 @@ Just have to test on the real system. My movie won't load but this IS PCSX2 (lat
 
 SMB config can not be saved without a server name, saving will give a generic error with no reason as to why - this is no big deal, cbf
 
-SMB is basically broken - Once connected the issue is nothing shows up in the list even though suitable media is on the share drive
+SMB is basically broken - Once connected the issue is nothing shows up in the list even though suitable media is on the share drive - fixed
 
 All readme files in repo branches to be ignored - keeping this checklist on master. Actual fixes ARE in the branches though
+
+Demo Video: https://www.youtube.com/watch?v=Iz7qofQjk8Q
+
+
+Thanks heaps Ripto, spent hours on the original SMS 2009 build using custom builds of a legacy version (1.7.2891) of PCSX2 and building SMS with modern toolchains. After many hours of debugging, I eventually had it loading on PCSX2 but crashing on real hardware. I was using markers scattered through out the source code to work out where it was crashing (leaving empty files on mc1 as a debug tool) then found your update which was great timing as it was so recent. I wish I'd found it straight away. I did check a bunch of forks but yours isn't a fork?. Also great that it works on the latest PCSX2 builds where as the original didn't.
+
+I will PR my updates, well worth the hassle to get it working on my setup :P
+Even better, ffmpeg does conversions of movie files to suit SMS 'SUPER' fast.
 
 ---------------------
 # Simple Media System — MX4SIO / Network Edition
