@@ -21,9 +21,11 @@ Client name is not currently used, if blank it reverts back to 'ps2' but it's cu
 SMB share field is ignored, you can input a shared folder name but the source code ignores it - looking further into this it seems to successfully connect as long as i have at least 6 characters input into this field 
 and saved. Otherwise, error -4097. The field says (optional) yet is somehow causing a successful connect. - fixed
 
-SMB config can not be saved without a server name, saving will give a generic error with no reason as to why
+SMB error logging was added but will likely return -5 no matter what problem is encountered, probably useless - need proper error handling.  - Error handling added, ACCESS DENIED , this means I'm really stupid and I forgot that my emulated 
+SMB environment differs from my real SMB set up! I am using Hyper V with Ubuntu Server 24.04.4 LTS set up for SMB V1 sharing ...and it has a password and username! Wacked these in and I can now navigate the drive / folders etc. 
+Just have to test on the real system. My movie won't load but this IS PCSX2 (latest build as of 09/08/26).
 
-SMB error logging was added but will likely return -5 no matter what problem is encountered, probably useless - need proper error handling
+SMB config can not be saved without a server name, saving will give a generic error with no reason as to why - this is no big deal, cbf
 
 SMB is basically broken - Once connected the issue is nothing shows up in the list even though suitable media is on the share drive
 
