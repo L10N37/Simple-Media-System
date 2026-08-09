@@ -23,9 +23,11 @@ and saved. Otherwise, error -4097. The field says (optional) yet is somehow caus
 
 SMB config can not be saved without a server name, saving will give a generic error with no reason as to why
 
-SMB error logging was added but will likely return -5 no matter what problem is encountered, probably useless
+SMB error logging was added but will likely return -5 no matter what problem is encountered, probably useless - need proper error handling
 
 SMB is basically broken - Once connected the issue is nothing shows up in the list even though suitable media is on the share drive
+
+All readme files in repo branches to be ignored - keeping this checklist on master. Actual fixes ARE in the branches though
 
 ---------------------
 # Simple Media System — MX4SIO / Network Edition
